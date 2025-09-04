@@ -136,7 +136,11 @@ class TaskManager:
     
     def _mark_task_complete(self, line):
         """Mark a task as complete"""
-        return line.replace(TASK_STATUS['INCOMPLETE'], TASK_STATUS['COMPLETE'])
+        # Handle both incomplete and progress tasks
+        if self._is_progress_task(line):
+            return line.replace(TASK_STATUS['PROGRESS'], TASK_STATUS['COMPLETE'])
+        else:
+            return line.replace(TASK_STATUS['INCOMPLETE'], TASK_STATUS['COMPLETE'])
     
     def _mark_task_progress(self, line):
         """Mark a task as in progress"""
@@ -406,18 +410,45 @@ class TaskManager:
         content = self.read_file()
         lines = content.split('\n')
         
-        # Check if it's recurring
-        if self._is_recurring_task(line):
-            # Recurring task - just update date, keep [ ]
-            new_line = self._update_task_date(line)
-        else:
-            # Non-recurring task - mark complete and update date
-            new_line = self._mark_task_complete(line)
-            new_line = self._update_task_date(new_line)
+        # Check if this task is in today's daily section
+        in_daily_section = False
+        for i in range(line_num, -1, -1):
+            if lines[i].strip() == f"## {self.today}":
+                in_daily_section = True
+                break
+            elif lines[i].startswith("## ") and lines[i].strip() != f"## {self.today}":
+                break
         
-        lines[line_num] = new_line
-        self.write_file('\n'.join(lines))
-        print(f"Completed task #{task_id}")
+        if in_daily_section:
+            # Task is in daily section - mark as complete there
+            if self._is_progress_task(line):
+                # Change from progress to complete
+                new_line = self._mark_task_complete(line)
+            elif self._is_incomplete_task(line):
+                # Change from incomplete to complete
+                new_line = self._mark_task_complete(line)
+            else:
+                # Already complete, just return
+                print(f"Task #{task_id} is already complete")
+                return
+            
+            lines[line_num] = new_line
+            self.write_file('\n'.join(lines))
+            print(f"Completed task #{task_id} in daily section")
+        else:
+            # Task is in main list - handle as before
+            # Check if it's recurring
+            if self._is_recurring_task(line):
+                # Recurring task - just update date, keep [ ]
+                new_line = self._update_task_date(line)
+            else:
+                # Non-recurring task - mark complete and update date
+                new_line = self._mark_task_complete(line)
+                new_line = self._update_task_date(new_line)
+            
+            lines[line_num] = new_line
+            self.write_file('\n'.join(lines))
+            print(f"Completed task #{task_id}")
     
     def sync_daily_sections(self, days_back=3):
         """Sync completed items from today's daily section to master list"""

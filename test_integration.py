@@ -153,6 +153,31 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("- [ ] Long project task", content)
         # Date should be updated to today
     
+    def test_progress_to_complete_workflow(self):
+        """Test progress to complete workflow: up -> pass -> complete -> sync"""
+        # Add task to main list
+        self.tm.add_task_to_main("Project task", "PROJECTS")
+        
+        # Pull to daily
+        self.tm.add_task_to_daily_by_id("001")
+        
+        # Mark progress in daily section
+        self.tm.progress_task_in_daily("001")
+        content = self.tm.read_file()
+        self.assertIn("- [~] Project task", content)
+        
+        # Complete the task in daily section
+        self.tm.complete_task("001")
+        content = self.tm.read_file()
+        self.assertIn("- [x] Project task", content)
+        
+        # Sync completion back to main
+        self.tm.sync_daily_sections()
+        content = self.tm.read_file()
+        
+        # Task should be marked complete in main list
+        self.assertIn("- [x] Project task", content)
+    
     def test_snooze_workflow(self):
         """Test snooze workflow: add -> snooze -> check stale -> unsnooze"""
         # Add task
