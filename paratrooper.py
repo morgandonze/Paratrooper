@@ -939,8 +939,12 @@ class TaskManager:
         # Display the current daily section
         self.show_daily_list()
     
-    def show_stale_tasks(self):
-        """Show tasks ordered by staleness, excluding future-snoozed tasks"""
+    def show_stale_tasks(self, scope=None):
+        """Show tasks ordered by staleness, excluding future-snoozed tasks
+        
+        Args:
+            scope: Optional section filter (e.g., 'projects', 'areas:work')
+        """
         content = self.read_file()
         today_obj = datetime.strptime(self.today, "%d-%m-%Y")
         
@@ -950,13 +954,46 @@ class TaskManager:
             print("No MAIN section found")
             return
         
+        # Parse scope if provided
+        target_main_section = None
+        target_subsection = None
+        if scope:
+            if ":" in scope:
+                target_main_section, target_subsection = scope.split(":", 1)
+                target_main_section = target_main_section.upper()
+                target_subsection = target_subsection.upper()
+            else:
+                target_main_section = scope.upper()
+                target_subsection = None
+        
         tasks = []
+        current_main_section = None
+        current_subsection = None
         
         for line_num, line in enumerate(main_lines):
+            # Track current section
+            if line.startswith("## ") and not line.startswith("### "):
+                current_main_section = line[3:].strip()
+                current_subsection = None
+            elif line.startswith("### "):
+                current_subsection = line[4:].strip()
+            
             # Parse task using new format
             task_data = self._parse_task_line(line)
             if not task_data or task_data['status'] != ' ' or not task_data['id'] or not task_data['date']:
                 continue
+            
+            # Apply scope filtering
+            if scope:
+                if target_subsection:
+                    # Looking for specific subsection
+                    if (current_main_section != target_main_section or 
+                        current_subsection != target_subsection):
+                        continue
+                else:
+                    # Looking for main section only
+                    if current_main_section != target_main_section:
+                        continue
             
             # Check if task is snoozed in the future
             if task_data['snooze']:
@@ -977,7 +1014,25 @@ class TaskManager:
         # Sort by days ago (descending = oldest first)
         tasks.sort(key=lambda x: x[0], reverse=True)
         
-        print("=== Tasks by staleness (oldest first) ===")
+        # Display header
+        if scope:
+            if target_subsection:
+                print(f"=== Stale tasks in {target_main_section} > {target_subsection} (oldest first) ===")
+            else:
+                print(f"=== Stale tasks in {target_main_section} (oldest first) ===")
+        else:
+            print("=== Tasks by staleness (oldest first) ===")
+        
+        if not tasks:
+            if scope:
+                if target_subsection:
+                    print(f"No stale tasks found in {target_main_section} > {target_subsection}")
+                else:
+                    print(f"No stale tasks found in {target_main_section}")
+            else:
+                print("No stale tasks found")
+            return
+        
         for days_ago, date_str, task_text, task_id in tasks[:15]:
             status = "🔴" if days_ago > 7 else "🟡" if days_ago > 3 else "🟢"
             print(f"{status} {days_ago:2d} days | #{task_id} | {task_text}")
@@ -1815,7 +1870,8 @@ COMMANDS:
   config                 Show current configuration
   init                   Initialize the task file with default structure
   daily                  Add today's daily section with recurring tasks (or show if exists)
-  stale                  Show stale tasks (oldest first, ignores snoozed)
+  stale [SCOPE]          Show stale tasks (oldest first, ignores snoozed)
+                         SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
   
   complete ID            Mark task with ID as complete
   done ID                Alias for complete
@@ -1863,6 +1919,8 @@ EXAMPLES:
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
   tasks stale                              # See what needs attention
+  tasks stale projects                     # See stale tasks in PROJECTS section
+  tasks stale areas:work                   # See stale tasks in AREAS > WORK subsection
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text
   tasks move 042 PROJECTS:HOME             # Move task to subsection
@@ -2321,7 +2379,8 @@ def main():
         # Always check for new recurring tasks and add them
         tm.add_daily_section()
     elif command == "stale":
-        tm.show_stale_tasks()
+        scope = args[1] if len(args) > 1 else None
+        tm.show_stale_tasks(scope)
     elif command == "complete" and len(args) > 1:
         tm.complete_task(args[1])
     elif command == "done" and len(args) > 1:
