@@ -317,9 +317,9 @@ class TaskManager:
                 "complete": "✅"
             },
             "nest": {
-                "incomplete": "🪺",
+                "incomplete": "🪹",
                 "progress": "🔜",
-                "complete": "🪹"
+                "complete": "🪺"
             },
             "minimal": {
                 "incomplete": "☐",
