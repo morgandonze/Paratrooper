@@ -1168,11 +1168,13 @@ class TaskManager:
         content = self.read_file()
         lines = content.split('\n')
         
-        # Extract task text (remove checkbox, date, ID, and any tags)
-        task_text = re.sub(r'^- \[.\] ', '', line)  # Remove checkbox
-        task_text = re.sub(r' @\d{2}-\d{2}-\d{4}.*$', '', task_text)  # Remove date and everything after
-        task_text = re.sub(r' #\d{3}.*$', '', task_text)  # Remove ID and everything after
-        task_text = task_text.strip()
+        # Extract task text using new format parsing
+        task_data = self._parse_task_line(line)
+        if not task_data:
+            print(f"Could not parse task #{task_id}")
+            return
+        
+        task_text = task_data['text']
         
         # Find the section this task belongs to
         current_subsection = None

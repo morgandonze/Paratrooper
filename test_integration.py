@@ -52,8 +52,8 @@ class TestIntegration(unittest.TestCase):
         self.tm.add_task_to_daily_by_id("002")  # up command
         
         content = self.tm.read_file()
-        self.assertIn("Write blog post (from: PROJECTS)", content)
-        self.assertIn("Call client (from: INBOX)", content)
+        self.assertIn("Write blog post from PROJECTS", content)
+        self.assertIn("Call client from INBOX", content)
         
         # Step 4: Simulate work (mark progress and completion)
         # Manually edit daily section to simulate work
@@ -71,8 +71,8 @@ class TestIntegration(unittest.TestCase):
         
         # Verify the daily section state before sync
         content = self.tm.read_file()
-        self.assertIn("- [~] Write blog post (from: PROJECTS)", content)
-        self.assertIn("- [x] Call client (from: INBOX)", content)
+        self.assertIn("- [~] Write blog post from PROJECTS", content)
+        self.assertIn("- [x] Call client from INBOX", content)
         
         # Step 5: Sync progress back to main list
         self.tm.sync_daily_sections()
@@ -98,7 +98,7 @@ class TestIntegration(unittest.TestCase):
         # Step 3: Create daily section (should include recurring task)
         self.tm.add_daily_section()
         content = self.tm.read_file()
-        self.assertIn("Morning exercise (from: AREAS)", content)
+        self.assertIn("Morning exercise from AREAS", content)
         
         # Step 4: Complete the recurring task in daily section
         content = self.tm.read_file()
@@ -117,20 +117,20 @@ class TestIntegration(unittest.TestCase):
     def test_up_down_commands(self):
         """Test up/down command workflow"""
         # Add task to main list
-        self.tm.add_task_to_main("Test up/down task", "PROJECTS")
+        self.tm.add_task_to_main("Test up down task", "PROJECTS")
         
         # Up command (pull to daily)
         self.tm.add_task_to_daily_by_id("001")
         content = self.tm.read_file()
-        self.assertIn("Test up/down task (from: PROJECTS)", content)
+        self.assertIn("Test up down task from PROJECTS", content)
         
         # Down command (remove from daily)
         self.tm.delete_task_from_daily("001")
         content = self.tm.read_file()
-        self.assertNotIn("Test up/down task (from: PROJECTS)", content)
+        self.assertNotIn("Test up down task from PROJECTS", content)
         
         # Task should still exist in main list
-        self.assertIn("Test up/down task", content)
+        self.assertIn("Test up down task", content)
     
     def test_progress_tracking_workflow(self):
         """Test progress tracking: up -> pass -> sync"""
@@ -191,7 +191,7 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         
         # Task should be in daily section
-        self.assertIn("- [x] Auto-add test task (from: INBOX)", content)
+        self.assertIn("- [x] Auto-add test task from INBOX", content)
         
         # Add another task for progress test
         self.tm.add_task_to_main("Progress test task", "PROJECTS")
@@ -201,7 +201,7 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         
         # Task should be in daily section
-        self.assertIn("- [~] Progress test task (from: PROJECTS)", content)
+        self.assertIn("- [~] Progress test task from PROJECTS", content)
     
     def test_sync_auto_add_workflow(self):
         """Test sync auto-add workflow: manual changes in main -> sync adds to daily"""
@@ -229,8 +229,8 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         
         # Tasks should be in daily section
-        self.assertIn("- [x] Sync test 1 (from: INBOX)", content)
-        self.assertIn("- [~] Sync test 2 (from: PROJECTS)", content)
+        self.assertIn("- [x] Sync test 1 from INBOX", content)
+        self.assertIn("- [~] Sync test 2 from PROJECTS", content)
     
     def test_snooze_workflow(self):
         """Test snooze workflow: add -> snooze -> check stale -> unsnooze"""
