@@ -238,10 +238,40 @@ class TaskFile:
         return '\n'.join(lines)
 
 class TaskManager:
-    def __init__(self):
+    def __init__(self, icon_set="default"):
         self.task_file = TASK_FILE
         self.today = TODAY
         self._task_file_obj = None
+        
+        # Define icon sets
+        self.icon_sets = {
+            "default": {
+                "incomplete": "⏳",
+                "progress": "🔄", 
+                "complete": "✅"
+            },
+            "nest": {
+                "incomplete": "🪺",
+                "progress": "🔜",
+                "complete": "🪹"
+            },
+            "minimal": {
+                "incomplete": "☐",
+                "progress": "⚪",
+                "complete": "☑️"
+            },
+            "work": {
+                "incomplete": "🔨",
+                "progress": "⚒️",
+                "complete": "✅"
+            }
+        }
+        
+        # Set current icon set
+        self.icon_set = icon_set
+        if icon_set not in self.icon_sets:
+            print(f"Warning: Unknown icon set '{icon_set}', using default")
+            self.icon_set = "default"
     
     def init(self):
         """Initialize the task file with default structure if it doesn't exist"""
@@ -1759,13 +1789,14 @@ For more info: https://fortelabs.com/blog/para/
             if not task_data:
                 continue
             
-            # Extract status and ID
+            # Extract status and ID using current icon set
+            icons = self.icon_sets[self.icon_set]
             if task_data['status'] == 'x':
-                status = "✅"
+                status = icons['complete']
             elif task_data['status'] == '~':
-                status = "🔄"
+                status = icons['progress']
             else:
-                status = "⏳"
+                status = icons['incomplete']
             
             task_id = task_data['id']
             id_display = f"#{task_id}" if task_id else ""
@@ -2012,13 +2043,14 @@ For more info: https://fortelabs.com/blog/para/
             if not task_data:
                 continue
             
-            # Extract status and ID
+            # Extract status and ID using current icon set
+            icons = self.icon_sets[self.icon_set]
             if task_data['status'] == 'x':
-                status = "✅"
+                status = icons['complete']
             elif task_data['status'] == '~':
-                status = "🔄"
+                status = icons['progress']
             else:
-                status = "⏳"
+                status = icons['incomplete']
             
             task_id = task_data['id']
             id_display = f"#{task_id}" if task_id else ""
@@ -2026,13 +2058,30 @@ For more info: https://fortelabs.com/blog/para/
             print(f"{status} {task_data['text']} {id_display}")
 
 def main():
-    tm = TaskManager()
+    # Parse command line arguments
+    args = sys.argv[1:]
     
-    if len(sys.argv) < 2:
+    # Check for --icons flag
+    icon_set = "default"
+    if "--icons" in args:
+        try:
+            icons_index = args.index("--icons")
+            if icons_index + 1 < len(args):
+                icon_set = args[icons_index + 1]
+                # Remove --icons and its value from args
+                args = args[:icons_index] + args[icons_index + 2:]
+        except (ValueError, IndexError):
+            print("Error: --icons flag requires a value")
+            print("Available icon sets: default, nest, minimal, work")
+            return
+    
+    tm = TaskManager(icon_set=icon_set)
+    
+    if len(args) < 1:
         tm.show_help()
         return
     
-    command = sys.argv[1]
+    command = args[0]
     
     if command == "help":
         tm.show_help()
@@ -2043,99 +2092,99 @@ def main():
         tm.add_daily_section()
     elif command == "stale":
         tm.show_stale_tasks()
-    elif command == "complete" and len(sys.argv) > 2:
-        tm.complete_task(sys.argv[2])
-    elif command == "pass" and len(sys.argv) > 2:
-        tm.progress_task_in_daily(sys.argv[2])
+    elif command == "complete" and len(args) > 1:
+        tm.complete_task(args[1])
+    elif command == "pass" and len(args) > 1:
+        tm.progress_task_in_daily(args[1])
     elif command == "sync":
         tm.sync_daily_sections()
-    elif command == "add" and len(sys.argv) > 2:
+    elif command == "add" and len(args) > 1:
         # Parse section argument properly
         valid_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
         
-        if len(sys.argv) == 3:
+        if len(args) == 3:
             # Just task text, no section
-            task_text = sys.argv[2]
+            task_text = args[2]
             section = "INBOX"
         else:
             # Check if last argument is a section
-            last_arg = sys.argv[-1]
+            last_arg = args[-1]
             main_part = last_arg.split(":")[0].upper()
             
             if main_part in valid_sections:
                 # Last argument is a section/subsection
                 section = last_arg
-                task_text = " ".join(sys.argv[2:-1])
+                task_text = " ".join(args[2:-1])
             else:
                 # All arguments are task text
-                task_text = " ".join(sys.argv[2:])
+                task_text = " ".join(args[2:])
                 section = "INBOX"
         
         tm.add_task_to_main(task_text, section)
-    elif command == "add-main" and len(sys.argv) > 2:
+    elif command == "add-main" and len(args) > 2:
         # Parse section argument properly
         valid_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
         
-        if len(sys.argv) == 3:
+        if len(args) == 3:
             # Just task text, no section
-            task_text = sys.argv[2]
+            task_text = args[2]
             section = "INBOX"
         else:
             # Check if last argument is a section
-            last_arg = sys.argv[-1]
+            last_arg = args[-1]
             main_part = last_arg.split(":")[0].upper()
             
             if main_part in valid_sections:
                 # Last argument is a section/subsection
                 section = last_arg
-                task_text = " ".join(sys.argv[2:-1])
+                task_text = " ".join(args[2:-1])
             else:
                 # All arguments are task text
-                task_text = " ".join(sys.argv[2:])
+                task_text = " ".join(args[2:])
                 section = "INBOX"
         
         tm.add_task_to_main(task_text, section)
-    elif command == "add-daily" and len(sys.argv) > 2:
-        tm.add_task_to_daily(" ".join(sys.argv[2:]))
-    elif command == "up" and len(sys.argv) > 2:
-        tm.add_task_to_daily_by_id(sys.argv[2])
-    elif command == "snooze" and len(sys.argv) > 3:
-        tm.snooze_task(sys.argv[2], sys.argv[3])
+    elif command == "add-daily" and len(args) > 2:
+        tm.add_task_to_daily(" ".join(args[2:]))
+    elif command == "up" and len(args) > 2:
+        tm.add_task_to_daily_by_id(args[2])
+    elif command == "snooze" and len(args) > 3:
+        tm.snooze_task(args[2], args[3])
 
     elif command == "sections":
         tm.list_sections()
     elif command == "archive":
-        if len(sys.argv) > 2:
+        if len(args) > 2:
             try:
-                days = int(sys.argv[2])
+                days = int(args[2])
                 tm.archive_old_content(days)
             except ValueError:
                 print("Invalid number of days. Use: tasks archive [days]")
         else:
             tm.archive_old_content()
-    elif command == "delete" and len(sys.argv) > 2:
-        tm.delete_task_from_main(sys.argv[2])
-    elif command == "down" and len(sys.argv) > 2:
-        tm.delete_task_from_daily(sys.argv[2])
-    elif command == "purge" and len(sys.argv) > 2:
-        tm.purge_task(sys.argv[2])
-    elif command == "show" and len(sys.argv) > 2:
+    elif command == "delete" and len(args) > 2:
+        tm.delete_task_from_main(args[2])
+    elif command == "down" and len(args) > 2:
+        tm.delete_task_from_daily(args[2])
+    elif command == "purge" and len(args) > 2:
+        tm.purge_task(args[2])
+    elif command == "show" and len(args) > 2:
         # Check if it's a section:subsection format or a known section name
-        if ":" in sys.argv[2] or sys.argv[2].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
-            tm.show_section(sys.argv[2])
-        elif not sys.argv[2].isdigit():
+        if ":" in args[2] or args[2].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+            tm.show_section(args[2])
+        elif not args[2].isdigit():
             # Try as section name if it's not a number
-            tm.show_section(sys.argv[2])
+            tm.show_section(args[2])
         else:
             # Original show task by ID functionality
-            tm.show_task(sys.argv[2])
-    elif command == "edit" and len(sys.argv) > 3:
-        task_id = sys.argv[2]
-        new_text = " ".join(sys.argv[3:])
+            tm.show_task(args[2])
+    elif command == "edit" and len(args) > 3:
+        task_id = args[2]
+        new_text = " ".join(args[3:])
         tm.edit_task(task_id, new_text)
-    elif command == "move" and len(sys.argv) > 3:
-        task_id = sys.argv[2]
-        new_section = sys.argv[3]
+    elif command == "move" and len(args) > 3:
+        task_id = args[2]
+        new_section = args[3]
         tm.move_task(task_id, new_section)
     else:
         print(f"Unknown command: {command}")
