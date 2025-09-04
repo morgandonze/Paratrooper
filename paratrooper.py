@@ -1648,6 +1648,73 @@ class TaskManager:
             if task_data['snooze']:
                 print(f"  Snoozed until: {task_data['snooze']}")
     
+    def show_task_from_main(self, task_id):
+        """Show details of a specific task by ID from main section only"""
+        result = self.find_task_by_id_in_main(task_id)
+        if not result:
+            print(f"No task found with ID #{task_id} in MAIN section")
+            return
+        
+        line_num, line = result
+        task_data = self._parse_task_line(line)
+        
+        # Find the section this task belongs to
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        current_subsection = None
+        current_project = None
+        
+        # Search backwards from the task line to find its section
+        for i in range(line_num - 1, -1, -1):
+            if i >= len(lines):
+                continue
+                
+            current_line = lines[i]
+            
+            # Check for main section (##)
+            if current_line.startswith("## ") and not current_line.startswith("### "):
+                section_name = current_line[3:].strip()
+                if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+                    current_subsection = section_name
+                    break
+                elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
+                    # This is a daily section, skip it
+                    continue
+                else:
+                    # This might be a subsection under MAIN
+                    current_subsection = section_name
+                    break
+            
+            # Check for project subsection (###)
+            elif current_line.startswith("### "):
+                # Only set if we haven't found one yet (first one encountered when searching backwards)
+                if current_project is None:
+                    current_project = current_line[4:].strip()
+                # Continue searching for the main section
+        
+        # Build section reference
+        if current_project and current_subsection:
+            section_ref = f"{current_subsection} > {current_project}"
+        elif current_subsection:
+            section_ref = current_subsection
+        else:
+            section_ref = "UNKNOWN"
+        
+        print(f"Task #{task_id} from {section_ref}:")
+        print(f"  {line.strip()}")
+        print(f"  Line: {line_num + 1}")
+        
+        if task_data:
+            print(f"  Status: {task_data['status']}")
+            print(f"  Text: {task_data['text']}")
+            if task_data['date']:
+                print(f"  Date: {task_data['date']}")
+            if task_data['recurring']:
+                print(f"  Recurring: {task_data['recurring']}")
+            if task_data['snooze']:
+                print(f"  Snoozed until: {task_data['snooze']}")
+    
     def list_sections(self):
         """List all available sections"""
         content = self.read_file()
@@ -1901,9 +1968,9 @@ COMMANDS:
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
   
-  show                   Show all tasks from main sections
-  show ID                Show details of specific task
-  show SECTION[:SUBSEC]   Show tasks in a specific section (e.g., show PROJECTS:HOME)
+  list                   List all tasks from main sections
+  list SECTION[:SUBSEC]   List tasks in a specific section (e.g., list PROJECTS:HOME)
+  show ID                Show details of specific task from main section
   sections               List all available sections
   archive [DAYS]         Clean up old daily sections and completed tasks (default: 7 days)
   
@@ -1926,8 +1993,9 @@ EXAMPLES:
   tasks done 042                           # Alias for complete
   tasks reopen 042                         # Reopen completed task
   tasks undone 042                         # Alias for reopen
-  tasks show                               # Show all tasks from main sections
-  tasks show PROJECTS:HOME                 # Show tasks in PROJECTS > HOME subsection
+  tasks list                               # List all tasks from main sections
+  tasks list PROJECTS:HOME                 # List tasks in PROJECTS > HOME subsection
+  tasks show 001                           # Show details of task #001
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
   tasks status                             # See what needs attention
@@ -2554,7 +2622,7 @@ def main():
         tm.delete_task_from_daily(args[1])
     elif command == "purge" and len(args) > 1:
         tm.purge_task(args[1])
-    elif command == "show":
+    elif command == "list":
         if len(args) > 1:
             # Check if it's a section:subsection format or a known section name
             if ":" in args[1] or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
@@ -2566,8 +2634,11 @@ def main():
                 # Original show task by ID functionality
                 tm.show_task(args[1])
         else:
-            # Show all main sections when no arguments provided
+            # List all main sections when no arguments provided
             tm.show_all_main()
+    elif command == "show" and len(args) > 1:
+        # Show details of a specific task by ID from main section
+        tm.show_task_from_main(args[1])
     elif command == "edit" and len(args) > 2:
         task_id = args[1]
         new_text = " ".join(args[2:])
