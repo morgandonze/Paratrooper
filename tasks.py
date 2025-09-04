@@ -485,6 +485,40 @@ class TaskManager:
         self.write_file(new_content)
         print(f"Added task #{task_id} to today's section: {task_text}")
     
+    def add_task_to_daily_by_id(self, task_id):
+        """Pull a task from main list into today's daily section by ID"""
+        # Find the task in the main list
+        result = self.find_task_by_id(task_id)
+        if not result:
+            print(f"No task found with ID #{task_id}")
+            return
+        
+        line_num, line = result
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Extract task text (remove checkbox, date, ID, and any tags)
+        task_text = re.sub(r'^- \[.\] ', '', line)  # Remove checkbox
+        task_text = re.sub(r' @\d{2}-\d{2}-\d{4}.*$', '', task_text)  # Remove date and everything after
+        task_text = re.sub(r' #\d{3}.*$', '', task_text)  # Remove ID and everything after
+        task_text = task_text.strip()
+        
+        # Check if today's section exists
+        if f"## {self.today}" not in content:
+            print(f"No daily section for {self.today} found. Creating it first...")
+            self.add_daily_section()
+            content = self.read_file()
+            lines = content.split('\n')
+        
+        # Add task to today's section
+        today_pattern = f"(## {re.escape(self.today)}\\n)"
+        new_task = f"- [ ] {task_text} #{task_id}\n"
+        replacement = f"\\1{new_task}"
+        
+        new_content = re.sub(today_pattern, replacement, content)
+        self.write_file(new_content)
+        print(f"Pulled task #{task_id} to today's section: {task_text}")
+    
     def progress_task_in_daily(self, task_id):
         """Mark a task as progressed ([~]) in today's daily section"""
         content = self.read_file()
@@ -700,6 +734,7 @@ COMMANDS:
   add-main TEXT [SEC]    Add task to main list section (default: INBOX)
                          Use SEC:SUBSEC for subsections (e.g., PROJECTS:HOME)
   add-daily TEXT         Add task directly to today's daily section
+  pull ID                Pull task from main list into today's daily section
   
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
@@ -713,6 +748,7 @@ EXAMPLES:
   tasks add "write blog post" PROJECTS     # Add task to specific section
   tasks add "fix faucet" PROJECTS:HOME     # Add to subsection
   tasks add-daily "urgent client call"     # Add to today only
+  tasks pull 042                          # Pull task #042 to today's daily section
   tasks complete 042                       # Mark task done
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
