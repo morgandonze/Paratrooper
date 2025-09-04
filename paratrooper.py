@@ -2258,6 +2258,7 @@ For more info: https://fortelabs.com/blog/para/
                     if current_section == main_section:
                         section_found = True
                         current_subsection = None
+                        subsection_found = False  # Reset subsection_found when entering new main section
                     else:
                         # We've moved past our target section
                         if section_found:
@@ -2268,14 +2269,14 @@ For more info: https://fortelabs.com/blog/para/
                     current_subsection = line[4:].strip()
                     if subsection and current_subsection == subsection:
                         subsection_found = True
-                    elif subsection and current_subsection != subsection:
-                        subsection_found = False
+                    # Don't reset subsection_found when we find a different subsection
+                    # We only reset it when we enter a new main section
                 
                 # Collect tasks
                 elif self._is_task_line(line):
                     # If we're looking for a specific subsection
                     if subsection:
-                        if subsection_found:
+                        if subsection_found and section_found:
                             section_tasks.append(line)
                     # If we're looking for just the main section
                     elif section_found:
