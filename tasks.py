@@ -249,7 +249,6 @@ class TaskManager:
         daily_section = f"\n## {self.today}\n"
         for task in recurring_tasks:
             daily_section += f"- [ ] {task['text']} (from: {task['section']}) #{task['id']}\n"
-        daily_section += "\n"
         
         # Insert into DAILY section
         daily_pattern = r"(# DAILY\n)"
@@ -580,7 +579,7 @@ class TaskManager:
         # Add task to today's section with section information
         today_pattern = f"(## {re.escape(self.today)}\\n)"
         new_task = f"- [ ] {task_text} (from: {section_ref}) #{task_id}\n"
-        replacement = f"\\1{new_task}"
+        replacement = f"\\1\\n{new_task}"
         
         new_content = re.sub(today_pattern, replacement, content)
         self.write_file(new_content)
