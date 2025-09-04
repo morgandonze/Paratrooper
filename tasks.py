@@ -1197,7 +1197,7 @@ USAGE:
 
 COMMANDS:
   help                   Show this help message
-  daily                  Add today's daily section with recurring tasks
+  daily                  Add today's daily section with recurring tasks (or show if exists)
   stale                  Show stale tasks (oldest first, ignores snoozed)
   
   complete ID            Mark task with ID as complete
@@ -1216,6 +1216,7 @@ COMMANDS:
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
   
   show ID                Show details of specific task
+  show SECTION[:SUBSEC]   Show tasks in a specific section (e.g., show PROJECTS:HOME)
   sections               List all available sections
   archive [DAYS]         Clean up old daily sections and completed tasks (default: 7 days)
   
@@ -1224,12 +1225,13 @@ COMMANDS:
   purge ID               Delete task from main list and all daily sections
 
 EXAMPLES:
-  tasks daily                              # Start your day
+  tasks daily                              # Start your day (creates or shows daily section)
   tasks add "write blog post" PROJECTS     # Add task to specific section
   tasks add "fix faucet" PROJECTS:HOME     # Add to subsection
   tasks add-daily "urgent client call"     # Add to today only
   tasks up 042                            # Pull task #042 to today's daily section
   tasks complete 042                       # Mark task done
+  tasks show PROJECTS:HOME                 # Show tasks in PROJECTS > HOME subsection
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
   tasks stale                              # See what needs attention
@@ -1292,6 +1294,162 @@ For more info: https://fortelabs.com/blog/para/
 """
         print(help_text)
 
+    def show_daily_list(self):
+        """Show today's daily section"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        today_section_found = False
+        daily_tasks = []
+        
+        for line in lines:
+            if line.strip() == f"## {self.today}":
+                today_section_found = True
+                continue
+            
+            if today_section_found:
+                # Stop if we hit another daily section or leave the DAILY section
+                if line.startswith("## ") and line.strip() != f"## {self.today}":
+                    break
+                
+                # Collect tasks from today's section
+                if self._is_task_line(line):
+                    daily_tasks.append(line)
+        
+        if not today_section_found:
+            print(f"No daily section found for {self.today}")
+            print("Run 'tasks daily' to create today's section")
+            return
+        
+        if not daily_tasks:
+            print(f"Daily section for {self.today} is empty")
+            return
+        
+        print(f"=== Daily Tasks for {self.today} ===")
+        for task in daily_tasks:
+            # Extract task info for better display
+            task_text = re.sub(r'^- \[.\] ', '', task)  # Remove checkbox
+            task_text = re.sub(r' #\d{3}.*$', '', task_text)  # Remove ID and everything after
+            task_text = task_text.strip()
+            
+            # Extract status and ID
+            if self._is_complete_task(task):
+                status = "✅"
+            elif self._is_progress_task(task):
+                status = "🔄"
+            else:
+                status = "⏳"
+            
+            task_id = self._extract_task_id(task)
+            id_display = f"#{task_id}" if task_id else ""
+            
+            print(f"{status} {task_text} {id_display}")
+    
+    def show_section(self, section_name):
+        """Show a specific section from main list"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Parse section:subsection format
+        if ":" in section_name:
+            main_section, subsection = section_name.split(":", 1)
+            main_section = main_section.upper()
+            subsection = subsection.upper()
+        else:
+            main_section = section_name.upper()
+            subsection = None
+        
+        section_found = False
+        subsection_found = False
+        section_tasks = []
+        current_subsection = None
+        
+        in_main_section = False
+        
+        for line in lines:
+            # Check if we're entering the MAIN section
+            if line.strip() == "# MAIN":
+                in_main_section = True
+                continue
+            
+            # Check if we're leaving the MAIN section
+            if in_main_section and line.startswith("# ") and line.strip() != "# MAIN":
+                break
+            
+            if in_main_section:
+                # Check for main section headers (##)
+                if line.startswith("## ") and not line.startswith("### "):
+                    current_section = line[3:].strip()
+                    if current_section == main_section:
+                        section_found = True
+                        current_subsection = None
+                    else:
+                        # We've moved past our target section
+                        if section_found:
+                            break
+                
+                # Check for subsection headers (###)
+                elif line.startswith("### "):
+                    current_subsection = line[4:].strip()
+                    if subsection and current_subsection == subsection:
+                        subsection_found = True
+                    elif subsection and current_subsection != subsection:
+                        subsection_found = False
+                
+                # Collect tasks
+                elif self._is_task_line(line):
+                    # If we're looking for a specific subsection
+                    if subsection:
+                        if subsection_found:
+                            section_tasks.append(line)
+                    # If we're looking for just the main section
+                    elif section_found:
+                        section_tasks.append(line)
+        
+        if not section_found:
+            print(f"Section '{main_section}' not found in MAIN")
+            print("Available sections:")
+            main_lines = self.find_section("MAIN", level=1)
+            if main_lines:
+                for line in main_lines:
+                    if line.startswith("## "):
+                        print(f"  - {line[3:]}")
+            return
+        
+        if subsection and not subsection_found:
+            print(f"Subsection '{subsection}' not found in '{main_section}'")
+            return
+        
+        # Display the section
+        if subsection:
+            print(f"=== {main_section} > {subsection} ===")
+        else:
+            print(f"=== {main_section} ===")
+        
+        if not section_tasks:
+            print("(No tasks)")
+            return
+        
+        for task in section_tasks:
+            # Extract task info for better display
+            task_text = re.sub(r'^- \[.\] ', '', task)  # Remove checkbox
+            task_text = re.sub(r' @\d{2}-\d{2}-\d{4}.*$', '', task_text)  # Remove date and everything after
+            task_text = re.sub(r' #\d{3}.*$', '', task_text)  # Remove ID and everything after
+            task_text = task_text.strip()
+            
+            # Extract status and ID
+            if self._is_complete_task(task):
+                status = "✅"
+            elif self._is_progress_task(task):
+                status = "🔄"
+            else:
+                status = "⏳"
+            
+            task_id = self._extract_task_id(task)
+            id_display = f"#{task_id}" if task_id else ""
+            
+            print(f"{status} {task_text} {id_display}")
+
 def main():
     tm = TaskManager()
     
@@ -1304,7 +1462,13 @@ def main():
     if command == "help":
         tm.show_help()
     elif command == "daily":
-        tm.add_daily_section()
+        # Check if today's daily section exists, if not create it
+        content = tm.read_file()
+        if f"## {tm.today}" not in content:
+            tm.add_daily_section()
+        else:
+            # Show today's daily list
+            tm.show_daily_list()
     elif command == "stale":
         tm.show_stale_tasks()
     elif command == "complete" and len(sys.argv) > 2:
@@ -1365,8 +1529,7 @@ def main():
         tm.add_task_to_daily_by_id(sys.argv[2])
     elif command == "snooze" and len(sys.argv) > 3:
         tm.snooze_task(sys.argv[2], sys.argv[3])
-    elif command == "show" and len(sys.argv) > 2:
-        tm.show_task(sys.argv[2])
+
     elif command == "sections":
         tm.list_sections()
     elif command == "archive":
@@ -1384,6 +1547,16 @@ def main():
         tm.delete_task_from_daily(sys.argv[2])
     elif command == "purge" and len(sys.argv) > 2:
         tm.purge_task(sys.argv[2])
+    elif command == "show" and len(sys.argv) > 2:
+        # Check if it's a section:subsection format or a known section name
+        if ":" in sys.argv[2] or sys.argv[2].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+            tm.show_section(sys.argv[2])
+        elif not sys.argv[2].isdigit():
+            # Try as section name if it's not a number
+            tm.show_section(sys.argv[2])
+        else:
+            # Original show task by ID functionality
+            tm.show_task(sys.argv[2])
     else:
         print(f"Unknown command: {command}")
         print("Run 'tasks help' to see available commands.")
