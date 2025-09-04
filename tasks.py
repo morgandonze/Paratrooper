@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 # Configuration
-TASK_FILE = Path.home() / "home" / "texts.md"
+TASK_FILE = Path.home() / "home" / "tasks.md"
 TODAY = datetime.now().strftime("%d-%m-%Y")
 
 class TaskManager:
@@ -327,35 +327,47 @@ class TaskManager:
         print(f"Completed task #{task_id}")
     
     def sync_daily_sections(self, days_back=3):
-        """Sync completed items from recent daily sections to master list"""
+        """Sync completed items from today's daily section to master list"""
         content = self.read_file()
         lines = content.split('\n')
         
-        # Find completed daily tasks with IDs (only in DAILY section)
-        daily_lines = self.find_section("DAILY", level=1)
-        if not daily_lines:
-            print("No DAILY section found")
-            return
-        
+        # Find today's daily section specifically
+        today_section_found = False
         completed_daily_ids = []
         progressed_daily_ids = []
         
-        for line in daily_lines:
-            if re.match(r'- \[x\] .*#(\d{3})', line):
-                id_match = re.search(r'#(\d{3})', line)
-                if id_match:
-                    completed_daily_ids.append(id_match.group(1))
-            elif re.match(r'- \[~\] .*#(\d{3})', line):
-                id_match = re.search(r'#(\d{3})', line)
-                if id_match:
-                    progressed_daily_ids.append(id_match.group(1))
+        for line in lines:
+            # Check if we're entering today's daily section
+            if line.strip() == f"## {self.today}":
+                today_section_found = True
+                continue
+            
+            # If we're in today's section, process tasks
+            if today_section_found:
+                # Stop if we hit another daily section or leave the DAILY section
+                if line.startswith("## ") and line.strip() != f"## {self.today}":
+                    break
+                
+                # Look for completed and progressed tasks
+                if re.match(r'- \[x\] .*#(\d{3})', line):
+                    id_match = re.search(r'#(\d{3})', line)
+                    if id_match:
+                        completed_daily_ids.append(id_match.group(1))
+                elif re.match(r'- \[~\] .*#(\d{3})', line):
+                    id_match = re.search(r'#(\d{3})', line)
+                    if id_match:
+                        progressed_daily_ids.append(id_match.group(1))
+        
+        if not today_section_found:
+            print(f"No daily section found for {self.today}")
+            return
         
         # Update corresponding master list tasks by ID
         updates_made = 0
         
         # Handle completed tasks
         for task_id in completed_daily_ids:
-            result = self.find_task_by_id(task_id)
+            result = self.find_task_by_id_in_main(task_id)
             if result:
                 line_num, line = result
                 if re.match(r'- \[ \] ', line):  # Only update if not already complete
@@ -371,7 +383,11 @@ class TaskManager:
         
         # Handle progressed tasks (just update date, don't complete)
         for task_id in progressed_daily_ids:
-            result = self.find_task_by_id(task_id)
+            # Skip if this task was already processed as completed
+            if task_id in completed_daily_ids:
+                continue
+                
+            result = self.find_task_by_id_in_main(task_id)
             if result:
                 line_num, line = result
                 if re.match(r'- \[ \] ', line):  # Only update incomplete tasks
@@ -381,11 +397,11 @@ class TaskManager:
         
         if updates_made > 0:
             self.write_file('\n'.join(lines))
-            completed_count = len([id for id in completed_daily_ids if self.find_task_by_id(id)])
-            progressed_count = len([id for id in progressed_daily_ids if self.find_task_by_id(id)])
-            print(f"Synced {completed_count} completed and {progressed_count} progressed tasks from daily sections")
+            completed_count = len([id for id in completed_daily_ids if self.find_task_by_id_in_main(id)])
+            progressed_count = len([id for id in progressed_daily_ids if self.find_task_by_id_in_main(id)])
+            print(f"Synced {completed_count} completed and {progressed_count} progressed tasks from today's daily section")
         else:
-            print("No completed or progressed daily tasks found to sync")
+            print("No completed or progressed tasks found in today's daily section")
     
     def add_task_to_main(self, task_text, section="INBOX"):
         """Add a new task to main list section or subsection"""
