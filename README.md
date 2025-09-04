@@ -1,30 +1,35 @@
-# PARA + Daily Task Management System
+# Paratrooper 🪂 - PARA + Daily Task Management System
 
 A powerful, flexible task management system that combines the PARA methodology with daily progress tracking. Built as a single Python script that manages a plain text file, making it portable, future-proof, and tool-agnostic.
+
+**The paratrooper is ready to drop into your daily tasks!**
 
 ## 🚀 Quick Start
 
 ```bash
-# Install (just download tasks.py and make it executable)
-chmod +x tasks.py
+# Install (just download paratrooper.py and make it executable)
+chmod +x paratrooper.py
 
-# Create your first task file
-./tasks.py daily
+# Initialize your task file
+python paratrooper.py init
+
+# Create your first daily section
+python paratrooper.py daily
 
 # Add a task
-./tasks.py add "Write blog post" PROJECTS
+python paratrooper.py add "Write blog post" PROJECTS
 
 # Add a recurring task
-./tasks.py add "morning workout (daily)" AREAS:Health
+python paratrooper.py add "morning workout (daily)" AREAS:Health
 
 # Start your day (includes recurring tasks)
-./tasks.py daily
+python paratrooper.py daily
 
 # See what needs attention
-./tasks.py stale
+python paratrooper.py stale
 
 # Sync your progress
-./tasks.py sync
+python paratrooper.py sync
 ```
 
 ## 📁 File Structure
@@ -61,8 +66,9 @@ Your tasks are stored in `~/home/tasks.md` with this flexible, hierarchical orga
 - [ ] knowledge development #006
 
 # ARCHIVE
-## ARCHIVED COMPLETED TASKS
-## ARCHIVED DAILY SECTIONS
+## 10-01-2025
+## 11-01-2025
+## 12-01-2025
 ```
 
 ## 🎯 Core Features
@@ -75,10 +81,16 @@ Distinguish between completion and progress:
 
 This solves the problem of tasks where you make meaningful progress but don't finish.
 
+### 1.5. **New Tasks Added to TOP** - Latest Enhancement
+- New daily tasks are automatically added to the **top** of daily sections
+- Recurring tasks appear at the **top** when added to daily sections
+- Pulled tasks from main list are added to the **top** of daily sections
+- This ensures your most recent tasks are always visible first
+
 ### 2. **Daily Workflow Integration**
-- **Morning**: `tasks daily` - auto-adds recurring tasks
+- **Morning**: `python paratrooper.py daily` - auto-adds recurring tasks
 - **Work**: Use daily section, mark tasks as you work
-- **Evening**: `tasks sync` - updates main list from daily progress
+- **Evening**: `python paratrooper.py sync` - updates main list from daily progress
 
 ### 3. **Flexible Organization**
 - **PARA methodology**: Projects, Areas, Resources, Archive
@@ -90,22 +102,31 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 - **Advanced**: `(weekly:tue)`, `(weekly:mon,wed,fri)`, `(monthly:15th)`
 - **Custom**: `(recur:3d)`, `(recur:2w)`, `(recur:1y,3m)`
 
+### 5. **Enhanced Archive System**
+- Archive only contains **daily subsections** (no completed task clutter)
+- Clean, organized archive with just the daily sections you've worked on
+- Use `python paratrooper.py archive` to clean up old daily sections
+
+### 6. **Easy Initialization**
+- Use `python paratrooper.py init` to create your task file with proper structure
+- No more manual file creation - the paratrooper handles it all!
+
 ## 🛠️ Commands
 
 ### Daily Workflow
 ```bash
-tasks daily                              # Add today's section with recurring tasks
-tasks stale                              # Show oldest tasks from MAIN section
-tasks sync                               # Update MAIN from daily progress
+python paratrooper.py daily              # Add today's section with recurring tasks
+python paratrooper.py stale              # Show oldest tasks from MAIN section
+python paratrooper.py sync               # Update MAIN from daily progress
 ```
 
 ### Task Management
 ```bash
-tasks add "text"                         # Add to INBOX
-tasks add "text" PROJECTS                # Add to specific section
-tasks add "fix sink" PROJECTS:HOME       # Add to subsection
-tasks add-daily "text"                   # Add to today's section
-tasks up 042                             # Pull task #042 to today's daily section
+python paratrooper.py add "text"         # Add to INBOX
+python paratrooper.py add "text" PROJECTS # Add to specific section
+python paratrooper.py add "fix sink" PROJECTS:HOME # Add to subsection
+python paratrooper.py add-daily "text"   # Add to today's section
+python paratrooper.py up 042             # Pull task #042 to today's daily section
 ```
 
 ### Adding Recurring Tasks
@@ -113,14 +134,14 @@ You can add recurring tasks directly using the `add` command by including the re
 
 ```bash
 # Basic recurring patterns
-tasks add "morning workout (daily)" AREAS:Health
-tasks add "weekly meal prep (weekly:sun)" AREAS:Health
-tasks add "review budget (monthly:1st)" AREAS:Finance
+python paratrooper.py add "morning workout (daily)" AREAS:Health
+python paratrooper.py add "weekly meal prep (weekly:sun)" AREAS:Health
+python paratrooper.py add "review budget (monthly:1st)" AREAS:Finance
 
 # Advanced patterns
-tasks add "backup database (recur:3d)" PROJECTS
-tasks add "security audit (recur:1m)" PROJECTS
-tasks add "annual review (recur:1y)" AREAS:Finance
+python paratrooper.py add "backup database (recur:3d)" PROJECTS
+python paratrooper.py add "security audit (recur:1m)" PROJECTS
+python paratrooper.py add "annual review (recur:1y)" AREAS:Finance
 ```
 
 **Recurrence patterns supported:**
@@ -136,25 +157,25 @@ tasks add "annual review (recur:1y)" AREAS:Finance
 - `(recur:1m)` - Every month
 - `(recur:1y)` - Every year
 
-**Pro tip**: Use `tasks daily` after adding recurring tasks to see them automatically appear in today's section!
+**Pro tip**: Use `python paratrooper.py daily` after adding recurring tasks to see them automatically appear in today's section!
 
 ### Task Status
 ```bash
-tasks complete 042                       # Mark task #042 as complete
-tasks pass 042                           # Mark progress [~] on task in daily section
-tasks snooze 042 3                       # Hide task #042 for 3 days
-tasks snooze 042 25-12-2025             # Hide until specific date
+python paratrooper.py complete 042       # Mark task #042 as complete
+python paratrooper.py pass 042           # Mark progress [~] on task in daily section
+python paratrooper.py snooze 042 3       # Hide task #042 for 3 days
+python paratrooper.py snooze 042 25-12-2025 # Hide until specific date
 ```
 
 ### Organization
 ```bash
-tasks show 042                          # Show task details
-tasks sections                          # List all available sections
-tasks archive                           # Clean up old content (7 days)
-tasks archive 3                          # Clean up content older than 3 days
-tasks delete 042                        # Delete from main list only
-tasks down 042                          # Remove from today's daily section
-tasks purge 042                         # Delete from everywhere
+python paratrooper.py show 042          # Show task details
+python paratrooper.py sections          # List all available sections
+python paratrooper.py archive           # Clean up old content (7 days)
+python paratrooper.py archive 3         # Clean up content older than 3 days
+python paratrooper.py delete 042        # Delete from main list only
+python paratrooper.py down 042          # Remove from today's daily section
+python paratrooper.py purge 042         # Delete from everywhere
 ```
 
 ## 📝 Task Syntax
@@ -170,7 +191,7 @@ tasks purge 042                         # Delete from everywhere
 
 ## 🔄 Sync Behavior
 
-When you run `tasks sync`:
+When you run `python paratrooper.py sync`:
 
 - **Completed (`[x]`)**: 
   - Non-recurring tasks: Main task becomes `[x]` 
@@ -248,12 +269,12 @@ sun = Sunday
 
 ```bash
 # Morning - start with recurring tasks
-tasks daily                              # Creates today's section with recurring tasks
+python paratrooper.py daily              # Creates today's section with recurring tasks
 
 # Planning - pull important tasks from main list
-tasks stale                              # See what's been neglected
-tasks up 023                             # Pull that important project task
-tasks up 067                             # Pull that overdue task
+python paratrooper.py stale              # See what's been neglected
+python paratrooper.py up 023             # Pull that important project task
+python paratrooper.py up 067             # Pull that overdue task
 
 # During work - edit daily section manually
 - [x] morning workout from AREAS > Health #004       # Recurring, completed
@@ -262,13 +283,13 @@ tasks up 067                             # Pull that overdue task
 - [ ] review budget from AREAS #089                  # Recurring, didn't get to it
 
 # Evening - sync progress back to main list
-tasks sync                               # Updates main list from daily progress
+python paratrooper.py sync               # Updates main list from daily progress
 # Result: #004 date updates, #023 stays incomplete but date updates, #067 marked complete
 
 # Weekly planning
-tasks stale                              # See what's been neglected
-tasks archive                            # Clean up old content (7 days)
-tasks archive 3                           # Clean up content older than 3 days
+python paratrooper.py stale              # See what's been neglected
+python paratrooper.py archive            # Clean up old content (7 days)
+python paratrooper.py archive 3          # Clean up content older than 3 days
 ```
 
 ## 🏃‍♂️ Setting Up Your Recurring Tasks
@@ -304,22 +325,22 @@ Edit `~/home/tasks.md` and add recurring tasks to appropriate sections:
 ### Step 2: Test Your Setup
 ```bash
 # See all recurring tasks for today
-tasks daily
+python paratrooper.py daily
 
 # Check what's coming up
-tasks stale
+python paratrooper.py stale
 
 # Verify your patterns work
-tasks sync
+python paratrooper.py sync
 ```
 
 ### Step 3: Daily Workflow
 ```bash
 # Morning routine
-tasks daily                              # Get today's recurring tasks
+python paratrooper.py daily              # Get today's recurring tasks
 # Work on tasks, mark progress with [x] or [~]
 # Evening sync
-tasks sync                               # Update main list from daily progress
+python paratrooper.py sync               # Update main list from daily progress
 ```
 
 **Pro Tips:**
@@ -370,10 +391,10 @@ tasks sync                               # Update main list from daily progress
 
 ## 🔧 Installation
 
-1. Download `tasks.py`
-2. Make it executable: `chmod +x tasks.py`
-3. Optionally add to PATH or create alias: `alias tasks='./tasks.py'`
-4. Run `tasks daily` to create your first task file
+1. Download `paratrooper.py`
+2. Make it executable: `chmod +x paratrooper.py`
+3. Optionally add to PATH or create alias: `alias paratrooper='python paratrooper.py'`
+4. Run `python paratrooper.py init` to create your first task file
 
 ## 📚 Learn More
 
