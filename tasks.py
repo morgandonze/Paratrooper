@@ -449,9 +449,111 @@ class TaskManager:
             lines[line_num] = new_line
             self.write_file('\n'.join(lines))
             print(f"Completed task #{task_id}")
+            
+            # If task was completed in main list and not in daily section, add it to daily section
+            if not self._is_task_in_daily_section(task_id):
+                if self._add_task_to_daily_section(task_id, "complete"):
+                    print(f"Added task #{task_id} to daily section")
+    
+    def _is_task_in_daily_section(self, task_id):
+        """Check if a task is already in today's daily section"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        today_section_found = False
+        for line in lines:
+            if line.strip() == f"## {self.today}":
+                today_section_found = True
+                continue
+            
+            if today_section_found:
+                if line.startswith("## ") and line.strip() != f"## {self.today}":
+                    break
+                
+                if f"#{task_id}" in line and self._is_task_line(line):
+                    return True
+        
+        return False
+    
+    def _add_task_to_daily_section(self, task_id, status="complete"):
+        """Add a task from main list to today's daily section with specified status"""
+        # Find the task in main list
+        result = self.find_task_by_id_in_main(task_id)
+        if not result:
+            return False
+        
+        line_num, line = result
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Extract task text and section info
+        task_text = re.sub(r'^- \[.\] ', '', line)  # Remove checkbox
+        task_text = re.sub(r' @\d{2}-\d{2}-\d{4}.*$', '', task_text)  # Remove date and everything after
+        task_text = re.sub(r' #\d{3}.*$', '', task_text)  # Remove ID and everything after
+        task_text = task_text.strip()
+        
+        # Find the section this task belongs to
+        current_subsection = None
+        current_project = None
+        
+        # Search backwards from the task line to find its section
+        for i in range(line_num - 1, -1, -1):
+            if i >= len(lines):
+                continue
+                
+            current_line = lines[i]
+            
+            # Check for main section (##)
+            if current_line.startswith("## ") and not current_line.startswith("### "):
+                section_name = current_line[3:].strip()
+                if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+                    current_subsection = section_name
+                    break
+                elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
+                    continue
+                else:
+                    current_subsection = section_name
+                    break
+            
+            # Check for project subsection (###)
+            elif current_line.startswith("### "):
+                if current_project is None:
+                    current_project = current_line[4:].strip()
+        
+        # Build section reference
+        if current_project and current_subsection:
+            section_ref = f"{current_subsection} > {current_project}"
+        elif current_subsection:
+            section_ref = current_subsection
+        else:
+            section_ref = "UNKNOWN"
+        
+        # Create the new task line with appropriate status
+        if status == "complete":
+            new_task = f"- [x] {task_text} (from: {section_ref}) #{task_id}\n"
+        else:  # progress
+            new_task = f"- [~] {task_text} (from: {section_ref}) #{task_id}\n"
+        
+        # Find today's daily section and add the task
+        today_section_found = False
+        for i, line in enumerate(lines):
+            if line.strip() == f"## {self.today}":
+                today_section_found = True
+                # Find the end of today's section
+                for j in range(i + 1, len(lines)):
+                    if (lines[j].startswith("## ") and lines[j].strip() != f"## {self.today}") or lines[j].startswith("# "):
+                        lines.insert(j, new_task)
+                        self.write_file('\n'.join(lines))
+                        return True
+                # If we reach the end, add at the end
+                lines.append(new_task)
+                self.write_file('\n'.join(lines))
+                return True
+        
+        return False
     
     def sync_daily_sections(self, days_back=3):
-        """Sync completed items from today's daily section to master list"""
+        """Sync completed items from today's daily section to master list and vice versa"""
         content = self.read_file()
         lines = content.split('\n')
         
@@ -488,8 +590,9 @@ class TaskManager:
         
         # Update corresponding master list tasks by ID
         updates_made = 0
+        daily_additions = 0
         
-        # Handle completed tasks
+        # Handle completed tasks from daily section
         for task_id in completed_daily_ids:
             result = self.find_task_by_id_in_main(task_id)
             if result:
@@ -505,7 +608,7 @@ class TaskManager:
                     
                     updates_made += 1
         
-        # Handle progressed tasks (just update date, don't complete)
+        # Handle progressed tasks from daily section
         for task_id in progressed_daily_ids:
             # Skip if this task was already processed as completed
             if task_id in completed_daily_ids:
@@ -519,13 +622,43 @@ class TaskManager:
                     lines[line_num] = self._update_task_date(line)
                     updates_made += 1
         
-        if updates_made > 0:
-            self.write_file('\n'.join(lines))
+        # Now check for tasks completed/progressed in main list that aren't in daily section
+        main_completed_ids = []
+        main_progressed_ids = []
+        
+        for line in lines:
+            if self._is_task_line(line):
+                task_id = self._extract_task_id(line)
+                if task_id:
+                    # Check if task is in main list and has today's date
+                    if self._extract_date(line) == self.today:
+                        if self._is_complete_task(line) and not self._is_recurring_task(line):
+                            main_completed_ids.append(task_id)
+                        elif self._is_progress_task(line):
+                            main_progressed_ids.append(task_id)
+        
+        # Add missing tasks to daily section
+        for task_id in main_completed_ids:
+            if not self._is_task_in_daily_section(task_id):
+                if self._add_task_to_daily_section(task_id, "complete"):
+                    daily_additions += 1
+        
+        for task_id in main_progressed_ids:
+            if not self._is_task_in_daily_section(task_id):
+                if self._add_task_to_daily_section(task_id, "progress"):
+                    daily_additions += 1
+        
+        if updates_made > 0 or daily_additions > 0:
+            # Only write file if we made changes to main list (not daily additions)
+            if updates_made > 0:
+                self.write_file('\n'.join(lines))
             completed_count = len([id for id in completed_daily_ids if self.find_task_by_id_in_main(id)])
             progressed_count = len([id for id in progressed_daily_ids if self.find_task_by_id_in_main(id)])
-            print(f"Synced {completed_count} completed and {progressed_count} progressed tasks from today's daily section")
+            print(f"Synced {completed_count} completed and {progressed_count} progressed tasks from daily section")
+            if daily_additions > 0:
+                print(f"Added {daily_additions} tasks to daily section from main list")
         else:
-            print("No completed or progressed tasks found in today's daily section")
+            print("No changes needed")
     
     def add_task_to_main(self, task_text, section="INBOX"):
         """Add a new task to main list section or subsection"""
@@ -753,8 +886,26 @@ class TaskManager:
             return
         
         if not task_found:
-            print(f"Task #{task_id} not found in today's daily section.")
-            print("Note: You can only mark progress on tasks that are in today's daily section.")
+            # Task not in daily section, check if it's in main list and add it
+            result = self.find_task_by_id_in_main(task_id)
+            if result:
+                line_num, line = result
+                if self._is_incomplete_task(line):
+                    # Mark as progress in main list
+                    new_line = self._mark_task_progress(line)
+                    new_line = self._update_task_date(new_line)
+                    lines[line_num] = new_line
+                    self.write_file('\n'.join(lines))
+                    
+                    # Add to daily section
+                    if self._add_task_to_daily_section(task_id, "progress"):
+                        print(f"Marked progress on task #{task_id} and added to daily section")
+                    else:
+                        print(f"Marked progress on task #{task_id}")
+                else:
+                    print(f"Task #{task_id} is already completed or in progress")
+            else:
+                print(f"Task #{task_id} not found in main list or daily section")
             return
         
         self.write_file('\n'.join(lines))

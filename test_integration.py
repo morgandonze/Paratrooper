@@ -178,6 +178,60 @@ class TestIntegration(unittest.TestCase):
         # Task should be marked complete in main list
         self.assertIn("- [x] Project task", content)
     
+    def test_auto_add_to_daily_workflow(self):
+        """Test auto-add to daily workflow: complete/pass in main -> auto-add to daily"""
+        # Create daily section first
+        self.tm.add_daily_section()
+        
+        # Add task to main list
+        self.tm.add_task_to_main("Auto-add test task", "INBOX")
+        
+        # Complete task in main list (should auto-add to daily)
+        self.tm.complete_task("001")
+        content = self.tm.read_file()
+        
+        # Task should be in daily section
+        self.assertIn("- [x] Auto-add test task (from: INBOX)", content)
+        
+        # Add another task for progress test
+        self.tm.add_task_to_main("Progress test task", "PROJECTS")
+        
+        # Mark progress in main list (should auto-add to daily)
+        self.tm.progress_task_in_daily("002")
+        content = self.tm.read_file()
+        
+        # Task should be in daily section
+        self.assertIn("- [~] Progress test task (from: PROJECTS)", content)
+    
+    def test_sync_auto_add_workflow(self):
+        """Test sync auto-add workflow: manual changes in main -> sync adds to daily"""
+        # Create daily section first
+        self.tm.add_daily_section()
+        
+        # Add tasks to main list
+        self.tm.add_task_to_main("Sync test 1", "INBOX")
+        self.tm.add_task_to_main("Sync test 2", "PROJECTS")
+        
+        # Manually mark as complete/progress in main list
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        
+        for i, line in enumerate(lines):
+            if "Sync test 1" in line:
+                lines[i] = line.replace("- [ ]", "- [x]")
+            elif "Sync test 2" in line:
+                lines[i] = line.replace("- [ ]", "- [~]")
+        
+        self.tm.write_file('\n'.join(lines))
+        
+        # Sync should add these to daily section
+        self.tm.sync_daily_sections()
+        content = self.tm.read_file()
+        
+        # Tasks should be in daily section
+        self.assertIn("- [x] Sync test 1 (from: INBOX)", content)
+        self.assertIn("- [~] Sync test 2 (from: PROJECTS)", content)
+    
     def test_snooze_workflow(self):
         """Test snooze workflow: add -> snooze -> check stale -> unsnooze"""
         # Add task
