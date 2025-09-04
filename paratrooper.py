@@ -940,6 +940,58 @@ class TaskManager:
             status = "🔴" if days_ago > 7 else "🟡" if days_ago > 3 else "🟢"
             print(f"{status} {days_ago:2d} days | #{task_id} | {task_text}")
     
+    def reopen_task(self, task_id):
+        """Reopen a completed task by ID (mark as incomplete)"""
+        result = self.find_task_by_id(task_id)
+        if not result:
+            print(f"No task found with ID #{task_id}")
+            return
+        
+        line_num, line = result
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Parse the task
+        task_data = self._parse_task_line(line)
+        if not task_data:
+            print(f"Could not parse task #{task_id}")
+            return
+        
+        # Check if task is already incomplete
+        if task_data['status'] == ' ':
+            print(f"Task #{task_id} is already incomplete")
+            return
+        
+        # Check if this task is in today's daily section
+        in_daily_section = False
+        for i in range(line_num, -1, -1):
+            if lines[i].strip() == f"## {self.today}":
+                in_daily_section = True
+                break
+            elif lines[i].startswith("## ") and lines[i].strip() != f"## {self.today}":
+                break
+        
+        if in_daily_section:
+            # Task is in daily section - mark as incomplete there
+            new_line = self._build_task_line(' ', task_data['text'], 
+                                           date=task_data['date'], 
+                                           recurring=task_data['recurring'],
+                                           snooze=task_data['snooze'],
+                                           task_id=task_data['id'])
+            lines[line_num] = new_line
+            self.write_file('\n'.join(lines))
+            print(f"Reopened task #{task_id} in daily section")
+        else:
+            # Task is in main list - mark as incomplete
+            new_line = self._build_task_line(' ', task_data['text'], 
+                                           date=self.today, 
+                                           recurring=task_data['recurring'],
+                                           snooze=task_data['snooze'],
+                                           task_id=task_data['id'])
+            lines[line_num] = new_line
+            self.write_file('\n'.join(lines))
+            print(f"Reopened task #{task_id}")
+    
     def complete_task(self, task_id):
         """Mark a task as complete by ID and update its date"""
         result = self.find_task_by_id(task_id)
@@ -1726,6 +1778,9 @@ COMMANDS:
   stale                  Show stale tasks (oldest first, ignores snoozed)
   
   complete ID            Mark task with ID as complete
+  done ID                Alias for complete
+  reopen ID              Reopen completed task (mark as incomplete)
+  undone ID              Alias for reopen
   pass ID                Mark task as progressed [~] in today's daily section
   sync                   Update main list from completed daily items
                          [x] in daily = complete main task  
@@ -1760,6 +1815,9 @@ EXAMPLES:
   tasks add-daily "urgent client call"     # Add to today only
   tasks up 042                            # Pull task #042 to today's daily section
   tasks complete 042                       # Mark task done
+  tasks done 042                           # Alias for complete
+  tasks reopen 042                         # Reopen completed task
+  tasks undone 042                         # Alias for reopen
   tasks show PROJECTS:HOME                 # Show tasks in PROJECTS > HOME subsection
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
@@ -2159,6 +2217,12 @@ def main():
         tm.show_stale_tasks()
     elif command == "complete" and len(args) > 1:
         tm.complete_task(args[1])
+    elif command == "done" and len(args) > 1:
+        tm.complete_task(args[1])
+    elif command == "reopen" and len(args) > 1:
+        tm.reopen_task(args[1])
+    elif command == "undone" and len(args) > 1:
+        tm.reopen_task(args[1])
     elif command == "pass" and len(args) > 1:
         tm.progress_task_in_daily(args[1])
     elif command == "sync":
