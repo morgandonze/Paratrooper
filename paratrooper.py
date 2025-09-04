@@ -7,14 +7,76 @@ Usage: python tasks.py [command] [args]
 import re
 import os
 import sys
+import configparser
 from datetime import datetime, timedelta
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 
 # Configuration
-TASK_FILE = Path.home() / "home" / "tasks.md"
 TODAY = datetime.now().strftime("%d-%m-%Y")
+
+@dataclass
+class Config:
+    """Configuration settings for the task manager"""
+    task_file: Path
+    icon_set: str
+    
+    @classmethod
+    def load(cls, config_path: Optional[Path] = None) -> 'Config':
+        """Load configuration from file or create default"""
+        if config_path is None:
+            config_path = Path(os.environ.get('PTCONFIG', '~/.ptconfig')).expanduser()
+        
+        # Default configuration
+        default_config = cls(
+            task_file=Path.home() / "home" / "tasks.md",
+            icon_set="default"
+        )
+        
+        if not config_path.exists():
+            # Create default config file
+            cls.create_default_config(config_path, default_config)
+            return default_config
+        
+        try:
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            
+            # Load task file location
+            task_file = default_config.task_file
+            if 'general' in config and 'task_file' in config['general']:
+                task_file = Path(config['general']['task_file']).expanduser()
+            
+            # Load icon set
+            icon_set = default_config.icon_set
+            if 'general' in config and 'icon_set' in config['general']:
+                icon_set = config['general']['icon_set']
+            
+            return cls(task_file=task_file, icon_set=icon_set)
+            
+        except Exception as e:
+            print(f"Warning: Error loading config from {config_path}: {e}")
+            print("Using default configuration")
+            return default_config
+    
+    @classmethod
+    def create_default_config(cls, config_path: Path, config: 'Config'):
+        """Create a default configuration file"""
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(config_path, 'w') as f:
+            f.write(f"""# Paratrooper Configuration File
+# Location: {config_path}
+
+[general]
+# Task file location (supports ~ for home directory)
+task_file = {config.task_file}
+
+# Icon set: default, nest, minimal, work
+icon_set = {config.icon_set}
+""")
+        print(f"Created default configuration file at {config_path}")
 
 # Regex patterns for new format with | separator
 TASK_STATUS_PATTERN = r'- \[.\] '
@@ -238,8 +300,12 @@ class TaskFile:
         return '\n'.join(lines)
 
 class TaskManager:
-    def __init__(self, icon_set="default"):
-        self.task_file = TASK_FILE
+    def __init__(self, config: Optional[Config] = None):
+        if config is None:
+            config = Config.load()
+        
+        self.config = config
+        self.task_file = config.task_file
         self.today = TODAY
         self._task_file_obj = None
         
@@ -268,9 +334,9 @@ class TaskManager:
         }
         
         # Set current icon set
-        self.icon_set = icon_set
-        if icon_set not in self.icon_sets:
-            print(f"Warning: Unknown icon set '{icon_set}', using default")
+        self.icon_set = config.icon_set
+        if self.icon_set not in self.icon_sets:
+            print(f"Warning: Unknown icon set '{self.icon_set}', using default")
             self.icon_set = "default"
     
     def init(self):
@@ -1636,6 +1702,14 @@ class TaskManager:
         else:
             print(f"No task found with ID #{task_id} in main list or daily sections")
     
+    def show_config(self):
+        """Show current configuration"""
+        print("Current Configuration:")
+        print(f"  Task file: {self.task_file}")
+        print(f"  Icon set: {self.icon_set}")
+        print(f"  Config file: {os.environ.get('PTCONFIG', '~/.ptconfig')}")
+        print(f"  Available icon sets: {', '.join(self.icon_sets.keys())}")
+
     def show_help(self):
         """Show detailed help information"""
         help_text = """
@@ -1646,6 +1720,7 @@ USAGE:
 
 COMMANDS:
   help                   Show this help message
+  config                 Show current configuration
   init                   Initialize the task file with default structure
   daily                  Add today's daily section with recurring tasks (or show if exists)
   stale                  Show stale tasks (oldest first, ignores snoozed)
@@ -2061,21 +2136,9 @@ def main():
     # Parse command line arguments
     args = sys.argv[1:]
     
-    # Check for --icons flag
-    icon_set = "default"
-    if "--icons" in args:
-        try:
-            icons_index = args.index("--icons")
-            if icons_index + 1 < len(args):
-                icon_set = args[icons_index + 1]
-                # Remove --icons and its value from args
-                args = args[:icons_index] + args[icons_index + 2:]
-        except (ValueError, IndexError):
-            print("Error: --icons flag requires a value")
-            print("Available icon sets: default, nest, minimal, work")
-            return
-    
-    tm = TaskManager(icon_set=icon_set)
+    # Load configuration
+    config = Config.load()
+    tm = TaskManager(config)
     
     if len(args) < 1:
         tm.show_help()
@@ -2085,6 +2148,8 @@ def main():
     
     if command == "help":
         tm.show_help()
+    elif command == "config":
+        tm.show_config()
     elif command == "init":
         tm.init()
     elif command == "daily":
