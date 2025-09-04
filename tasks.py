@@ -63,6 +63,42 @@ class TaskManager:
     def write_file(self, content):
         """Write content back to task file"""
         self.task_file.write_text(content)
+        self.format_file()
+    
+    def format_file(self):
+        """Format the file to ensure proper spacing between sections and tasks"""
+        content = self.read_file()
+        lines = content.split('\n')
+        formatted_lines = []
+        
+        for i, line in enumerate(lines):
+            current_line = line.strip()
+            
+            # Skip empty lines at the beginning
+            if not current_line and not formatted_lines:
+                continue
+            
+            # Add the current line
+            formatted_lines.append(line)
+            
+            # Add empty line after headers (but not at the end of file)
+            if (line.startswith('#') and i < len(lines) - 1 and 
+                not lines[i + 1].strip() == ''):
+                formatted_lines.append('')
+            
+            # Add empty line after tasks (but not at the end of file)
+            elif (self._is_task_line(line) and i < len(lines) - 1 and 
+                  not lines[i + 1].strip() == ''):
+                formatted_lines.append('')
+        
+        # Remove trailing empty lines
+        while formatted_lines and formatted_lines[-1].strip() == '':
+            formatted_lines.pop()
+        
+        # Add final newline
+        formatted_lines.append('')
+        
+        self.task_file.write_text('\n'.join(formatted_lines))
     
     def _is_task_line(self, line):
         """Check if a line is a task line"""
@@ -496,9 +532,7 @@ class TaskManager:
                         # If we never found the subsection, create it here
                         if not subsection_found:
                             lines.insert(i, f"### {subsection}")
-                            lines.insert(i + 1, "")
-                            lines.insert(i + 2, new_task)
-                            lines.insert(i + 3, "")
+                            lines.insert(i + 1, new_task)
                             updated = True
                         break
                     
@@ -521,9 +555,7 @@ class TaskManager:
             if in_main_section and not updated:
                 if not subsection_found:
                     lines.append(f"### {subsection}")
-                    lines.append("")
                     lines.append(new_task)
-                    lines.append("")
                     updated = True
             
             if not in_main_section:
@@ -543,7 +575,7 @@ class TaskManager:
         else:
             # Add to main section (original behavior)
             section_pattern = f"(## {main_section}\\n)"
-            new_task_with_spacing = f"\\1\\n{new_task}"
+            new_task_with_spacing = f"\\1{new_task}"
             
             new_content = re.sub(section_pattern, new_task_with_spacing, content)
             
@@ -652,7 +684,7 @@ class TaskManager:
         # Add task to today's section with section information
         today_pattern = f"(## {re.escape(self.today)}\\n)"
         new_task = f"- [ ] {task_text} (from: {section_ref}) #{task_id}\n"
-        replacement = f"\\1\\n{new_task}"
+        replacement = f"\\1{new_task}"
         
         new_content = re.sub(today_pattern, replacement, content)
         self.write_file(new_content)
@@ -864,10 +896,6 @@ class TaskManager:
         # Remove the task line
         lines.pop(line_num)
         
-        # Remove empty lines if they were created
-        if line_num < len(lines) and lines[line_num].strip() == "":
-            lines.pop(line_num)
-        
         self.write_file('\n'.join(lines))
         print(f"Deleted task #{task_id} from main list")
     
@@ -906,9 +934,7 @@ class TaskManager:
             print(f"Task #{task_id} not found in today's daily section")
             return
         
-        # Remove empty lines if they were created
-        if i < len(lines) and lines[i].strip() == "":
-            lines.pop(i)
+
         
         self.write_file('\n'.join(lines))
         print(f"Deleted task #{task_id} from today's daily section")
@@ -925,10 +951,6 @@ class TaskManager:
             content = self.read_file()
             lines = content.split('\n')
             lines.pop(line_num)
-            
-            # Remove empty lines if they were created
-            if line_num < len(lines) and lines[line_num].strip() == "":
-                lines.pop(line_num)
             
             self.write_file('\n'.join(lines))
             deleted_from_main = True
