@@ -73,7 +73,7 @@ class Config:
 # Task file location (supports ~ for home directory)
 task_file = {config.task_file}
 
-# Icon set: default, nest, minimal, work
+# Icon set: default, basic, nest
 icon_set = {config.icon_set}
 """)
         print(f"Created default configuration file at {config_path}")
@@ -312,6 +312,11 @@ class TaskManager:
         # Define icon sets
         self.icon_sets = {
             "default": {
+                "incomplete": "[ ]",
+                "progress": "[~]",
+                "complete": "[x]"
+            },
+            "basic": {
                 "incomplete": "⏳",
                 "progress": "🔄", 
                 "complete": "✅"
@@ -320,16 +325,6 @@ class TaskManager:
                 "incomplete": "🪹",
                 "progress": "🔜",
                 "complete": "🪺"
-            },
-            "minimal": {
-                "incomplete": "☐",
-                "progress": "⚪",
-                "complete": "☑️"
-            },
-            "work": {
-                "incomplete": "🔨",
-                "progress": "⚒️",
-                "complete": "✅"
             }
         }
         
@@ -1760,7 +1755,7 @@ class TaskManager:
         print(f"  Task file: {self.task_file}")
         print(f"  Icon set: {self.icon_set}")
         print(f"  Config file: {os.environ.get('PTCONFIG', '~/.ptconfig')}")
-        print(f"  Available icon sets: {', '.join(self.icon_sets.keys())}")
+        print(f"  Available icon sets: {', '.join(sorted(self.icon_sets.keys()))}")
 
     def show_help(self):
         """Show detailed help information"""
