@@ -842,6 +842,8 @@ def main():
         tm.add_task_to_main(task_text, section)
     elif command == "add-daily" and len(sys.argv) > 2:
         tm.add_task_to_daily(" ".join(sys.argv[2:]))
+    elif command == "pull" and len(sys.argv) > 2:
+        tm.add_task_to_daily_by_id(sys.argv[2])
     elif command == "snooze" and len(sys.argv) > 3:
         tm.snooze_task(sys.argv[2], sys.argv[3])
     elif command == "show" and len(sys.argv) > 2:
