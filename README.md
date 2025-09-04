@@ -34,9 +34,9 @@ Your tasks are stored in `~/home/tasks.md` with this flexible, hierarchical orga
 ```markdown
 # DAILY
 ## 15-01-2025
-- [x] morning workout (from: AREAS > Health) #004
-- [~] write chapter 3 (from: PROJECTS) #023
-- [ ] review budget (from: AREAS) #067
+- [x] morning workout from AREAS > Health #004
+- [~] write chapter 3 from PROJECTS #023
+- [ ] review budget from AREAS #067
 
 # MAIN
 ## INBOX
@@ -190,8 +190,8 @@ When you run `tasks sync`:
 
 **After working (Daily Section):**
 ```markdown
-- [~] write chapter 3 (from: PROJECTS) #023    # Made progress
-- [x] morning workout (from: Health) #004      # Completed today
+- [~] write chapter 3 from PROJECTS #023    # Made progress
+- [x] morning workout from Health #004      # Completed today
 ```
 
 **After sync (Main List):**
@@ -256,10 +256,10 @@ tasks up 023                             # Pull that important project task
 tasks up 067                             # Pull that overdue task
 
 # During work - edit daily section manually
-- [x] morning workout (from: AREAS > Health) #004       # Recurring, completed
-- [~] write blog post (from: PROJECTS) #023             # Pulled task, made progress
-- [x] call client (from: INBOX) #067                    # Pulled task, completed
-- [ ] review budget (from: AREAS) #089                  # Recurring, didn't get to it
+- [x] morning workout from AREAS > Health #004       # Recurring, completed
+- [~] write blog post from PROJECTS #023             # Pulled task, made progress
+- [x] call client from INBOX #067                    # Pulled task, completed
+- [ ] review budget from AREAS #089                  # Recurring, didn't get to it
 
 # Evening - sync progress back to main list
 tasks sync                               # Updates main list from daily progress

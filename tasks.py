@@ -750,7 +750,7 @@ class TaskManager:
         for task_data in new_recurring_tasks:
             daily_task = Task(
                 id=task_data['id'],
-                text=f"{task_data['text']} (from: {task_data['section']})",
+                text=f"{task_data['text']} from {task_data['section']}",
                 status=' ',
                 is_daily=True,
                 from_section=task_data['section']
