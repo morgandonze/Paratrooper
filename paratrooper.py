@@ -2139,12 +2139,12 @@ def main():
                 section = "INBOX"
         
         tm.add_task_to_main(task_text, section)
-    elif command == "add-daily" and len(args) > 2:
-        tm.add_task_to_daily(" ".join(args[2:]))
+    elif command == "add-daily" and len(args) > 1:
+        tm.add_task_to_daily(" ".join(args[1:]))
     elif command == "up" and len(args) > 1:
         tm.add_task_to_daily_by_id(args[1])
-    elif command == "snooze" and len(args) > 3:
-        tm.snooze_task(args[2], args[3])
+    elif command == "snooze" and len(args) > 2:
+        tm.snooze_task(args[1], args[2])
 
     elif command == "sections":
         tm.list_sections()
@@ -2173,13 +2173,13 @@ def main():
         else:
             # Original show task by ID functionality
             tm.show_task(args[1])
-    elif command == "edit" and len(args) > 3:
-        task_id = args[2]
-        new_text = " ".join(args[3:])
+    elif command == "edit" and len(args) > 2:
+        task_id = args[1]
+        new_text = " ".join(args[2:])
         tm.edit_task(task_id, new_text)
-    elif command == "move" and len(args) > 3:
-        task_id = args[2]
-        new_section = args[3]
+    elif command == "move" and len(args) > 2:
+        task_id = args[1]
+        new_section = args[2]
         tm.move_task(task_id, new_section)
     else:
         print(f"Unknown command: {command}")
