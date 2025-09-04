@@ -1891,6 +1891,7 @@ COMMANDS:
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
   
+  show                   Show all tasks from main sections
   show ID                Show details of specific task
   show SECTION[:SUBSEC]   Show tasks in a specific section (e.g., show PROJECTS:HOME)
   sections               List all available sections
@@ -1915,6 +1916,7 @@ EXAMPLES:
   tasks done 042                           # Alias for complete
   tasks reopen 042                         # Reopen completed task
   tasks undone 042                         # Alias for reopen
+  tasks show                               # Show all tasks from main sections
   tasks show PROJECTS:HOME                 # Show tasks in PROJECTS > HOME subsection
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
@@ -2313,6 +2315,89 @@ For more info: https://fortelabs.com/blog/para/
             
             print(f"{status} {task_data['text']} {id_display}")
 
+    def show_all_main(self):
+        """Show all sections from the main list"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        in_main_section = False
+        current_section = None
+        current_subsection = None
+        section_tasks = []
+        
+        for line in lines:
+            # Check if we're entering the MAIN section
+            if line.strip() == "# MAIN":
+                in_main_section = True
+                continue
+            
+            # Check if we're leaving the MAIN section
+            if in_main_section and line.startswith("# ") and line.strip() != "# MAIN":
+                break
+            
+            if in_main_section:
+                # Check for main section headers (##)
+                if line.startswith("## ") and not line.startswith("### "):
+                    # Print previous section if it had tasks
+                    if current_section and section_tasks:
+                        print(f"\n=== {current_section} ===")
+                        for task in section_tasks:
+                            task_data = self._parse_task_line(task)
+                            if not task_data:
+                                continue
+                            
+                            # Extract status and ID using current icon set
+                            icons = self.icon_sets[self.icon_set]
+                            if task_data['status'] == 'x':
+                                status = icons['complete']
+                            elif task_data['status'] == '~':
+                                status = icons['progress']
+                            else:
+                                status = icons['incomplete']
+                            
+                            task_id = task_data['id']
+                            id_display = f"#{task_id}" if task_id else ""
+                            
+                            print(f"{status} {task_data['text']} {id_display}")
+                    
+                    # Start new section
+                    current_section = line[3:].strip()
+                    current_subsection = None
+                    section_tasks = []
+                
+                # Check for subsection headers (###)
+                elif line.startswith("### "):
+                    current_subsection = line[4:].strip()
+                
+                # Collect tasks
+                elif self._is_task_line(line):
+                    section_tasks.append(line)
+        
+        # Print the last section if it had tasks
+        if current_section and section_tasks:
+            print(f"\n=== {current_section} ===")
+            for task in section_tasks:
+                task_data = self._parse_task_line(task)
+                if not task_data:
+                    continue
+                
+                # Extract status and ID using current icon set
+                icons = self.icon_sets[self.icon_set]
+                if task_data['status'] == 'x':
+                    status = icons['complete']
+                elif task_data['status'] == '~':
+                    status = icons['progress']
+                else:
+                    status = icons['incomplete']
+                
+                task_id = task_data['id']
+                id_display = f"#{task_id}" if task_id else ""
+                
+                print(f"{status} {task_data['text']} {id_display}")
+        
+        if not in_main_section:
+            print("No MAIN section found in the task file.")
+
     def open_file(self, editor=None):
         """Open the tasks file with the user's selected editor (default from config)"""
         import subprocess
@@ -2458,16 +2543,20 @@ def main():
         tm.delete_task_from_daily(args[1])
     elif command == "purge" and len(args) > 1:
         tm.purge_task(args[1])
-    elif command == "show" and len(args) > 1:
-        # Check if it's a section:subsection format or a known section name
-        if ":" in args[1] or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
-            tm.show_section(args[1])
-        elif not args[1].isdigit():
-            # Try as section name if it's not a number
-            tm.show_section(args[1])
+    elif command == "show":
+        if len(args) > 1:
+            # Check if it's a section:subsection format or a known section name
+            if ":" in args[1] or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+                tm.show_section(args[1])
+            elif not args[1].isdigit():
+                # Try as section name if it's not a number
+                tm.show_section(args[1])
+            else:
+                # Original show task by ID functionality
+                tm.show_task(args[1])
         else:
-            # Original show task by ID functionality
-            tm.show_task(args[1])
+            # Show all main sections when no arguments provided
+            tm.show_all_main()
     elif command == "edit" and len(args) > 2:
         task_id = args[1]
         new_text = " ".join(args[2:])
