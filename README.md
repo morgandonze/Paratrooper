@@ -113,6 +113,12 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 
 ## 🛠️ Commands
 
+### Configuration
+```bash
+python paratrooper.py config             # Show current configuration
+python paratrooper.py init               # Initialize task file with default structure
+```
+
 ### Daily Workflow
 ```bash
 python paratrooper.py daily              # Add today's section with recurring tasks

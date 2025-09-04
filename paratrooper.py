@@ -1892,6 +1892,19 @@ DAY ABBREVIATIONS:
   mon=Monday, tue=Tuesday, wed=Wednesday, thu=Thursday,
   fri=Friday, sat=Saturday, sun=Sunday
 
+CONFIGURATION:
+  Configuration file: ~/.ptconfig (or set PTCONFIG env var)
+  
+  Settings:
+  [settings]
+  task_file = ~/home/0-inbox/tasks.md
+  icon_set = default
+  
+  Available icon sets:
+  - default: [ ] [~] [x] (text-based)
+  - basic: ⏳ 🔄 ✅ (emoji)
+  - nest: 🪹 🔜 🪺 (nest theme)
+
 FILE STRUCTURE:
   # DAILY
   ## 15-01-2025
