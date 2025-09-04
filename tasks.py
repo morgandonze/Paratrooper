@@ -850,6 +850,135 @@ class TaskManager:
         total_archived = len(archived_daily_sections) + len(archived_completed_tasks)
         print(f"Archived {total_archived} old items")
     
+    def delete_task_from_main(self, task_id):
+        """Delete a task from the main list by ID"""
+        result = self.find_task_by_id_in_main(task_id)
+        if not result:
+            print(f"No task found with ID #{task_id} in MAIN section")
+            return
+        
+        line_num, line = result
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Remove the task line
+        lines.pop(line_num)
+        
+        # Remove empty lines if they were created
+        if line_num < len(lines) and lines[line_num].strip() == "":
+            lines.pop(line_num)
+        
+        self.write_file('\n'.join(lines))
+        print(f"Deleted task #{task_id} from main list")
+    
+    def delete_task_from_daily(self, task_id):
+        """Delete a task from today's daily section by ID"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        today_section_found = False
+        task_found = False
+        
+        for i, line in enumerate(lines):
+            # Check if we're entering today's daily section
+            if line.strip() == f"## {self.today}":
+                today_section_found = True
+                continue
+            
+            # If we're in today's section, look for the task
+            if today_section_found:
+                # Stop if we hit another daily section or leave the DAILY section
+                if line.startswith("## ") and line.strip() != f"## {self.today}":
+                    break
+                
+                # Look for the task ID in this daily section
+                if f"#{task_id}" in line and self._is_task_line(line):
+                    # Remove the task line
+                    lines.pop(i)
+                    task_found = True
+                    break
+        
+        if not today_section_found:
+            print(f"No daily section found for {self.today}")
+            return
+        
+        if not task_found:
+            print(f"Task #{task_id} not found in today's daily section")
+            return
+        
+        # Remove empty lines if they were created
+        if i < len(lines) and lines[i].strip() == "":
+            lines.pop(i)
+        
+        self.write_file('\n'.join(lines))
+        print(f"Deleted task #{task_id} from today's daily section")
+    
+    def purge_task(self, task_id):
+        """Delete a task from both main list and all daily sections by ID"""
+        deleted_from_main = False
+        deleted_from_daily = False
+        
+        # Delete from main list
+        result = self.find_task_by_id_in_main(task_id)
+        if result:
+            line_num, line = result
+            content = self.read_file()
+            lines = content.split('\n')
+            lines.pop(line_num)
+            
+            # Remove empty lines if they were created
+            if line_num < len(lines) and lines[line_num].strip() == "":
+                lines.pop(line_num)
+            
+            self.write_file('\n'.join(lines))
+            deleted_from_main = True
+        
+        # Delete from all daily sections
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Find all instances of the task in daily sections
+        indices_to_remove = []
+        for i, line in enumerate(lines):
+            if f"#{task_id}" in line and self._is_task_line(line):
+                # Check if this is in a daily section (not in MAIN or ARCHIVE)
+                in_daily_section = False
+                in_main_section = False
+                in_archive_section = False
+                
+                # Look backwards to determine which section we're in
+                for j in range(i, -1, -1):
+                    if lines[j].strip() == "# MAIN":
+                        in_main_section = True
+                        break
+                    elif lines[j].strip() == "# ARCHIVE":
+                        in_archive_section = True
+                        break
+                    elif lines[j].startswith("## ") and re.match(r"## \d{2}-\d{2}-\d{4}", lines[j]):
+                        in_daily_section = True
+                        break
+                
+                # Only delete if it's in a daily section
+                if in_daily_section and not in_main_section and not in_archive_section:
+                    indices_to_remove.append(i)
+        
+        # Remove tasks in reverse order to maintain correct indices
+        for i in sorted(indices_to_remove, reverse=True):
+            lines.pop(i)
+            deleted_from_daily = True
+        
+        if deleted_from_daily:
+            self.write_file('\n'.join(lines))
+        
+        if deleted_from_main and deleted_from_daily:
+            print(f"Purged task #{task_id} from main list and all daily sections")
+        elif deleted_from_main:
+            print(f"Purged task #{task_id} from main list (not found in daily sections)")
+        elif deleted_from_daily:
+            print(f"Purged task #{task_id} from daily sections (not found in main list)")
+        else:
+            print(f"No task found with ID #{task_id} in main list or daily sections")
+    
     def show_help(self):
         """Show detailed help information"""
         help_text = """
@@ -881,6 +1010,10 @@ COMMANDS:
   show ID                Show details of specific task
   sections               List all available sections
   archive                Clean up old daily sections and completed tasks
+  
+  delete-main ID         Delete task from main list only
+  delete-daily ID         Delete task from today's daily section only
+  purge ID               Delete task from main list and all daily sections
 
 EXAMPLES:
   tasks daily                              # Start your day
@@ -893,6 +1026,9 @@ EXAMPLES:
   tasks snooze 023 7                       # Hide task for a week
   tasks stale                              # See what needs attention
   tasks sync                               # Update main list from daily work
+  tasks delete-main 042                    # Remove task from main list
+  tasks delete-daily 042                   # Remove task from today's daily section
+  tasks purge 042                          # Remove task from everywhere
 
 WORKFLOW:
   1. Morning:   tasks daily
@@ -1027,6 +1163,12 @@ def main():
         tm.list_sections()
     elif command == "archive":
         tm.archive_old_content()
+    elif command == "delete-main" and len(sys.argv) > 2:
+        tm.delete_task_from_main(sys.argv[2])
+    elif command == "delete-daily" and len(sys.argv) > 2:
+        tm.delete_task_from_daily(sys.argv[2])
+    elif command == "purge" and len(sys.argv) > 2:
+        tm.purge_task(sys.argv[2])
     else:
         print(f"Unknown command: {command}")
         print("Run 'tasks help' to see available commands.")
