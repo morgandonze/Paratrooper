@@ -21,6 +21,7 @@ class Config:
     """Configuration settings for the task manager"""
     task_file: Path
     icon_set: str
+    editor: str
     
     @classmethod
     def load(cls, config_path: Optional[Path] = None) -> 'Config':
@@ -31,7 +32,8 @@ class Config:
         # Default configuration
         default_config = cls(
             task_file=Path.home() / "home" / "tasks.md",
-            icon_set="default"
+            icon_set="default",
+            editor="nvim"
         )
         
         if not config_path.exists():
@@ -53,7 +55,12 @@ class Config:
             if 'general' in config and 'icon_set' in config['general']:
                 icon_set = config['general']['icon_set']
             
-            return cls(task_file=task_file, icon_set=icon_set)
+            # Load editor
+            editor = default_config.editor
+            if 'general' in config and 'editor' in config['general']:
+                editor = config['general']['editor']
+            
+            return cls(task_file=task_file, icon_set=icon_set, editor=editor)
             
         except Exception as e:
             print(f"Warning: Error loading config from {config_path}: {e}")
@@ -75,6 +82,9 @@ task_file = {config.task_file}
 
 # Icon set: default, basic, nest
 icon_set = {config.icon_set}
+
+# Default editor for 'open' command
+editor = {config.editor}
 """)
         print(f"Created default configuration file at {config_path}")
 
@@ -308,6 +318,7 @@ class TaskManager:
         self.task_file = config.task_file
         self.today = TODAY
         self._task_file_obj = None
+        self.editor = config.editor
         
         # Define icon sets
         self.icon_sets = {
@@ -1787,6 +1798,7 @@ class TaskManager:
         print("Current Configuration:")
         print(f"  Task file: {self.task_file}")
         print(f"  Icon set: {self.icon_set}")
+        print(f"  Editor: {self.editor}")
         print(f"  Config file: {os.environ.get('PTCONFIG', '~/.ptconfig')}")
         print(f"  Available icon sets: {', '.join(sorted(self.icon_sets.keys()))}")
 
@@ -1830,6 +1842,7 @@ COMMANDS:
   
   edit ID TEXT           Edit task text by ID
   move ID SECTION        Move task to new section (e.g., move 001 PROJECTS:HOME)
+  open [EDITOR]          Open tasks file with editor (default: from config)
   
   delete ID              Delete task from main list only
   down ID                 Remove task from today's daily section (return to main)
@@ -1853,6 +1866,9 @@ EXAMPLES:
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text
   tasks move 042 PROJECTS:HOME             # Move task to subsection
+  tasks open                               # Open tasks file with configured editor
+  tasks open vim                           # Open tasks file with vim (override config)
+  tasks open code                          # Open tasks file with VS Code (override config)
   tasks delete 042                         # Remove task from main list
   tasks down 042                           # Remove task from today's daily section
   tasks purge 042                          # Remove task from everywhere
@@ -1896,14 +1912,19 @@ CONFIGURATION:
   Configuration file: ~/.ptconfig (or set PTCONFIG env var)
   
   Settings:
-  [settings]
+  [general]
   task_file = ~/home/0-inbox/tasks.md
   icon_set = default
+  editor = nvim
   
   Available icon sets:
   - default: [ ] [~] [x] (text-based)
   - basic: ⏳ 🔄 ✅ (emoji)
   - nest: 🪹 🔜 🪺 (nest theme)
+  
+  Editor options:
+  - nvim, vim, nano, code, subl, atom, or any command-line editor
+  - Use 'tasks config' to see current settings
 
 FILE STRUCTURE:
   # DAILY
@@ -2000,16 +2021,19 @@ For more info: https://fortelabs.com/blog/para/
             print(f"Invalid task text: {error}")
             return
         
-        # Build new line with updated text
-        new_line = self._build_task_line(task_data['status'], new_text, 
+        # Extract recurrence pattern from new text (like add command does)
+        clean_text, recurrence = self._extract_recurrence_pattern(new_text)
+        
+        # Build new line with updated text and parsed recurrence
+        new_line = self._build_task_line(task_data['status'], clean_text, 
                                        date=task_data['date'], 
-                                       recurring=task_data['recurring'],
+                                       recurring=recurrence,
                                        snooze=task_data['snooze'],
                                        task_id=task_data['id'])
         
         lines[line_num] = new_line
         self.write_file('\n'.join(lines))
-        print(f"Updated task #{task_id}: {new_text}")
+        print(f"Updated task #{task_id}: {clean_text}")
     
     def move_task(self, task_id, new_section):
         """Move task to a new section"""
@@ -2231,6 +2255,48 @@ For more info: https://fortelabs.com/blog/para/
             
             print(f"{status} {task_data['text']} {id_display}")
 
+    def open_file(self, editor=None):
+        """Open the tasks file with the user's selected editor (default from config)"""
+        import subprocess
+        import shutil
+        
+        # Determine which editor to use
+        if editor:
+            editor_cmd = editor
+        else:
+            # Use configured editor first, then fall back to common editors
+            editors = [self.editor, 'nvim', 'vim', 'nano', 'code', 'subl', 'atom']
+            editor_cmd = None
+            
+            for ed in editors:
+                if shutil.which(ed):
+                    editor_cmd = ed
+                    break
+            
+            if not editor_cmd:
+                print("No suitable editor found. Please specify an editor:")
+                print("  tasks open vim")
+                print("  tasks open nano")
+                print("  tasks open code")
+                print(f"Or configure your preferred editor in ~/.ptconfig:")
+                print(f"  editor = your_preferred_editor")
+                return
+        
+        # Ensure the task file exists
+        if not self.task_file.exists():
+            print(f"Task file doesn't exist at {self.task_file}")
+            print("Run 'tasks init' to create it first.")
+            return
+        
+        try:
+            # Open the file with the selected editor
+            subprocess.run([editor_cmd, str(self.task_file)], check=True)
+            print(f"Opened {self.task_file} with {editor_cmd}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error opening file with {editor_cmd}: {e}")
+        except FileNotFoundError:
+            print(f"Editor '{editor_cmd}' not found. Please install it or specify a different editor.")
+
 def main():
     # Parse command line arguments
     args = sys.argv[1:]
@@ -2351,6 +2417,9 @@ def main():
         task_id = args[1]
         new_section = args[2]
         tm.move_task(task_id, new_section)
+    elif command == "open":
+        editor = args[1] if len(args) > 1 else None
+        tm.open_file(editor)
     else:
         print(f"Unknown command: {command}")
         print("Run 'tasks help' to see available commands.")
