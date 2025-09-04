@@ -503,6 +503,47 @@ class TaskManager:
         task_text = re.sub(r' #\d{3}.*$', '', task_text)  # Remove ID and everything after
         task_text = task_text.strip()
         
+        # Find the section this task belongs to
+        current_subsection = None
+        current_project = None
+        section_found = False
+        
+        # Search backwards from the task line to find its section
+        for i in range(line_num - 1, -1, -1):
+            if i >= len(lines):
+                continue
+                
+            current_line = lines[i]
+            
+            # Check for main section (##)
+            if current_line.startswith("## ") and not current_line.startswith("### "):
+                section_name = current_line[3:].strip()
+                if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+                    current_subsection = section_name
+                    section_found = True
+                    break
+                elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
+                    # This is a daily section, skip it
+                    continue
+                else:
+                    # This might be a subsection under MAIN
+                    current_subsection = section_name
+                    section_found = True
+                    break
+            
+            # Check for project subsection (###)
+            elif current_line.startswith("### "):
+                current_project = current_line[4:].strip()
+                # Continue searching for the main section
+        
+        # Build section reference
+        if current_project and current_subsection:
+            section_ref = f"{current_subsection} > {current_project}"
+        elif current_subsection:
+            section_ref = current_subsection
+        else:
+            section_ref = "UNKNOWN"
+        
         # Check if today's section exists
         if f"## {self.today}" not in content:
             print(f"No daily section for {self.today} found. Creating it first...")
@@ -510,9 +551,9 @@ class TaskManager:
             content = self.read_file()
             lines = content.split('\n')
         
-        # Add task to today's section
+        # Add task to today's section with section information
         today_pattern = f"(## {re.escape(self.today)}\\n)"
-        new_task = f"- [ ] {task_text} #{task_id}\n"
+        new_task = f"- [ ] {task_text} (from: {section_ref}) #{task_id}\n"
         replacement = f"\\1{new_task}"
         
         new_content = re.sub(today_pattern, replacement, content)
