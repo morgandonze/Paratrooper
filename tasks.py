@@ -9,6 +9,8 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Any
 
 # Configuration
 TASK_FILE = Path.home() / "home" / "tasks.md"
@@ -35,10 +37,302 @@ TASK_STATUS = {
     'PROGRESS': '- [~]'
 }
 
+@dataclass
+class Task:
+    """Represents a single task"""
+    id: str
+    text: str
+    status: str  # ' ', 'x', '~'
+    date: Optional[str] = None
+    recurring: Optional[str] = None
+    snooze: Optional[str] = None
+    due: Optional[str] = None
+    section: Optional[str] = None
+    subsection: Optional[str] = None
+    is_daily: bool = False
+    from_section: Optional[str] = None  # For daily tasks, shows where it came from
+    
+    def to_markdown(self) -> str:
+        """Convert task to markdown format"""
+        status_part = f"- [{self.status}] {self.text}"
+        
+        metadata_parts = []
+        if self.date:
+            metadata_parts.append(f"@{self.date}")
+        if self.recurring:
+            metadata_parts.append(self.recurring)
+        if self.snooze:
+            metadata_parts.append(f"snooze:{self.snooze}")
+        if self.due:
+            metadata_parts.append(f"due:{self.due}")
+        if self.id:
+            metadata_parts.append(f"#{self.id}")
+        
+        if metadata_parts:
+            metadata_part = " ".join(metadata_parts)
+            return f"{status_part} | {metadata_part}"
+        else:
+            return status_part
+    
+    @classmethod
+    def from_markdown(cls, line: str, section: str = None, subsection: str = None) -> Optional['Task']:
+        """Parse a markdown line into a Task object"""
+        if not line.strip().startswith('- ['):
+            return None
+        
+        # Extract status
+        status_match = re.match(r'- \[(.)\]', line)
+        if not status_match:
+            return None
+        status = status_match.group(1)
+        
+        # Extract text (everything after status until | or end)
+        text_part = line[5:]  # Remove '- [x] '
+        if ' | ' in text_part:
+            text = text_part.split(' | ')[0].strip()
+        else:
+            text = text_part.strip()
+        
+        # Extract metadata
+        metadata = {}
+        if ' | ' in line:
+            metadata_str = line.split(' | ')[1]
+            # Parse date
+            date_match = re.search(r'@(\d{2}-\d{2}-\d{4})', metadata_str)
+            if date_match:
+                metadata['date'] = date_match.group(1)
+            
+            # Parse recurring
+            recur_match = re.search(r'\(([^)]*(?:daily|weekly|monthly|recur:)[^)]*)\)', metadata_str)
+            if recur_match:
+                metadata['recurring'] = f"({recur_match.group(1)})"
+            
+            # Parse snooze
+            snooze_match = re.search(r'snooze:(\d{2}-\d{2}-\d{4})', metadata_str)
+            if snooze_match:
+                metadata['snooze'] = snooze_match.group(1)
+            
+            # Parse due
+            due_match = re.search(r'due:(\d{2}-\d{2}-\d{4})', metadata_str)
+            if due_match:
+                metadata['due'] = due_match.group(1)
+            
+            # Parse ID
+            id_match = re.search(r'#(\d{3})', metadata_str)
+            if id_match:
+                metadata['id'] = id_match.group(1)
+        
+        return cls(
+            id=metadata.get('id', ''),
+            text=text,
+            status=status,
+            date=metadata.get('date'),
+            recurring=metadata.get('recurring'),
+            snooze=metadata.get('snooze'),
+            due=metadata.get('due'),
+            section=section,
+            subsection=subsection
+        )
+
+@dataclass
+class Section:
+    """Represents a section in the task file"""
+    name: str
+    level: int  # 1 for #, 2 for ##, 3 for ###
+    tasks: List[Task] = None
+    subsections: Dict[str, 'Section'] = None
+    
+    def __post_init__(self):
+        if self.tasks is None:
+            self.tasks = []
+        if self.subsections is None:
+            self.subsections = {}
+    
+    def add_task(self, task: Task):
+        """Add a task to this section"""
+        self.tasks.append(task)
+    
+    def add_subsection(self, name: str) -> 'Section':
+        """Add a subsection to this section"""
+        if name not in self.subsections:
+            self.subsections[name] = Section(name=name, level=self.level + 1)
+        return self.subsections[name]
+    
+    def get_subsection(self, name: str) -> Optional['Section']:
+        """Get a subsection by name"""
+        return self.subsections.get(name)
+    
+    def to_markdown(self) -> str:
+        """Convert section to markdown format"""
+        lines = []
+        lines.append('#' * self.level + ' ' + self.name)
+        
+        for task in self.tasks:
+            lines.append(task.to_markdown())
+        
+        for subsection in self.subsections.values():
+            lines.append('')
+            lines.append(subsection.to_markdown())
+        
+        return '\n'.join(lines)
+
+@dataclass
+class TaskFile:
+    """Represents the entire task file"""
+    daily_sections: Dict[str, List[Task]] = None  # date -> tasks
+    main_sections: Dict[str, Section] = None  # section_name -> Section
+    archive_sections: Dict[str, List[Task]] = None  # section_name -> tasks
+    
+    def __post_init__(self):
+        if self.daily_sections is None:
+            self.daily_sections = {}
+        if self.main_sections is None:
+            self.main_sections = {}
+        if self.archive_sections is None:
+            self.archive_sections = {}
+    
+    def get_main_section(self, name: str) -> Section:
+        """Get or create a main section"""
+        if name not in self.main_sections:
+            self.main_sections[name] = Section(name=name, level=2)
+        return self.main_sections[name]
+    
+    def get_daily_section(self, date: str) -> List[Task]:
+        """Get or create a daily section"""
+        if date not in self.daily_sections:
+            self.daily_sections[date] = []
+        return self.daily_sections[date]
+    
+    def to_markdown(self) -> str:
+        """Convert entire file to markdown format"""
+        lines = []
+        
+        # Daily sections
+        if self.daily_sections:
+            lines.append('# DAILY')
+            lines.append('')
+            for date in sorted(self.daily_sections.keys()):
+                lines.append(f'## {date}')
+                for task in self.daily_sections[date]:
+                    lines.append(task.to_markdown())
+                lines.append('')
+        
+        # Main sections
+        if self.main_sections:
+            lines.append('# MAIN')
+            lines.append('')
+            for section in self.main_sections.values():
+                lines.append(section.to_markdown())
+                lines.append('')
+        
+        # Archive sections
+        if self.archive_sections:
+            lines.append('# ARCHIVE')
+            lines.append('')
+            for section_name, tasks in self.archive_sections.items():
+                lines.append(f'## {section_name}')
+                for task in tasks:
+                    lines.append(task.to_markdown())
+                lines.append('')
+        
+        return '\n'.join(lines)
+
 class TaskManager:
     def __init__(self):
         self.task_file = TASK_FILE
         self.today = TODAY
+        self._task_file_obj = None
+    
+    def parse_file(self) -> TaskFile:
+        """Parse the task file into Python objects"""
+        if self._task_file_obj is not None:
+            return self._task_file_obj
+        
+        content = self.read_file()
+        task_file = TaskFile()
+        
+        lines = content.split('\n')
+        current_section = None
+        current_subsection = None
+        current_daily_date = None
+        in_daily = False
+        in_main = False
+        in_archive = False
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Skip empty lines
+            if not line:
+                continue
+            
+            # Check for main sections
+            if line == '# DAILY':
+                in_daily = True
+                in_main = False
+                in_archive = False
+                continue
+            elif line == '# MAIN':
+                in_daily = False
+                in_main = True
+                in_archive = False
+                continue
+            elif line == '# ARCHIVE':
+                in_daily = False
+                in_main = False
+                in_archive = True
+                continue
+            
+            # Daily sections
+            if in_daily and line.startswith('## '):
+                current_daily_date = line[3:].strip()
+                continue
+            elif in_daily and current_daily_date and line.startswith('- ['):
+                task = Task.from_markdown(line)
+                if task:
+                    task.is_daily = True
+                    task_file.get_daily_section(current_daily_date).append(task)
+                continue
+            
+            # Main sections
+            elif in_main and line.startswith('## '):
+                current_section = line[3:].strip()
+                current_subsection = None
+                continue
+            elif in_main and line.startswith('### '):
+                current_subsection = line[4:].strip()
+                continue
+            elif in_main and line.startswith('- ['):
+                task = Task.from_markdown(line, current_section, current_subsection)
+                if task:
+                    if current_subsection:
+                        section = task_file.get_main_section(current_section)
+                        subsection = section.add_subsection(current_subsection)
+                        subsection.add_task(task)
+                    else:
+                        task_file.get_main_section(current_section).add_task(task)
+                continue
+            
+            # Archive sections
+            elif in_archive and line.startswith('## '):
+                current_section = line[3:].strip()
+                continue
+            elif in_archive and line.startswith('- ['):
+                task = Task.from_markdown(line)
+                if task:
+                    if current_section not in task_file.archive_sections:
+                        task_file.archive_sections[current_section] = []
+                    task_file.archive_sections[current_section].append(task)
+                continue
+        
+        self._task_file_obj = task_file
+        return task_file
+    
+    def write_file_from_objects(self, task_file: TaskFile):
+        """Write the task file from Python objects"""
+        content = task_file.to_markdown()
+        self.write_file(content)
+        self._task_file_obj = task_file
         
     def read_file(self):
         """Read the task file, create if doesn't exist"""
@@ -134,15 +428,49 @@ class TaskManager:
         """Check if a task is recurring"""
         return bool(re.search(RECURRING_PATTERN, line))
     
+    def _extract_recurrence_pattern(self, text):
+        """Extract recurrence pattern from task text and return (clean_text, recurrence_pattern)"""
+        # Pattern to match recurrence patterns in parentheses
+        recur_pattern = r'\(([^)]*(?:daily|weekly|monthly|recur:)[^)]*)\)'
+        
+        # Find all recurrence patterns
+        matches = re.findall(recur_pattern, text)
+        
+        if not matches:
+            return text, None
+        
+        if len(matches) > 1:
+            raise ValueError("Task text can only contain one recurrence pattern")
+        
+        # Extract the recurrence pattern
+        recurrence = f"({matches[0]})"
+        
+        # Remove the recurrence pattern from the text
+        clean_text = re.sub(recur_pattern, '', text).strip()
+        
+        # Clean up extra spaces
+        clean_text = re.sub(r'\s+', ' ', clean_text)
+        
+        return clean_text, recurrence
+    
     def _validate_task_text(self, text):
         """Validate task text according to new format rules"""
         if not text or text.strip() != text:
             return False, "Task text cannot be empty or have leading/trailing spaces"
         
-        # Check for forbidden characters
+        # Check for forbidden characters (excluding parentheses for recurrence)
         for char in FORBIDDEN_TASK_CHARS:
-            if char in text:
+            if char in text and char != '(' and char != ')':
                 return False, f"Task text cannot contain '{char}' character"
+        
+        # Check that parentheses are only used for recurrence patterns
+        if '(' in text or ')' in text:
+            try:
+                clean_text, recurrence = self._extract_recurrence_pattern(text)
+                if not recurrence:
+                    return False, "Parentheses can only be used for recurrence patterns like (daily), (weekly), etc."
+            except ValueError as e:
+                return False, str(e)
         
         return True, None
     
@@ -368,74 +696,74 @@ class TaskManager:
     
     def get_recurring_tasks(self):
         """Find all recurring tasks from MAIN section"""
-        main_lines = self.find_section("MAIN", level=1)
-        if not main_lines:
-            return []
-        
+        task_file = self.parse_file()
         recurring_tasks = []
-        current_subsection = None
-        current_project = None
         
-        for line in main_lines:
-            if line.startswith("## "):
-                current_subsection = line[3:].strip()  # Remove "## "
-                current_project = None
-            elif line.startswith("### "):
-                current_project = line[4:].strip()  # Remove "### "
-            elif self._is_incomplete_task(line) and self._is_recurring_task(line):
-                # Parse task using new format
-                task_data = self._parse_task_line(line)
-                if task_data and task_data['id'] and current_subsection:
-                    task_text = task_data['text']
-                    task_id = task_data['id']
-                    last_date = task_data['date'] or self.today
-                    
-                    # Build section reference
-                    if current_project:
-                        section_ref = f"{current_subsection} > {current_project}"
-                    else:
-                        section_ref = current_subsection
-                    
-                    # Check recurring pattern
-                    if task_data['recurring']:
-                        recur_pattern = task_data['recurring'][1:-1]  # Remove parentheses
-                        if recur_pattern not in ["snooze"] and (
-                            any(keyword in recur_pattern for keyword in ["daily", "weekly", "monthly"]) or 
-                            recur_pattern.startswith("recur:")
-                        ):
-                            if self.should_recur_today(recur_pattern, last_date):
-                                recurring_tasks.append({
-                                    'text': task_text,
-                                    'section': section_ref,
-                                    'id': task_id
-                                })
+        # Check all main sections
+        for section_name, section in task_file.main_sections.items():
+            # Check tasks in the main section
+            for task in section.tasks:
+                if task.recurring and task.status == ' ':
+                    # Remove parentheses from recurrence pattern
+                    recur_pattern = task.recurring[1:-1] if task.recurring.startswith('(') and task.recurring.endswith(')') else task.recurring
+                    if self.should_recur_today(recur_pattern, task.date):
+                        recurring_tasks.append({
+                            'text': task.text,
+                            'section': section_name,
+                            'id': task.id
+                        })
+            
+            # Check tasks in subsections
+            for subsection_name, subsection in section.subsections.items():
+                for task in subsection.tasks:
+                    if task.recurring and task.status == ' ':
+                        # Remove parentheses from recurrence pattern
+                        recur_pattern = task.recurring[1:-1] if task.recurring.startswith('(') and task.recurring.endswith(')') else task.recurring
+                        if self.should_recur_today(recur_pattern, task.date):
+                            recurring_tasks.append({
+                                'text': task.text,
+                                'section': f"{section_name} > {subsection_name}",
+                                'id': task.id
+                            })
         
         return recurring_tasks
     
     def add_daily_section(self):
         """Add today's daily section with recurring tasks"""
-        content = self.read_file()
+        task_file = self.parse_file()
         
-        if f"## {self.today}" in content:
-            print(f"Daily section for {self.today} already exists")
-            return
+        # Check if today's section already exists
+        existing_tasks = task_file.get_daily_section(self.today)
         
-        # Find recurring tasks
+        # Find recurring tasks that should appear today
         recurring_tasks = self.get_recurring_tasks()
         
-        # Build today's section
-        daily_section = f"\n## {self.today}\n"
-        for task in recurring_tasks:
-            new_task = self._build_task_line(' ', f"{task['text']} from {task['section']}", task_id=task['id']) + "\n"
-            daily_section += new_task
+        # Filter out tasks that are already in today's section
+        existing_task_ids = {task.id for task in existing_tasks}
+        new_recurring_tasks = [task for task in recurring_tasks if task['id'] not in existing_task_ids]
         
-        # Insert into DAILY section
-        daily_pattern = r"(# DAILY\n)"
-        replacement = f"\\1{daily_section}"
+        if not new_recurring_tasks and existing_tasks:
+            print(f"Daily section for {self.today} already exists with all recurring tasks")
+            return
         
-        new_content = re.sub(daily_pattern, replacement, content)
-        self.write_file(new_content)
-        print(f"Added daily section for {self.today} with {len(recurring_tasks)} recurring tasks")
+        # Add new recurring tasks to today's section
+        for task_data in new_recurring_tasks:
+            daily_task = Task(
+                id=task_data['id'],
+                text=f"{task_data['text']} (from: {task_data['section']})",
+                status=' ',
+                is_daily=True,
+                from_section=task_data['section']
+            )
+            existing_tasks.append(daily_task)
+        
+        # Write the file back
+        self.write_file_from_objects(task_file)
+        
+        if existing_tasks:
+            print(f"Daily section for {self.today} updated with {len(new_recurring_tasks)} new recurring tasks")
+        else:
+            print(f"Added daily section for {self.today} with {len(new_recurring_tasks)} recurring tasks")
     
     def show_stale_tasks(self):
         """Show tasks ordered by staleness, excluding future-snoozed tasks"""
@@ -765,7 +1093,7 @@ class TaskManager:
     
     def add_task_to_main(self, task_text, section="INBOX"):
         """Add a new task to main list section or subsection"""
-        content = self.read_file()
+        task_file = self.parse_file()
         task_id = self.get_next_id()
         
         # Parse section:subsection format
@@ -777,107 +1105,56 @@ class TaskManager:
             main_section = section.upper()
             subsection = None
         
-        new_task = self._build_task_line(' ', task_text, date=self.today, task_id=task_id) + "\n"
+        # Extract recurrence pattern from task text
+        clean_text, recurrence = self._extract_recurrence_pattern(task_text)
         
+        # Create new task
+        new_task = Task(
+            id=task_id,
+            text=clean_text,
+            status=' ',
+            date=self.today,
+            recurring=recurrence,
+            section=main_section,
+            subsection=subsection
+        )
+        
+        # Add task to the appropriate section
         if subsection:
-            # Add to specific subsection under main section
-            lines = content.split('\n')
-            updated = False
-            in_main_section = False
-            subsection_found = False
-            
-            for i, line in enumerate(lines):
-                # Check if we're entering the target main section
-                if line.strip() == f"## {main_section}":
-                    in_main_section = True
-                    continue
-                
-                # If we're in the main section
-                if in_main_section:
-                    # Stop if we hit another main section or higher level
-                    if line.startswith("## ") or line.startswith("# "):
-                        # If we never found the subsection, create it here
-                        if not subsection_found:
-                            lines.insert(i, f"### {subsection}")
-                            lines.insert(i + 1, new_task)
-                            updated = True
-                        break
-                    
-                    # Check for the target subsection
-                    if line.strip() == f"### {subsection}":
-                        subsection_found = True
-                        # Find the next line after the subsection header to insert
-                        for j in range(i + 1, len(lines)):
-                            # Insert before next subsection, main section, or end
-                            if (lines[j].startswith("### ") or 
-                                lines[j].startswith("## ") or 
-                                lines[j].startswith("# ") or
-                                j == len(lines) - 1):
-                                lines.insert(j, new_task)
-                                updated = True
-                                break
-                        break
-            
-            # Handle case where we reached end of file while in main section
-            if in_main_section and not updated:
-                if not subsection_found:
-                    lines.append(f"### {subsection}")
-                    lines.append(new_task)
-                    updated = True
-            
-            if not in_main_section:
-                print(f"Main section '{main_section}' not found. Available sections:")
-                main_lines = self.find_section("MAIN", level=1)
-                if main_lines:
-                    for line in main_lines:
-                        if line.startswith("## "):
-                            print(f"  - {line[3:]}")
-                return
-            
-            if updated:
-                self.write_file('\n'.join(lines))
-                print(f"Added task #{task_id} to {main_section}:{subsection}: {task_text}")
-            else:
-                print(f"Failed to add task to {main_section}:{subsection}")
+            section_obj = task_file.get_main_section(main_section)
+            subsection_obj = section_obj.add_subsection(subsection)
+            subsection_obj.add_task(new_task)
         else:
-            # Add to main section (original behavior)
-            section_pattern = f"(## {main_section}\\n)"
-            new_task_with_spacing = f"\\1{new_task}"
-            
-            new_content = re.sub(section_pattern, new_task_with_spacing, content)
-            
-            # Check if the replacement worked
-            if new_content == content:
-                print(f"Section '{main_section}' not found. Available sections:")
-                main_lines = self.find_section("MAIN", level=1)
-                if main_lines:
-                    for line in main_lines:
-                        if line.startswith("## "):
-                            print(f"  - {line[3:]}")
-                return
-            
-            self.write_file(new_content)
-            print(f"Added task #{task_id} to {main_section}: {task_text}")
+            section_obj = task_file.get_main_section(main_section)
+            section_obj.add_task(new_task)
+        
+        # Write the file back
+        self.write_file_from_objects(task_file)
+        print(f"Added task #{task_id} to {main_section}:{subsection if subsection else ''}: {clean_text}")
     
     def add_task_to_daily(self, task_text):
         """Add a new task to today's daily section"""
-        content = self.read_file()
+        task_file = self.parse_file()
         task_id = self.get_next_id()
         
-        # Check if today's section exists
-        if f"## {self.today}" not in content:
-            print(f"No daily section for {self.today} found. Creating it first...")
-            self.add_daily_section()
-            content = self.read_file()
+        # Extract recurrence pattern from task text
+        clean_text, recurrence = self._extract_recurrence_pattern(task_text)
         
-        # Add task to today's section
-        today_pattern = f"(## {re.escape(self.today)}\\n)"
-        new_task = self._build_task_line(' ', task_text, task_id=task_id) + "\n"
-        replacement = f"\\1{new_task}"
+        # Create new task
+        new_task = Task(
+            id=task_id,
+            text=clean_text,
+            status=' ',
+            recurring=recurrence,
+            is_daily=True
+        )
         
-        new_content = re.sub(today_pattern, replacement, content)
-        self.write_file(new_content)
-        print(f"Added task #{task_id} to today's section: {task_text}")
+        # Add to today's daily section
+        task_file.get_daily_section(self.today).append(new_task)
+        
+        # Write the file back
+        self.write_file_from_objects(task_file)
+        print(f"Added task #{task_id} to today's section: {clean_text}")
     
     def add_task_to_daily_by_id(self, task_id):
         """Pull a task from main list into today's daily section by ID"""
@@ -1749,13 +2026,8 @@ def main():
     if command == "help":
         tm.show_help()
     elif command == "daily":
-        # Check if today's daily section exists, if not create it
-        content = tm.read_file()
-        if f"## {tm.today}" not in content:
-            tm.add_daily_section()
-        else:
-            # Show today's daily list
-            tm.show_daily_list()
+        # Always check for new recurring tasks and add them
+        tm.add_daily_section()
     elif command == "stale":
         tm.show_stale_tasks()
     elif command == "complete" and len(sys.argv) > 2:

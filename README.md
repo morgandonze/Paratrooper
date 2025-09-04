@@ -14,7 +14,10 @@ chmod +x tasks.py
 # Add a task
 ./tasks.py add "Write blog post" PROJECTS
 
-# Start your day
+# Add a recurring task
+./tasks.py add "morning workout (daily)" AREAS:Health
+
+# Start your day (includes recurring tasks)
 ./tasks.py daily
 
 # See what needs attention
@@ -104,6 +107,36 @@ tasks add "fix sink" PROJECTS:HOME       # Add to subsection
 tasks add-daily "text"                   # Add to today's section
 tasks up 042                             # Pull task #042 to today's daily section
 ```
+
+### Adding Recurring Tasks
+You can add recurring tasks directly using the `add` command by including the recurrence pattern in parentheses:
+
+```bash
+# Basic recurring patterns
+tasks add "morning workout (daily)" AREAS:Health
+tasks add "weekly meal prep (weekly:sun)" AREAS:Health
+tasks add "review budget (monthly:1st)" AREAS:Finance
+
+# Advanced patterns
+tasks add "backup database (recur:3d)" PROJECTS
+tasks add "security audit (recur:1m)" PROJECTS
+tasks add "annual review (recur:1y)" AREAS:Finance
+```
+
+**Recurrence patterns supported:**
+- `(daily)` - Every day
+- `(weekdays)` - Monday-Friday only
+- `(weekly)` - Every Sunday (default)
+- `(weekly:mon)` - Every Monday
+- `(weekly:mon,wed,fri)` - Multiple days per week
+- `(monthly)` - 1st of month (default)
+- `(monthly:15th)` - 15th of every month
+- `(recur:3d)` - Every 3 days
+- `(recur:2w)` - Every 2 weeks
+- `(recur:1m)` - Every month
+- `(recur:1y)` - Every year
+
+**Pro tip**: Use `tasks daily` after adding recurring tasks to see them automatically appear in today's section!
 
 ### Task Status
 ```bash
@@ -237,6 +270,63 @@ tasks stale                              # See what's been neglected
 tasks archive                            # Clean up old content (7 days)
 tasks archive 3                           # Clean up content older than 3 days
 ```
+
+## 🏃‍♂️ Setting Up Your Recurring Tasks
+
+Here's a complete workflow for setting up a robust recurring task system:
+
+### Step 1: Create Your Recurring Tasks
+Edit `~/home/tasks.md` and add recurring tasks to appropriate sections:
+
+```markdown
+## AREAS
+### Health
+- [ ] morning workout @15-01-2025 (daily) #004
+- [ ] weekly meal prep @15-01-2025 (weekly:sun) #005
+- [ ] monthly health check @15-01-2025 (monthly:1st) #006
+
+### Finance
+- [ ] review budget @15-01-2025 (weekly:sat) #007
+- [ ] pay bills @15-01-2025 (monthly:15th) #008
+- [ ] quarterly tax review @15-01-2025 (recur:3m) #009
+
+### Learning
+- [ ] read for 30 minutes @15-01-2025 (daily) #010
+- [ ] weekly skill practice @15-01-2025 (weekly:wed) #011
+
+## PROJECTS
+### Website Redesign
+- [ ] check analytics @15-01-2025 (weekly:mon) #012
+- [ ] backup database @15-01-2025 (recur:3d) #013
+- [ ] security audit @15-01-2025 (monthly:1st) #014
+```
+
+### Step 2: Test Your Setup
+```bash
+# See all recurring tasks for today
+tasks daily
+
+# Check what's coming up
+tasks stale
+
+# Verify your patterns work
+tasks sync
+```
+
+### Step 3: Daily Workflow
+```bash
+# Morning routine
+tasks daily                              # Get today's recurring tasks
+# Work on tasks, mark progress with [x] or [~]
+# Evening sync
+tasks sync                               # Update main list from daily progress
+```
+
+**Pro Tips:**
+- Start with just 2-3 recurring tasks to avoid overwhelm
+- Use `(daily)` for habits, `(weekly:day)` for weekly reviews
+- Use `(monthly:day)` for monthly planning and reviews
+- Use `(recur:Xd)` for custom intervals (every 3 days, etc.)
 
 ## 🏗️ System Architecture
 
