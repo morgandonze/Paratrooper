@@ -62,9 +62,9 @@ class TestIntegration(unittest.TestCase):
         
         # Find and update the daily tasks
         for i, line in enumerate(lines):
-            if "Write blog post" in line and "from: PROJECTS" in line:
+            if "Write blog post" in line and "from PROJECTS" in line:
                 lines[i] = line.replace("- [ ]", "- [~]")  # Progress
-            elif "Call client" in line and "from: INBOX" in line:
+            elif "Call client" in line and "from INBOX" in line:
                 lines[i] = line.replace("- [ ]", "- [x]")  # Complete
         
         self.tm.write_file('\n'.join(lines))
@@ -91,9 +91,12 @@ class TestIntegration(unittest.TestCase):
         
         # Step 2: Manually make it recurring
         content = self.tm.read_file()
-        content = content.replace("Morning exercise @04-09-2025 #001", 
-                                "Morning exercise @04-09-2025 (daily) #001")
+        content = content.replace("Morning exercise | @04-09-2025 #001", 
+                                "Morning exercise | @04-09-2025 (daily) #001")
         self.tm.write_file(content)
+        
+        # Clear cache to ensure the manual edit is picked up
+        self.tm._task_file_obj = None
         
         # Step 3: Create daily section (should include recurring task)
         self.tm.add_daily_section()
@@ -104,7 +107,7 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         lines = content.split('\n')
         for i, line in enumerate(lines):
-            if "Morning exercise" in line and "from: AREAS" in line:
+            if "Morning exercise" in line and "from AREAS" in line:
                 lines[i] = line.replace("- [ ]", "- [x]")
         self.tm.write_file('\n'.join(lines))
         

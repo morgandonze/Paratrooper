@@ -363,7 +363,7 @@ class TestTaskManager(unittest.TestCase):
             ("task with @ symbol", "Task text cannot contain '@' character"),
             ("task with # symbol", "Task text cannot contain '#' character"),
             ("task with | pipe", "Task text cannot contain '|' character"),
-            ("task with (parentheses)", "Task text cannot contain '(' character"),
+            ("task with (parentheses)", "Parentheses can only be used for recurrence patterns like (daily), (weekly), etc."),
             ("task with [brackets]", "Task text cannot contain '[' character"),
         ]
         

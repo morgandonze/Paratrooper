@@ -243,6 +243,32 @@ class TaskManager:
         self.today = TODAY
         self._task_file_obj = None
     
+    def init(self):
+        """Initialize the task file with default structure if it doesn't exist"""
+        if not self.task_file.exists():
+            self.task_file.touch()
+            default_content = """# DAILY
+
+# MAIN
+
+## INBOX
+
+## PROJECTS
+
+## AREAS
+
+## RESOURCES
+
+## ZETTELKASTEN
+
+# ARCHIVE
+
+"""
+            self.task_file.write_text(default_content)
+            print(f"Created new task file at {self.task_file}")
+        else:
+            print(f"Task file already exists at {self.task_file}")
+    
     def parse_file(self) -> TaskFile:
         """Parse the task file into Python objects"""
         if self._task_file_obj is not None:
@@ -324,6 +350,12 @@ class TaskManager:
                         task_file.archive_sections[current_section] = []
                     task_file.archive_sections[current_section].append(task)
                 continue
+        
+        # Ensure all main sections exist
+        main_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
+        for section_name in main_sections:
+            if section_name not in task_file.main_sections:
+                task_file.main_sections[section_name] = Section(section_name, 2)
         
         self._task_file_obj = task_file
         return task_file
@@ -746,7 +778,7 @@ class TaskManager:
             print(f"Daily section for {self.today} already exists with all recurring tasks")
             return
         
-        # Add new recurring tasks to today's section
+        # Add new recurring tasks to today's section at the TOP
         for task_data in new_recurring_tasks:
             daily_task = Task(
                 id=task_data['id'],
@@ -755,7 +787,7 @@ class TaskManager:
                 is_daily=True,
                 from_section=task_data['section']
             )
-            existing_tasks.append(daily_task)
+            existing_tasks.insert(0, daily_task)
         
         # Write the file back
         self.write_file_from_objects(task_file)
@@ -965,19 +997,13 @@ class TaskManager:
         else:  # progress
             new_task = self._build_task_line('~', f"{task_text} from {section_ref}", task_id=task_id) + "\n"
         
-        # Find today's daily section and add the task
+        # Find today's daily section and add the task at the TOP
         today_section_found = False
         for i, line in enumerate(lines):
             if line.strip() == f"## {self.today}":
                 today_section_found = True
-                # Find the end of today's section
-                for j in range(i + 1, len(lines)):
-                    if (lines[j].startswith("## ") and lines[j].strip() != f"## {self.today}") or lines[j].startswith("# "):
-                        lines.insert(j, new_task)
-                        self.write_file('\n'.join(lines))
-                        return True
-                # If we reach the end, add at the end
-                lines.append(new_task)
+                # Add right after the daily section header
+                lines.insert(i + 1, new_task)
                 self.write_file('\n'.join(lines))
                 return True
         
@@ -1149,8 +1175,8 @@ class TaskManager:
             is_daily=True
         )
         
-        # Add to today's daily section
-        task_file.get_daily_section(self.today).append(new_task)
+        # Add to today's daily section at the TOP
+        task_file.get_daily_section(self.today).insert(0, new_task)
         
         # Write the file back
         self.write_file_from_objects(task_file)
@@ -1227,7 +1253,7 @@ class TaskManager:
             content = self.read_file()
             lines = content.split('\n')
         
-        # Add task to today's section with section information
+        # Add task to today's section with section information at the TOP
         today_pattern = f"(## {re.escape(self.today)}\\n)"
         new_task = self._build_task_line(' ', f"{task_text} from {section_ref}", task_id=task_id) + "\n"
         replacement = f"\\1{new_task}"
@@ -1378,13 +1404,12 @@ class TaskManager:
                 print(f"      {line}")
     
     def archive_old_content(self, days_to_keep=7):
-        """Archive old daily sections and completed tasks"""
+        """Archive old daily sections to ARCHIVE section"""
         content = self.read_file()
         lines = content.split('\n')
         
         cutoff_date = datetime.now() - timedelta(days=days_to_keep)
         archived_daily_sections = []
-        archived_completed_tasks = []
         new_lines = []
         current_section = []
         in_daily_section = False
@@ -1426,16 +1451,6 @@ class TaskManager:
             elif in_daily_section:
                 current_section.append(line)
             else:
-                # Check for completed tasks in main sections to archive
-                if (self._is_complete_task(line) and 
-                    self._extract_date(line) and 
-                    self._extract_task_id(line) and
-                    not self._is_recurring_task(line)):
-                    task_date = datetime.strptime(self._extract_date(line), "%d-%m-%Y")
-                    if task_date < cutoff_date:
-                        archived_completed_tasks.append(line)
-                        continue
-                
                 new_lines.append(line)
         
         # Handle last section if we ended in daily
@@ -1450,14 +1465,9 @@ class TaskManager:
             except ValueError:
                 new_lines.extend(current_section)
         
-        # Add archived content to ARCHIVE section
+        # Add archived content to ARCHIVE section - only daily subsections
         archive_additions = []
-        if archived_completed_tasks:
-            archive_additions.extend(["", "## ARCHIVED COMPLETED TASKS", ""])
-            archive_additions.extend(archived_completed_tasks)
-        
         if archived_daily_sections:
-            archive_additions.extend(["", "## ARCHIVED DAILY SECTIONS", ""])
             archive_additions.extend(archived_daily_sections)
         
         if archive_additions:
@@ -1470,8 +1480,8 @@ class TaskManager:
         new_content = '\n'.join(new_lines)
         self.write_file(new_content)
         
-        total_archived = len(archived_daily_sections) + len(archived_completed_tasks)
-        print(f"Archived {total_archived} old items")
+        total_archived = len(archived_daily_sections)
+        print(f"Archived {total_archived} old daily sections")
     
     def delete_task_from_main(self, task_id):
         """Delete a task from the main list by ID"""
@@ -1602,6 +1612,7 @@ USAGE:
 
 COMMANDS:
   help                   Show this help message
+  init                   Initialize the task file with default structure
   daily                  Add today's daily section with recurring tasks (or show if exists)
   stale                  Show stale tasks (oldest first, ignores snoozed)
   
@@ -1633,6 +1644,7 @@ COMMANDS:
   purge ID               Delete task from main list and all daily sections
 
 EXAMPLES:
+  tasks init                              # Initialize task file (first time setup)
   tasks daily                              # Start your day (creates or shows daily section)
   tasks add "write blog post" PROJECTS     # Add task to specific section
   tasks add "fix faucet" PROJECTS:HOME     # Add to subsection
@@ -1818,13 +1830,6 @@ For more info: https://fortelabs.com/blog/para/
         # Remove task from current location
         del lines[line_num]
         
-        # Write the file after removing the task
-        self.write_file('\n'.join(lines))
-        
-        # Read the file again to get updated content
-        content = self.read_file()
-        lines = content.split('\n')
-        
         # Build new task line
         new_task = self._build_task_line(task_data['status'], task_data['text'], 
                                        date=task_data['date'], 
@@ -1897,16 +1902,15 @@ For more info: https://fortelabs.com/blog/para/
             section_pattern = f"(## {main_section}\\n)"
             new_task_with_spacing = f"\\1{new_task}"
             
-            new_content = re.sub(section_pattern, new_task_with_spacing, content)
+            new_content = re.sub(section_pattern, new_task_with_spacing, '\n'.join(lines))
             
             # Check if the replacement worked
-            if new_content == content:
+            if new_content == '\n'.join(lines):
                 print(f"Section '{main_section}' not found. Available sections:")
-                main_lines = self.find_section("MAIN", level=1)
-                if main_lines:
-                    for line in main_lines:
-                        if line.startswith("## "):
-                            print(f"  - {line[3:]}")
+                # Look for sections in the current content
+                for line in lines:
+                    if line.startswith("## "):
+                        print(f"  - {line[3:]}")
                 return
             
             self.write_file(new_content)
@@ -2027,6 +2031,8 @@ def main():
     
     if command == "help":
         tm.show_help()
+    elif command == "init":
+        tm.init()
     elif command == "daily":
         # Always check for new recurring tasks and add them
         tm.add_daily_section()
