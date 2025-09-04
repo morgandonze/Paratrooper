@@ -117,7 +117,8 @@ tasks snooze 042 25-12-2025             # Hide until specific date
 ```bash
 tasks show 042                          # Show task details
 tasks sections                          # List all available sections
-tasks archive                           # Clean up old content
+tasks archive                           # Clean up old content (7 days)
+tasks archive 3                          # Clean up content older than 3 days
 tasks delete 042                        # Delete from main list only
 tasks down 042                          # Remove from today's daily section
 tasks purge 042                         # Delete from everywhere
@@ -233,7 +234,8 @@ tasks sync                               # Updates main list from daily progress
 
 # Weekly planning
 tasks stale                              # See what's been neglected
-tasks archive                            # Clean up old content
+tasks archive                            # Clean up old content (7 days)
+tasks archive 3                           # Clean up content older than 3 days
 ```
 
 ## 🏗️ System Architecture

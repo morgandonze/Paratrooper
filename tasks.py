@@ -1066,7 +1066,7 @@ COMMANDS:
   
   show ID                Show details of specific task
   sections               List all available sections
-  archive                Clean up old daily sections and completed tasks
+  archive [DAYS]         Clean up old daily sections and completed tasks (default: 7 days)
   
   delete ID              Delete task from main list only
   down ID                 Remove task from today's daily section (return to main)
@@ -1219,7 +1219,14 @@ def main():
     elif command == "sections":
         tm.list_sections()
     elif command == "archive":
-        tm.archive_old_content()
+        if len(sys.argv) > 2:
+            try:
+                days = int(sys.argv[2])
+                tm.archive_old_content(days)
+            except ValueError:
+                print("Invalid number of days. Use: tasks archive [days]")
+        else:
+            tm.archive_old_content()
     elif command == "delete" and len(sys.argv) > 2:
         tm.delete_task_from_main(sys.argv[2])
     elif command == "down" and len(sys.argv) > 2:
