@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 # Configuration
-TASK_FILE = Path.home() / "home" / "tasks.txt"
+TASK_FILE = Path.home() / "home" / "texts.md"
 TODAY = datetime.now().strftime("%d-%m-%Y")
 
 class TaskManager:
