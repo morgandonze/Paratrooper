@@ -94,6 +94,29 @@ class TaskManager:
                 return (i, line)
         return None
     
+    def find_task_by_id_in_main(self, task_id):
+        """Find a task by its ID in MAIN section only, return (line_number, line_content) or None"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        in_main_section = False
+        
+        for i, line in enumerate(lines):
+            # Check if we're entering the MAIN section
+            if line.strip() == "# MAIN":
+                in_main_section = True
+                continue
+            
+            # Check if we're leaving the MAIN section
+            if in_main_section and line.startswith("# ") and line.strip() != "# MAIN":
+                break
+            
+            # Look for the task in MAIN section
+            if in_main_section and f"#{task_id}" in line and re.match(r'- \[.\] ', line):
+                return (i, line)
+        
+        return None
+    
     def should_recur_today(self, recur_pattern, last_date_str):
         """Check if a recurring task should appear today"""
         today_obj = datetime.strptime(self.today, "%d-%m-%Y")
@@ -487,10 +510,10 @@ class TaskManager:
     
     def add_task_to_daily_by_id(self, task_id):
         """Pull a task from main list into today's daily section by ID"""
-        # Find the task in the main list
-        result = self.find_task_by_id(task_id)
+        # Find the task in the main list only
+        result = self.find_task_by_id_in_main(task_id)
         if not result:
-            print(f"No task found with ID #{task_id}")
+            print(f"No task found with ID #{task_id} in MAIN section")
             return
         
         line_num, line = result
@@ -506,7 +529,6 @@ class TaskManager:
         # Find the section this task belongs to
         current_subsection = None
         current_project = None
-        section_found = False
         
         # Search backwards from the task line to find its section
         for i in range(line_num - 1, -1, -1):
@@ -520,7 +542,6 @@ class TaskManager:
                 section_name = current_line[3:].strip()
                 if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
                     current_subsection = section_name
-                    section_found = True
                     break
                 elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
                     # This is a daily section, skip it
@@ -528,12 +549,13 @@ class TaskManager:
                 else:
                     # This might be a subsection under MAIN
                     current_subsection = section_name
-                    section_found = True
                     break
             
             # Check for project subsection (###)
             elif current_line.startswith("### "):
-                current_project = current_line[4:].strip()
+                # Only set if we haven't found one yet (first one encountered when searching backwards)
+                if current_project is None:
+                    current_project = current_line[4:].strip()
                 # Continue searching for the main section
         
         # Build section reference
@@ -543,6 +565,10 @@ class TaskManager:
             section_ref = current_subsection
         else:
             section_ref = "UNKNOWN"
+        
+
+        
+
         
         # Check if today's section exists
         if f"## {self.today}" not in content:
