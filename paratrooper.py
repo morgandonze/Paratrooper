@@ -776,6 +776,8 @@ class TaskManager:
         
         if not new_recurring_tasks and existing_tasks:
             print(f"Daily section for {self.today} already exists with all recurring tasks")
+            # Display the existing daily section
+            self.show_daily_list()
             return
         
         # Add new recurring tasks to today's section at the TOP
@@ -796,6 +798,9 @@ class TaskManager:
             print(f"Daily section for {self.today} updated with {len(new_recurring_tasks)} new recurring tasks")
         else:
             print(f"Added daily section for {self.today} with {len(new_recurring_tasks)} recurring tasks")
+        
+        # Display the current daily section
+        self.show_daily_list()
     
     def show_stale_tasks(self):
         """Show tasks ordered by staleness, excluding future-snoozed tasks"""
