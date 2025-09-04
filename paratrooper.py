@@ -2146,8 +2146,8 @@ def main():
         tm.add_task_to_main(task_text, section)
     elif command == "add-daily" and len(args) > 2:
         tm.add_task_to_daily(" ".join(args[2:]))
-    elif command == "up" and len(args) > 2:
-        tm.add_task_to_daily_by_id(args[2])
+    elif command == "up" and len(args) > 1:
+        tm.add_task_to_daily_by_id(args[1])
     elif command == "snooze" and len(args) > 3:
         tm.snooze_task(args[2], args[3])
 
