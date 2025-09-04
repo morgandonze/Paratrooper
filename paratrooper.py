@@ -805,7 +805,6 @@ class TaskManager:
         new_recurring_tasks = [task for task in recurring_tasks if task['id'] not in existing_task_ids]
         
         if not new_recurring_tasks and existing_tasks:
-            print(f"Daily section for {self.today} already exists with all recurring tasks")
             # Display the existing daily section
             self.show_daily_list()
             return
@@ -1783,6 +1782,7 @@ For more info: https://fortelabs.com/blog/para/
             return
         
         print(f"=== Daily Tasks for {self.today} ===")
+        print()
         for task in daily_tasks:
             # Parse task using new format
             task_data = self._parse_task_line(task)
@@ -2102,23 +2102,18 @@ def main():
         # Parse section argument properly
         valid_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
         
-        if len(args) == 3:
-            # Just task text, no section
-            task_text = args[2]
-            section = "INBOX"
+        # Check if last argument is a section
+        last_arg = args[-1]
+        main_part = last_arg.split(":")[0].upper()
+        
+        if main_part in valid_sections:
+            # Last argument is a section/subsection
+            section = last_arg
+            task_text = " ".join(args[1:-1])
         else:
-            # Check if last argument is a section
-            last_arg = args[-1]
-            main_part = last_arg.split(":")[0].upper()
-            
-            if main_part in valid_sections:
-                # Last argument is a section/subsection
-                section = last_arg
-                task_text = " ".join(args[2:-1])
-            else:
-                # All arguments are task text
-                task_text = " ".join(args[2:])
-                section = "INBOX"
+            # All arguments are task text
+            task_text = " ".join(args[1:])
+            section = "INBOX"
         
         tm.add_task_to_main(task_text, section)
     elif command == "add-main" and len(args) > 2:
@@ -2162,22 +2157,22 @@ def main():
                 print("Invalid number of days. Use: tasks archive [days]")
         else:
             tm.archive_old_content()
-    elif command == "delete" and len(args) > 2:
-        tm.delete_task_from_main(args[2])
-    elif command == "down" and len(args) > 2:
-        tm.delete_task_from_daily(args[2])
-    elif command == "purge" and len(args) > 2:
-        tm.purge_task(args[2])
-    elif command == "show" and len(args) > 2:
+    elif command == "delete" and len(args) > 1:
+        tm.delete_task_from_main(args[1])
+    elif command == "down" and len(args) > 1:
+        tm.delete_task_from_daily(args[1])
+    elif command == "purge" and len(args) > 1:
+        tm.purge_task(args[1])
+    elif command == "show" and len(args) > 1:
         # Check if it's a section:subsection format or a known section name
-        if ":" in args[2] or args[2].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
-            tm.show_section(args[2])
-        elif not args[2].isdigit():
+        if ":" in args[1] or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+            tm.show_section(args[1])
+        elif not args[1].isdigit():
             # Try as section name if it's not a number
-            tm.show_section(args[2])
+            tm.show_section(args[1])
         else:
             # Original show task by ID functionality
-            tm.show_task(args[2])
+            tm.show_task(args[1])
     elif command == "edit" and len(args) > 3:
         task_id = args[2]
         new_text = " ".join(args[3:])
