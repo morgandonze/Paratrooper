@@ -752,9 +752,13 @@ class TaskManager:
         content = self.read_file()
         lines = content.split('\n')
         
-        # Remove existing snooze if present and add new snooze date
+        # Remove existing snooze if present and add new snooze date before ID
         new_line = re.sub(SNOOZE_PATTERN, '', line)
-        new_line = new_line.rstrip() + f" snooze:{snooze_date}"
+        # Insert snooze before the ID
+        if f"#{task_id}" in new_line:
+            new_line = new_line.replace(f"#{task_id}", f"snooze:{snooze_date} #{task_id}")
+        else:
+            new_line = new_line.rstrip() + f" snooze:{snooze_date}"
         
         lines[line_num] = new_line
         self.write_file('\n'.join(lines))
