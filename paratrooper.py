@@ -727,6 +727,30 @@ class TaskManager:
         """Mark a task as in progress"""
         return line.replace(TASK_STATUS['INCOMPLETE'], TASK_STATUS['PROGRESS'])
     
+    def _is_task_in_daily_section(self, task_id, content=None):
+        """Check if a task with given ID is already in today's daily section"""
+        if content is None:
+            content = self.read_file()
+        lines = content.split('\n')
+        in_today_section = False
+        
+        for line in lines:
+            # Check if we're entering today's daily section
+            if line.strip() == f"## {self.today}":
+                in_today_section = True
+                continue
+            
+            # Check if we're leaving today's daily section
+            if in_today_section and line.startswith("##") and line.strip() != f"## {self.today}":
+                break
+            
+            # If we're in today's section, check for the task ID
+            if in_today_section and self._is_task_line(line):
+                if f"#{task_id}" in line:
+                    return True
+        
+        return False
+    
     def find_section(self, section_name, level=1):
         """Find a section by name and return its content until next section of same level"""
         content = self.read_file()
@@ -939,8 +963,8 @@ class TaskManager:
         # Display the current daily section
         self.show_daily_list()
     
-    def show_stale_tasks(self, scope=None):
-        """Show tasks ordered by staleness, excluding future-snoozed tasks
+    def show_status_tasks(self, scope=None):
+        """Show tasks ordered by status (staleness), excluding future-snoozed tasks
         
         Args:
             scope: Optional section filter (e.g., 'projects', 'areas:work')
@@ -948,7 +972,7 @@ class TaskManager:
         content = self.read_file()
         today_obj = datetime.strptime(self.today, "%d-%m-%Y")
         
-        # Only look in MAIN section for stale tasks
+        # Only look in MAIN section for status tasks
         main_lines = self.find_section("MAIN", level=1)
         if not main_lines:
             print("No MAIN section found")
@@ -1017,20 +1041,20 @@ class TaskManager:
         # Display header
         if scope:
             if target_subsection:
-                print(f"=== Stale tasks in {target_main_section} > {target_subsection} (oldest first) ===")
+                print(f"=== Task status in {target_main_section} > {target_subsection} (oldest first) ===")
             else:
-                print(f"=== Stale tasks in {target_main_section} (oldest first) ===")
+                print(f"=== Task status in {target_main_section} (oldest first) ===")
         else:
-            print("=== Tasks by staleness (oldest first) ===")
+            print("=== Tasks by status (oldest first) ===")
         
         if not tasks:
             if scope:
                 if target_subsection:
-                    print(f"No stale tasks found in {target_main_section} > {target_subsection}")
+                    print(f"No tasks found in {target_main_section} > {target_subsection}")
                 else:
-                    print(f"No stale tasks found in {target_main_section}")
+                    print(f"No tasks found in {target_main_section}")
             else:
-                print("No stale tasks found")
+                print("No tasks found")
             return
         
         for days_ago, date_str, task_text, task_id in tasks[:15]:
@@ -1165,25 +1189,6 @@ class TaskManager:
                 if self._add_task_to_daily_section(task_id, "complete"):
                     print(f"Added task #{task_id} to daily section")
     
-    def _is_task_in_daily_section(self, task_id):
-        """Check if a task is already in today's daily section"""
-        content = self.read_file()
-        lines = content.split('\n')
-        
-        today_section_found = False
-        for line in lines:
-            if line.strip() == f"## {self.today}":
-                today_section_found = True
-                continue
-            
-            if today_section_found:
-                if line.startswith("## ") and line.strip() != f"## {self.today}":
-                    break
-                
-                if f"#{task_id}" in line and self._is_task_line(line):
-                    return True
-        
-        return False
     
     def _add_task_to_daily_section(self, task_id, status="complete"):
         """Add a task from main list to today's daily section with specified status"""
@@ -1501,6 +1506,11 @@ class TaskManager:
             self.add_daily_section()
             content = self.read_file()
             lines = content.split('\n')
+        
+        # Check if task is already in today's daily section
+        if self._is_task_in_daily_section(task_id, content):
+            print(f"Task #{task_id} is already in today's daily section")
+            return
         
         # Add task to today's section with section information at the TOP
         today_pattern = f"(## {re.escape(self.today)}\\n)"
@@ -1870,7 +1880,7 @@ COMMANDS:
   config                 Show current configuration
   init                   Initialize the task file with default structure
   daily                  Add today's daily section with recurring tasks (or show if exists)
-  stale [SCOPE]          Show stale tasks (oldest first, ignores snoozed)
+  status [SCOPE]         Show task status (oldest first, ignores snoozed)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
   
   complete ID            Mark task with ID as complete
@@ -1920,9 +1930,9 @@ EXAMPLES:
   tasks show PROJECTS:HOME                 # Show tasks in PROJECTS > HOME subsection
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
-  tasks stale                              # See what needs attention
-  tasks stale projects                     # See stale tasks in PROJECTS section
-  tasks stale areas:work                   # See stale tasks in AREAS > WORK subsection
+  tasks status                             # See what needs attention
+  tasks status projects                    # See task status in PROJECTS section
+  tasks status areas:work                  # See task status in AREAS > WORK subsection
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text
   tasks move 042 PROJECTS:HOME             # Move task to subsection
@@ -1938,7 +1948,7 @@ WORKFLOW:
   2. Work:      Check daily section, mark tasks:
                 [x] = completed, [~] = made progress but not done
   3. Evening:   tasks sync (updates main list)
-  4. Planning:  tasks stale (see neglected tasks)
+  4. Planning:  tasks status (see neglected tasks)
 
 TASK SYNTAX:
   - [ ] incomplete task | @15-01-2025 #001
@@ -2463,9 +2473,9 @@ def main():
     elif command == "daily":
         # Always check for new recurring tasks and add them
         tm.add_daily_section()
-    elif command == "stale":
+    elif command == "status":
         scope = args[1] if len(args) > 1 else None
-        tm.show_stale_tasks(scope)
+        tm.show_status_tasks(scope)
     elif command == "complete" and len(args) > 1:
         tm.complete_task(args[1])
     elif command == "done" and len(args) > 1:
