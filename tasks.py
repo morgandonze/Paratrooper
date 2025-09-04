@@ -14,6 +14,23 @@ from pathlib import Path
 TASK_FILE = Path.home() / "home" / "tasks.md"
 TODAY = datetime.now().strftime("%d-%m-%Y")
 
+# Regex patterns
+TASK_STATUS_PATTERN = r'- \[.\] '
+TASK_INCOMPLETE_PATTERN = r'- \[ \] '
+TASK_COMPLETE_PATTERN = r'- \[x\] '
+TASK_PROGRESS_PATTERN = r'- \[~\] '
+TASK_ID_PATTERN = r'#(\d{3})'
+DATE_PATTERN = r'@(\d{2}-\d{2}-\d{4})'
+SNOOZE_PATTERN = r'snooze:(\d{2}-\d{2}-\d{4})'
+RECURRING_PATTERN = r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)'
+
+# Task status constants
+TASK_STATUS = {
+    'INCOMPLETE': '- [ ]',
+    'COMPLETE': '- [x]',
+    'PROGRESS': '- [~]'
+}
+
 class TaskManager:
     def __init__(self):
         self.task_file = TASK_FILE
@@ -47,6 +64,48 @@ class TaskManager:
         """Write content back to task file"""
         self.task_file.write_text(content)
     
+    def _is_task_line(self, line):
+        """Check if a line is a task line"""
+        return bool(re.match(TASK_STATUS_PATTERN, line))
+    
+    def _is_incomplete_task(self, line):
+        """Check if a line is an incomplete task"""
+        return bool(re.match(TASK_INCOMPLETE_PATTERN, line))
+    
+    def _is_complete_task(self, line):
+        """Check if a line is a complete task"""
+        return bool(re.match(TASK_COMPLETE_PATTERN, line))
+    
+    def _is_progress_task(self, line):
+        """Check if a line is a progress task"""
+        return bool(re.match(TASK_PROGRESS_PATTERN, line))
+    
+    def _extract_task_id(self, line):
+        """Extract task ID from a line"""
+        match = re.search(TASK_ID_PATTERN, line)
+        return match.group(1) if match else None
+    
+    def _extract_date(self, line):
+        """Extract date from a line"""
+        match = re.search(DATE_PATTERN, line)
+        return match.group(1) if match else None
+    
+    def _is_recurring_task(self, line):
+        """Check if a task is recurring"""
+        return bool(re.search(RECURRING_PATTERN, line))
+    
+    def _update_task_date(self, line):
+        """Update task date to today"""
+        return re.sub(DATE_PATTERN, f'@{self.today}', line)
+    
+    def _mark_task_complete(self, line):
+        """Mark a task as complete"""
+        return line.replace(TASK_STATUS['INCOMPLETE'], TASK_STATUS['COMPLETE'])
+    
+    def _mark_task_progress(self, line):
+        """Mark a task as in progress"""
+        return line.replace(TASK_STATUS['INCOMPLETE'], TASK_STATUS['PROGRESS'])
+    
     def find_section(self, section_name, level=1):
         """Find a section by name and return its content until next section of same level"""
         content = self.read_file()
@@ -77,7 +136,7 @@ class TaskManager:
         content = self.read_file()
         
         # Find all existing IDs
-        id_matches = re.findall(r'#(\d{3})', content)
+        id_matches = re.findall(TASK_ID_PATTERN, content)
         if not id_matches:
             return "001"
         
@@ -90,7 +149,7 @@ class TaskManager:
         lines = content.split('\n')
         
         for i, line in enumerate(lines):
-            if f"#{task_id}" in line and re.match(r'- \[.\] ', line):
+            if f"#{task_id}" in line and self._is_task_line(line):
                 return (i, line)
         return None
     
@@ -112,7 +171,7 @@ class TaskManager:
                 break
             
             # Look for the task in MAIN section
-            if in_main_section and f"#{task_id}" in line and re.match(r'- \[.\] ', line):
+            if in_main_section and f"#{task_id}" in line and self._is_task_line(line):
                 return (i, line)
         
         return None
@@ -200,31 +259,29 @@ class TaskManager:
                 current_project = None
             elif line.startswith("### "):
                 current_project = line[4:].strip()  # Remove "### "
-            elif re.match(r'- \[ \] .* \([^)]*\)', line):
-                # Check for recurring pattern
-                recur_match = re.search(r'\(([^)]+)\)', line)
-                if recur_match:
-                    recur_pattern = recur_match.group(1)
-                    if recur_pattern not in ["snooze"] and (
-                        any(keyword in recur_pattern for keyword in ["daily", "weekly", "monthly"]) or 
-                        recur_pattern.startswith("recur:")
-                    ):
-                        # Extract task info
-                        task_match = re.match(r'- \[ \] ([^@#]+)', line)
-                        id_match = re.search(r'#(\d{3})', line)
-                        
-                        if task_match and id_match and current_subsection:
-                            task_text = task_match.group(1).strip()
-                            task_id = id_match.group(1)
-                            date_match = re.search(r'@(\d{2}-\d{2}-\d{4})', line)
-                            last_date = date_match.group(1) if date_match else self.today
-                            
-                            # Build section reference
-                            if current_project:
-                                section_ref = f"{current_subsection} > {current_project}"
-                            else:
-                                section_ref = current_subsection
-                            
+            elif self._is_incomplete_task(line) and self._is_recurring_task(line):
+                # Extract task info
+                task_match = re.match(r'- \[ \] ([^@#]+)', line)
+                task_id = self._extract_task_id(line)
+                last_date = self._extract_date(line) or self.today
+                
+                if task_match and task_id and current_subsection:
+                    task_text = task_match.group(1).strip()
+                    
+                    # Build section reference
+                    if current_project:
+                        section_ref = f"{current_subsection} > {current_project}"
+                    else:
+                        section_ref = current_subsection
+                    
+                    # Extract recurring pattern
+                    recur_match = re.search(r'\(([^)]+)\)', line)
+                    if recur_match:
+                        recur_pattern = recur_match.group(1)
+                        if recur_pattern not in ["snooze"] and (
+                            any(keyword in recur_pattern for keyword in ["daily", "weekly", "monthly"]) or 
+                            recur_pattern.startswith("recur:")
+                        ):
                             if self.should_recur_today(recur_pattern, last_date):
                                 recurring_tasks.append({
                                     'text': task_text,
@@ -314,13 +371,13 @@ class TaskManager:
         lines = content.split('\n')
         
         # Check if it's recurring
-        if re.search(r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)', line):
+        if self._is_recurring_task(line):
             # Recurring task - just update date, keep [ ]
-            new_line = re.sub(r'@\d{2}-\d{2}-\d{4}', f'@{self.today}', line)
+            new_line = self._update_task_date(line)
         else:
             # Non-recurring task - mark complete and update date
-            new_line = line.replace('- [ ]', '- [x]')
-            new_line = re.sub(r'@\d{2}-\d{2}-\d{4}', f'@{self.today}', new_line)
+            new_line = self._mark_task_complete(line)
+            new_line = self._update_task_date(new_line)
         
         lines[line_num] = new_line
         self.write_file('\n'.join(lines))
@@ -349,14 +406,14 @@ class TaskManager:
                     break
                 
                 # Look for completed and progressed tasks
-                if re.match(r'- \[x\] .*#(\d{3})', line):
-                    id_match = re.search(r'#(\d{3})', line)
-                    if id_match:
-                        completed_daily_ids.append(id_match.group(1))
-                elif re.match(r'- \[~\] .*#(\d{3})', line):
-                    id_match = re.search(r'#(\d{3})', line)
-                    if id_match:
-                        progressed_daily_ids.append(id_match.group(1))
+                if self._is_complete_task(line):
+                    task_id = self._extract_task_id(line)
+                    if task_id:
+                        completed_daily_ids.append(task_id)
+                elif self._is_progress_task(line):
+                    task_id = self._extract_task_id(line)
+                    if task_id:
+                        progressed_daily_ids.append(task_id)
         
         if not today_section_found:
             print(f"No daily section found for {self.today}")
@@ -370,14 +427,14 @@ class TaskManager:
             result = self.find_task_by_id_in_main(task_id)
             if result:
                 line_num, line = result
-                if re.match(r'- \[ \] ', line):  # Only update if not already complete
+                if self._is_incomplete_task(line):  # Only update if not already complete
                     # Check if recurring - if so, just update date
-                    if re.search(r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)', line):
-                        lines[line_num] = re.sub(r'@\d{2}-\d{2}-\d{4}', f'@{self.today}', line)
+                    if self._is_recurring_task(line):
+                        lines[line_num] = self._update_task_date(line)
                     else:
                         # Non-recurring - mark complete
-                        lines[line_num] = line.replace('- [ ]', '- [x]')
-                        lines[line_num] = re.sub(r'@\d{2}-\d{2}-\d{4}', f'@{self.today}', lines[line_num])
+                        lines[line_num] = self._mark_task_complete(line)
+                        lines[line_num] = self._update_task_date(lines[line_num])
                     
                     updates_made += 1
         
@@ -390,9 +447,9 @@ class TaskManager:
             result = self.find_task_by_id_in_main(task_id)
             if result:
                 line_num, line = result
-                if re.match(r'- \[ \] ', line):  # Only update incomplete tasks
+                if self._is_incomplete_task(line):  # Only update incomplete tasks
                     # Just update date, keep as incomplete
-                    lines[line_num] = re.sub(r'@\d{2}-\d{2}-\d{4}', f'@{self.today}', line)
+                    lines[line_num] = self._update_task_date(line)
                     updates_made += 1
         
         if updates_made > 0:
@@ -621,9 +678,9 @@ class TaskManager:
                     break
                 
                 # Look for the task ID in this daily section
-                if f"#{task_id}" in line and re.match(r'- \[.\] ', line):
+                if f"#{task_id}" in line and self._is_task_line(line):
                     # Change to progress marker
-                    new_line = re.sub(r'- \[.\] ', '- [~] ', line)
+                    new_line = self._mark_task_progress(line)
                     lines[i] = new_line
                     task_found = True
                     break
@@ -664,7 +721,7 @@ class TaskManager:
         lines = content.split('\n')
         
         # Remove existing snooze if present and add new snooze date
-        new_line = re.sub(r' snooze:\d{2}-\d{2}-\d{4}', '', line)
+        new_line = re.sub(SNOOZE_PATTERN, '', line)
         new_line = new_line.rstrip() + f" snooze:{snooze_date}"
         
         lines[line_num] = new_line
@@ -747,14 +804,14 @@ class TaskManager:
                 current_section.append(line)
             else:
                 # Check for completed tasks in main sections to archive
-                if (re.match(r'- \[x\] .*@\d{2}-\d{2}-\d{4}.*#\d{3}', line) and
-                    not re.search(r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)', line)):
-                    date_match = re.search(r'@(\d{2}-\d{2}-\d{4})', line)
-                    if date_match:
-                        task_date = datetime.strptime(date_match.group(1), "%d-%m-%Y")
-                        if task_date < cutoff_date:
-                            archived_completed_tasks.append(line)
-                            continue
+                if (self._is_complete_task(line) and 
+                    self._extract_date(line) and 
+                    self._extract_task_id(line) and
+                    not self._is_recurring_task(line)):
+                    task_date = datetime.strptime(self._extract_date(line), "%d-%m-%Y")
+                    if task_date < cutoff_date:
+                        archived_completed_tasks.append(line)
+                        continue
                 
                 new_lines.append(line)
         
