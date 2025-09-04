@@ -1002,7 +1002,7 @@ COMMANDS:
   add-main TEXT [SEC]    Add task to main list section (default: INBOX)
                          Use SEC:SUBSEC for subsections (e.g., PROJECTS:HOME)
   add-daily TEXT         Add task directly to today's daily section
-  pull ID                Pull task from main list into today's daily section
+  up ID                  Pull task from main list into today's daily section
   
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
@@ -1011,8 +1011,8 @@ COMMANDS:
   sections               List all available sections
   archive                Clean up old daily sections and completed tasks
   
-  delete-main ID         Delete task from main list only
-  delete-daily ID         Delete task from today's daily section only
+  delete ID              Delete task from main list only
+  down ID                 Remove task from today's daily section (return to main)
   purge ID               Delete task from main list and all daily sections
 
 EXAMPLES:
@@ -1020,14 +1020,14 @@ EXAMPLES:
   tasks add "write blog post" PROJECTS     # Add task to specific section
   tasks add "fix faucet" PROJECTS:HOME     # Add to subsection
   tasks add-daily "urgent client call"     # Add to today only
-  tasks pull 042                          # Pull task #042 to today's daily section
+  tasks up 042                            # Pull task #042 to today's daily section
   tasks complete 042                       # Mark task done
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
   tasks stale                              # See what needs attention
   tasks sync                               # Update main list from daily work
-  tasks delete-main 042                    # Remove task from main list
-  tasks delete-daily 042                   # Remove task from today's daily section
+  tasks delete 042                         # Remove task from main list
+  tasks down 042                           # Remove task from today's daily section
   tasks purge 042                          # Remove task from everywhere
 
 WORKFLOW:
@@ -1163,9 +1163,9 @@ def main():
         tm.list_sections()
     elif command == "archive":
         tm.archive_old_content()
-    elif command == "delete-main" and len(sys.argv) > 2:
+    elif command == "delete" and len(sys.argv) > 2:
         tm.delete_task_from_main(sys.argv[2])
-    elif command == "delete-daily" and len(sys.argv) > 2:
+    elif command == "down" and len(sys.argv) > 2:
         tm.delete_task_from_daily(sys.argv[2])
     elif command == "purge" and len(sys.argv) > 2:
         tm.purge_task(sys.argv[2])

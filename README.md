@@ -102,7 +102,7 @@ tasks add "text"                         # Add to INBOX
 tasks add "text" PROJECTS                # Add to specific section
 tasks add "fix sink" PROJECTS:HOME       # Add to subsection
 tasks add-daily "text"                   # Add to today's section
-tasks pull 042                           # Pull task #042 to today's daily section
+tasks up 042                             # Pull task #042 to today's daily section
 ```
 
 ### Task Status
@@ -118,8 +118,8 @@ tasks snooze 042 25-12-2025             # Hide until specific date
 tasks show 042                          # Show task details
 tasks sections                          # List all available sections
 tasks archive                           # Clean up old content
-tasks delete-main 042                   # Delete from main list only
-tasks delete-daily 042                  # Delete from today's daily section only
+tasks delete 042                        # Delete from main list only
+tasks down 042                          # Remove from today's daily section
 tasks purge 042                         # Delete from everywhere
 ```
 
@@ -218,8 +218,8 @@ tasks daily                              # Creates today's section with recurrin
 
 # Planning - pull important tasks from main list
 tasks stale                              # See what's been neglected
-tasks pull 023                           # Pull that important project task
-tasks pull 067                           # Pull that overdue task
+tasks up 023                             # Pull that important project task
+tasks up 067                             # Pull that overdue task
 
 # During work - edit daily section manually
 - [x] morning workout (from: AREAS > Health) #004       # Recurring, completed
