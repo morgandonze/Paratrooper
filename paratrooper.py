@@ -492,25 +492,61 @@ class TaskManager:
         lines = content.split('\n')
         formatted_lines = []
         
-        for i, line in enumerate(lines):
-            current_line = line.strip()
+        i = 0
+        while i < len(lines):
+            current_line = lines[i].strip()
             
             # Skip empty lines at the beginning
             if not current_line and not formatted_lines:
+                i += 1
                 continue
             
-            # Add the current line
-            formatted_lines.append(line)
+            # Check if this is a section header
+            if current_line.startswith('## '):
+                # Look ahead to see if this section has any tasks
+                section_has_tasks = False
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j].strip()
+                    if next_line.startswith('## ') or next_line.startswith('# '):
+                        # Hit another section, stop looking
+                        break
+                    elif self._is_task_line(lines[j]):
+                        section_has_tasks = True
+                        break
+                    j += 1
+                
+                # Add the section header
+                formatted_lines.append(lines[i])
+                
+                # Add blank line after section header if it has tasks
+                if section_has_tasks and i + 1 < len(lines) and lines[i + 1].strip() != '':
+                    formatted_lines.append('')
+                elif not section_has_tasks:
+                    # Skip any blank lines after empty section headers
+                    while i + 1 < len(lines) and lines[i + 1].strip() == '':
+                        i += 1
+                    
+                    # Add blank line after empty section header if there's another section coming
+                    if i + 1 < len(lines):
+                        next_line = lines[i + 1].strip()
+                        if next_line.startswith('## ') or next_line.startswith('# '):
+                            formatted_lines.append('')
+            else:
+                # Add the current line
+                formatted_lines.append(lines[i])
+                
+                # Add empty line after headers (but not at the end of file)
+                if (lines[i].startswith('#') and i < len(lines) - 1 and 
+                    not lines[i + 1].strip() == ''):
+                    formatted_lines.append('')
+                
+                # Add empty line after tasks (but not at the end of file)
+                elif (self._is_task_line(lines[i]) and i < len(lines) - 1 and 
+                      not lines[i + 1].strip() == ''):
+                    formatted_lines.append('')
             
-            # Add empty line after headers (but not at the end of file)
-            if (line.startswith('#') and i < len(lines) - 1 and 
-                not lines[i + 1].strip() == ''):
-                formatted_lines.append('')
-            
-            # Add empty line after tasks (but not at the end of file)
-            elif (self._is_task_line(line) and i < len(lines) - 1 and 
-                  not lines[i + 1].strip() == ''):
-                formatted_lines.append('')
+            i += 1
         
         # Remove trailing empty lines
         while formatted_lines and formatted_lines[-1].strip() == '':
@@ -1692,20 +1728,16 @@ class TaskManager:
         deleted_from_main = False
         deleted_from_daily = False
         
+        # Read the file once
+        content = self.read_file()
+        lines = content.split('\n')
+        
         # Delete from main list
         result = self.find_task_by_id_in_main(task_id)
         if result:
             line_num, line = result
-            content = self.read_file()
-            lines = content.split('\n')
             lines.pop(line_num)
-            
-            self.write_file('\n'.join(lines))
             deleted_from_main = True
-        
-        # Delete from all daily sections
-        content = self.read_file()
-        lines = content.split('\n')
         
         # Find all instances of the task in daily sections
         indices_to_remove = []
@@ -1737,7 +1769,8 @@ class TaskManager:
             lines.pop(i)
             deleted_from_daily = True
         
-        if deleted_from_daily:
+        # Write the file once with all changes
+        if deleted_from_main or deleted_from_daily:
             self.write_file('\n'.join(lines))
         
         if deleted_from_main and deleted_from_daily:
