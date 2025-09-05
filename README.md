@@ -81,14 +81,16 @@ Distinguish between completion and progress:
 
 This solves the problem of tasks where you make meaningful progress but don't finish.
 
-### 1.5. **New Tasks Added to TOP** - Latest Enhancement
+### 1.5. **Smart Daily Task Management** - Latest Enhancement
 - New daily tasks are automatically added to the **top** of daily sections
 - Recurring tasks appear at the **top** when added to daily sections
 - Pulled tasks from main list are added to the **top** of daily sections
-- This ensures your most recent tasks are always visible first
+- **Unfinished and progressed tasks automatically carry over** from the previous day's daily section
+- **Smart filtering**: Recurring tasks follow their recurrence pattern, non-recurring tasks carry over regardless of status
+- This ensures your most recent tasks are always visible first and nothing falls through the cracks
 
 ### 2. **Daily Workflow Integration**
-- **Morning**: `python paratrooper.py daily` - auto-adds recurring tasks
+- **Morning**: `python paratrooper.py daily` - auto-adds recurring tasks and carries over unfinished/progressed tasks from previous day
 - **Work**: Use daily section, mark tasks as you work
 - **Evening**: `python paratrooper.py sync` - updates main list from daily progress
 

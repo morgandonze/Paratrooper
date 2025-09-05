@@ -419,6 +419,13 @@ class TaskManager:
                 task = Task.from_markdown(line)
                 if task:
                     task.is_daily = True
+                    # Check if this task came from a main section (indicated by " from " in text)
+                    if " from " in task.text:
+                        # Extract the section name from the text
+                        parts = task.text.split(" from ")
+                        if len(parts) == 2:
+                            task.text = parts[0]  # Remove " from SECTION" part
+                            task.from_section = parts[1]
                     task_file.get_daily_section(current_daily_date).append(task)
                 continue
             
@@ -922,8 +929,33 @@ class TaskManager:
         
         return recurring_tasks
     
+    def get_most_recent_daily_section(self, task_file):
+        """Get the most recent daily section (excluding today)"""
+        if not task_file.daily_sections:
+            return None, []
+        
+        # Get all daily section dates and sort them
+        daily_dates = [date for date in task_file.daily_sections.keys() if date != self.today]
+        if not daily_dates:
+            return None, []
+        
+        # Sort dates in descending order (most recent first)
+        daily_dates.sort(key=lambda x: datetime.strptime(x, "%d-%m-%Y"), reverse=True)
+        most_recent_date = daily_dates[0]
+        most_recent_tasks = task_file.daily_sections[most_recent_date]
+        
+        return most_recent_date, most_recent_tasks
+    
+    def get_unfinished_tasks_from_daily(self, daily_tasks):
+        """Get unfinished and progressed tasks from a daily section (status ' ' and '~')"""
+        unfinished_tasks = []
+        for task in daily_tasks:
+            if task.status in [' ', '~']:  # Incomplete and progressed tasks
+                unfinished_tasks.append(task)
+        return unfinished_tasks
+    
     def add_daily_section(self):
-        """Add today's daily section with recurring tasks"""
+        """Add today's daily section with recurring tasks and carry over unfinished tasks"""
         task_file = self.parse_file()
         
         # Check if today's section already exists
@@ -936,7 +968,30 @@ class TaskManager:
         existing_task_ids = {task.id for task in existing_tasks}
         new_recurring_tasks = [task for task in recurring_tasks if task['id'] not in existing_task_ids]
         
-        if not new_recurring_tasks and existing_tasks:
+        # Get unfinished tasks from the most recent daily section
+        most_recent_date, most_recent_tasks = self.get_most_recent_daily_section(task_file)
+        unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
+        
+        # Filter out unfinished tasks that are already in today's section or are recurring
+        recurring_task_ids = {task['id'] for task in recurring_tasks}
+        new_unfinished_tasks = []
+        for task in unfinished_tasks:
+            # Don't carry over if already in today's section
+            if task.id in existing_task_ids:
+                continue
+                
+            # For progressed tasks: carry over if they are NOT recurring
+            # (if they are recurring, recurrence pattern controls when they appear)
+            if task.status == '~':
+                if task.id not in recurring_task_ids:
+                    new_unfinished_tasks.append(task)
+            else:  # Incomplete tasks
+                # Carry over if not recurring and not from a recurring task
+                if (task.id not in recurring_task_ids and 
+                    not task.from_section):
+                    new_unfinished_tasks.append(task)
+        
+        if not new_recurring_tasks and not new_unfinished_tasks and existing_tasks:
             # Display the existing daily section
             self.show_daily_list()
             return
@@ -952,13 +1007,48 @@ class TaskManager:
             )
             existing_tasks.insert(0, daily_task)
         
+        # Add unfinished tasks from previous day (after recurring tasks)
+        for task in new_unfinished_tasks:
+            # Create a copy of the task for today's section
+            carried_task = Task(
+                id=task.id,
+                text=task.text,
+                status=' ',
+                is_daily=True,
+                from_section=task.from_section
+            )
+            existing_tasks.append(carried_task)
+        
         # Write the file back
         self.write_file_from_objects(task_file)
         
+        # Generate status message
+        status_parts = []
+        if new_recurring_tasks:
+            status_parts.append(f"{len(new_recurring_tasks)} new recurring tasks")
+        if new_unfinished_tasks:
+            # Count unfinished vs progressed tasks
+            incomplete_count = sum(1 for task in new_unfinished_tasks if task.status == ' ')
+            progress_count = sum(1 for task in new_unfinished_tasks if task.status == '~')
+            
+            task_parts = []
+            if incomplete_count > 0:
+                task_parts.append(f"{incomplete_count} unfinished")
+            if progress_count > 0:
+                task_parts.append(f"{progress_count} progressed")
+            
+            status_parts.append(f"{len(new_unfinished_tasks)} tasks from {most_recent_date} ({', '.join(task_parts)})")
+        
         if existing_tasks:
-            print(f"Daily section for {self.today} updated with {len(new_recurring_tasks)} new recurring tasks")
+            if status_parts:
+                print(f"Daily section for {self.today} updated with {', '.join(status_parts)}")
+            else:
+                print(f"Daily section for {self.today} updated")
         else:
-            print(f"Added daily section for {self.today} with {len(new_recurring_tasks)} recurring tasks")
+            if status_parts:
+                print(f"Added daily section for {self.today} with {', '.join(status_parts)}")
+            else:
+                print(f"Added daily section for {self.today}")
         
         # Display the current daily section
         self.show_daily_list()
@@ -1052,7 +1142,7 @@ class TaskManager:
             try:
                 task_date = datetime.strptime(task_data['date'], "%d-%m-%Y")
                 days_ago = (datetime.now() - task_date).days
-                tasks.append((days_ago, task_data['date'], task_data['text'], task_data['id']))
+                tasks.append((days_ago, task_data['date'], task_data['text'], task_data['id'], current_main_section, current_subsection))
             except ValueError:
                 continue
         
@@ -1078,9 +1168,13 @@ class TaskManager:
                 print("No tasks found")
             return
         
-        for days_ago, date_str, task_text, task_id in tasks[:15]:
+        for days_ago, date_str, task_text, task_id, main_section, subsection in tasks[:15]:
             status = "🔴" if days_ago > 7 else "🟡" if days_ago > 3 else "🟢"
-            print(f"{status} {days_ago:2d} days | #{task_id} | {task_text}")
+            if subsection:
+                section_info = f"{main_section} > {subsection}"
+            else:
+                section_info = main_section
+            print(f"{status} {days_ago:2d} days | #{task_id} | {task_text} | {section_info}")
     
     def reopen_task(self, task_id):
         """Reopen a completed task by ID (mark as incomplete)"""
@@ -1967,7 +2061,7 @@ COMMANDS:
   help                   Show this help message
   config                 Show current configuration
   init                   Initialize the task file with default structure
-  daily                  Add today's daily section with recurring tasks (or show if exists)
+  daily                  Add today's daily section with recurring tasks and carry over unfinished/progressed tasks from previous day
   status [SCOPE]         Show task status (oldest first, ignores snoozed)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
   
@@ -1988,6 +2082,7 @@ COMMANDS:
   
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
+  recur ID PATTERN       Modify task recurrence pattern (e.g., recur 042 daily)
   
   list                   List all tasks from main sections
   list SECTION[:SUBSEC]   List tasks in a specific section (e.g., list PROJECTS:HOME)
@@ -2022,6 +2117,7 @@ EXAMPLES:
   tasks show 001                           # Show details of task #001
   tasks pass 042                           # Mark progress on task in daily section
   tasks snooze 023 7                       # Hide task for a week
+  tasks recur 042 daily                    # Set task to recur daily
   tasks status                             # See what needs attention
   tasks status projects                    # See task status in PROJECTS section
   tasks status areas:work                  # See task status in AREAS > WORK subsection
@@ -2311,6 +2407,64 @@ For more info: https://fortelabs.com/blog/para/
             
             self.write_file(new_content)
             print(f"Moved task #{task_id} to {main_section}: {task_data['text']}")
+
+    def modify_task_recurrence(self, task_id, new_recurrence):
+        """Modify the recurrence pattern of a task"""
+        # Find the task in main list
+        result = self.find_task_by_id_in_main(task_id)
+        if not result:
+            print(f"Task #{task_id} not found in main list")
+            return
+        
+        line_num, line = result
+        
+        # Parse the task
+        task_data = self._parse_task_line(line)
+        if not task_data:
+            print(f"Could not parse task #{task_id}")
+            return
+        
+        # Validate the new recurrence pattern
+        if new_recurrence and not new_recurrence.startswith('(') and not new_recurrence.endswith(')'):
+            # Add parentheses if not present
+            new_recurrence = f"({new_recurrence})"
+        
+        # Validate recurrence pattern format
+        if new_recurrence and not re.search(RECURRING_PATTERN, new_recurrence):
+            print(f"Invalid recurrence pattern: {new_recurrence}")
+            print("Valid patterns: (daily), (weekly), (monthly), (recur:2d), etc.")
+            return
+        
+        # Update the task data
+        task_data['recurring'] = new_recurrence if new_recurrence else None
+        
+        # Rebuild the task line
+        new_line = self._build_task_line(
+            task_data['status'],
+            task_data['text'],
+            date=task_data['date'],
+            recurring=task_data['recurring'],
+            snooze=task_data['snooze'],
+            task_id=task_data['id']
+        )
+        
+        # Read the file and update the line
+        content = self.read_file()
+        lines = content.split('\n')
+        lines[line_num] = new_line
+        
+        # Write the file back
+        new_content = '\n'.join(lines)
+        self.write_file(new_content)
+        
+        # Show the updated task
+        if new_recurrence:
+            print(f"Updated task #{task_id} recurrence to {new_recurrence}")
+        else:
+            print(f"Removed recurrence from task #{task_id}")
+        
+        print(f"Task: {task_data['text']}")
+        print(f"New line: {new_line}")
 
     def show_section(self, section_name):
         """Show a specific section from main list, supports wildcards (*) for section names"""
@@ -2695,6 +2849,10 @@ def main():
         tm.add_task_to_daily_by_id(args[1])
     elif command == "snooze" and len(args) > 2:
         tm.snooze_task(args[1], args[2])
+    elif command == "recur" and len(args) > 2:
+        task_id = args[1]
+        new_recurrence = " ".join(args[2:])
+        tm.modify_task_recurrence(task_id, new_recurrence)
 
     elif command == "sections":
         tm.list_sections()
