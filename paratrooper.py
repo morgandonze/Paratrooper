@@ -2395,14 +2395,14 @@ For more info: https://fortelabs.com/blog/para/
             print(f"{status} {task_data['text']} {id_display}")
 
     def show_all_main(self):
-        """Show all sections from the main list"""
+        """Show all sections from the main list, organized by full header (main:subsection)"""
         content = self.read_file()
         lines = content.split('\n')
         
         in_main_section = False
         current_section = None
         current_subsection = None
-        section_tasks = []
+        section_tasks = {}  # Dictionary to store tasks by full header
         
         for line in lines:
             # Check if we're entering the MAIN section
@@ -2417,32 +2417,8 @@ For more info: https://fortelabs.com/blog/para/
             if in_main_section:
                 # Check for main section headers (##)
                 if line.startswith("## ") and not line.startswith("### "):
-                    # Print previous section if it had tasks
-                    if current_section and section_tasks:
-                        print(f"\n=== {current_section} ===")
-                        for task in section_tasks:
-                            task_data = self._parse_task_line(task)
-                            if not task_data:
-                                continue
-                            
-                            # Extract status and ID using current icon set
-                            icons = self.icon_sets[self.icon_set]
-                            if task_data['status'] == 'x':
-                                status = icons['complete']
-                            elif task_data['status'] == '~':
-                                status = icons['progress']
-                            else:
-                                status = icons['incomplete']
-                            
-                            task_id = task_data['id']
-                            id_display = f"#{task_id}" if task_id else ""
-                            
-                            print(f"{status} {task_data['text']} {id_display}")
-                    
-                    # Start new section
                     current_section = line[3:].strip()
                     current_subsection = None
-                    section_tasks = []
                 
                 # Check for subsection headers (###)
                 elif line.startswith("### "):
@@ -2450,32 +2426,45 @@ For more info: https://fortelabs.com/blog/para/
                 
                 # Collect tasks
                 elif self._is_task_line(line):
-                    section_tasks.append(line)
+                    # Create full header key
+                    if current_subsection:
+                        full_header = f"{current_section}:{current_subsection}"
+                    else:
+                        full_header = current_section
+                    
+                    # Initialize list for this header if it doesn't exist
+                    if full_header not in section_tasks:
+                        section_tasks[full_header] = []
+                    
+                    section_tasks[full_header].append(line)
         
-        # Print the last section if it had tasks
-        if current_section and section_tasks:
-            print(f"\n=== {current_section} ===")
-            for task in section_tasks:
-                task_data = self._parse_task_line(task)
-                if not task_data:
-                    continue
-                
-                # Extract status and ID using current icon set
-                icons = self.icon_sets[self.icon_set]
-                if task_data['status'] == 'x':
-                    status = icons['complete']
-                elif task_data['status'] == '~':
-                    status = icons['progress']
-                else:
-                    status = icons['incomplete']
-                
-                task_id = task_data['id']
-                id_display = f"#{task_id}" if task_id else ""
-                
-                print(f"{status} {task_data['text']} {id_display}")
-        
-        if not in_main_section:
-            print("No MAIN section found in the task file.")
+        # Print all sections with their tasks, organized by full header
+        if section_tasks:
+            for full_header, tasks in section_tasks.items():
+                print(f"\n=== {full_header} ===")
+                for task in tasks:
+                    task_data = self._parse_task_line(task)
+                    if not task_data:
+                        continue
+                    
+                    # Extract status and ID using current icon set
+                    icons = self.icon_sets[self.icon_set]
+                    if task_data['status'] == 'x':
+                        status = icons['complete']
+                    elif task_data['status'] == '~':
+                        status = icons['progress']
+                    else:
+                        status = icons['incomplete']
+                    
+                    task_id = task_data['id']
+                    id_display = f"#{task_id}" if task_id else ""
+                    
+                    print(f"{status} {task_data['text']} {id_display}")
+        else:
+            if not in_main_section:
+                print("No MAIN section found in the task file.")
+            else:
+                print("No tasks found in the MAIN section.")
 
     def open_file(self, editor=None):
         """Open the tasks file with the user's selected editor (default from config)"""
