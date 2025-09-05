@@ -1971,6 +1971,8 @@ COMMANDS:
   list                   List all tasks from main sections
   list SECTION[:SUBSEC]   List tasks in a specific section (e.g., list PROJECTS:HOME)
   show ID                Show details of specific task from main section
+  show SECTION[:SUBSEC]   Show tasks in a specific section (e.g., show PROJECTS:HOME)
+  show *:SUBSEC          Show tasks from all sections with matching subsection (e.g., show *:justculture)
   sections               List all available sections
   archive [DAYS]         Clean up old daily sections and completed tasks (default: 7 days)
   
@@ -1990,6 +1992,7 @@ EXAMPLES:
   tasks add-daily "urgent client call"     # Add to today only
   tasks up 042                            # Pull task #042 to today's daily section
   tasks complete 042                       # Mark task done
+  tasks show *:justculture                # Show all tasks from subsections named 'justculture'
   tasks done 042                           # Alias for complete
   tasks reopen 042                         # Reopen completed task
   tasks undone 042                         # Alias for reopen
@@ -2289,7 +2292,7 @@ For more info: https://fortelabs.com/blog/para/
             print(f"Moved task #{task_id} to {main_section}: {task_data['text']}")
 
     def show_section(self, section_name):
-        """Show a specific section from main list"""
+        """Show a specific section from main list, supports wildcards (*) for section names"""
         content = self.read_file()
         lines = content.split('\n')
         
@@ -2302,10 +2305,16 @@ For more info: https://fortelabs.com/blog/para/
             main_section = section_name.upper()
             subsection = None
         
+        # Check if we're using wildcard for main section
+        use_wildcard = main_section == "*"
+        
         section_found = False
         subsection_found = False
         section_tasks = []
         current_subsection = None
+        matched_sections = []  # Track which sections matched for wildcard
+        found_any_subsection = False  # Track if we found any matching subsections
+        current_section = None  # Track current section for context
         
         in_main_section = False
         
@@ -2323,13 +2332,19 @@ For more info: https://fortelabs.com/blog/para/
                 # Check for main section headers (##)
                 if line.startswith("## ") and not line.startswith("### "):
                     current_section = line[3:].strip()
-                    if current_section == main_section:
+                    if use_wildcard:
+                        # For wildcard, we're always in a "found" state
+                        section_found = True
+                        current_subsection = None
+                        subsection_found = False  # Reset subsection_found when entering new main section
+                        matched_sections.append(current_section)
+                    elif current_section == main_section:
                         section_found = True
                         current_subsection = None
                         subsection_found = False  # Reset subsection_found when entering new main section
                     else:
-                        # We've moved past our target section
-                        if section_found:
+                        # We've moved past our target section (only for non-wildcard)
+                        if section_found and not use_wildcard:
                             break
                 
                 # Check for subsection headers (###)
@@ -2337,21 +2352,34 @@ For more info: https://fortelabs.com/blog/para/
                     current_subsection = line[4:].strip()
                     if subsection and current_subsection == subsection:
                         subsection_found = True
-                    # Don't reset subsection_found when we find a different subsection
-                    # We only reset it when we enter a new main section
+                        found_any_subsection = True
+                    elif subsection:
+                        # Reset subsection_found when we find a different subsection
+                        subsection_found = False
                 
                 # Collect tasks
                 elif self._is_task_line(line):
                     # If we're looking for a specific subsection
                     if subsection:
                         if subsection_found and section_found:
+                            if use_wildcard:
+                                section_tasks.append((line, current_section, current_subsection))
+                            else:
+                                section_tasks.append(line)
+                    # If we're looking for just the main section (no subsection specified)
+                    elif section_found and not subsection:
+                        if use_wildcard:
+                            # For wildcard without subsection, collect all tasks
+                            section_tasks.append((line, current_section, current_subsection))
+                        else:
+                            # Regular non-wildcard without subsection
                             section_tasks.append(line)
-                    # If we're looking for just the main section
-                    elif section_found:
-                        section_tasks.append(line)
         
         if not section_found:
-            print(f"Section '{main_section}' not found in MAIN")
+            if use_wildcard:
+                print("No sections found in MAIN")
+            else:
+                print(f"Section '{main_section}' not found in MAIN")
             print("Available sections:")
             main_lines = self.find_section("MAIN", level=1)
             if main_lines:
@@ -2360,39 +2388,87 @@ For more info: https://fortelabs.com/blog/para/
                         print(f"  - {line[3:]}")
             return
         
-        if subsection and not subsection_found:
-            print(f"Subsection '{subsection}' not found in '{main_section}'")
+        if subsection and not found_any_subsection:
+            if use_wildcard:
+                print(f"Subsection '{subsection}' not found in any section")
+            else:
+                print(f"Subsection '{subsection}' not found in '{main_section}'")
             return
         
         # Display the section
-        if subsection:
-            print(f"=== {main_section} > {subsection} ===")
-        else:
-            print(f"=== {main_section} ===")
+        if not use_wildcard:
+            if subsection:
+                print(f"=== {main_section} > {subsection} ===")
+            else:
+                print(f"=== {main_section} ===")
         
         if not section_tasks:
             print("(No tasks)")
             return
         
-        for task in section_tasks:
-            # Parse task using new format
-            task_data = self._parse_task_line(task)
-            if not task_data:
-                continue
+        # Group tasks by section for wildcard display
+        if use_wildcard and section_tasks:
+            # Group tasks by section
+            tasks_by_section = {}
+            for task_info in section_tasks:
+                if isinstance(task_info, tuple):
+                    task_line, section, subsection = task_info
+                    if subsection:
+                        section_key = f"{section} > {subsection}"
+                    else:
+                        section_key = section
+                    if section_key not in tasks_by_section:
+                        tasks_by_section[section_key] = []
+                    tasks_by_section[section_key].append(task_line)
+                else:
+                    # Fallback for non-wildcard (shouldn't happen)
+                    if "No section" not in tasks_by_section:
+                        tasks_by_section["No section"] = []
+                    tasks_by_section["No section"].append(task_info)
             
-            # Extract status and ID using current icon set
-            icons = self.icon_sets[self.icon_set]
-            if task_data['status'] == 'x':
-                status = icons['complete']
-            elif task_data['status'] == '~':
-                status = icons['progress']
-            else:
-                status = icons['incomplete']
-            
-            task_id = task_data['id']
-            id_display = f"#{task_id}" if task_id else ""
-            
-            print(f"{status} {task_data['text']} {id_display}")
+            # Display grouped tasks
+            for section_key, tasks in tasks_by_section.items():
+                print(f"\n--- {section_key} ---")
+                for task in tasks:
+                    # Parse task using new format
+                    task_data = self._parse_task_line(task)
+                    if not task_data:
+                        continue
+                    
+                    # Extract status and ID using current icon set
+                    icons = self.icon_sets[self.icon_set]
+                    if task_data['status'] == 'x':
+                        status = icons['complete']
+                    elif task_data['status'] == '~':
+                        status = icons['progress']
+                    else:
+                        status = icons['incomplete']
+                    
+                    task_id = task_data['id']
+                    id_display = f"#{task_id}" if task_id else ""
+                    
+                    print(f"{status} {task_data['text']} {id_display}")
+        else:
+            # Regular display for non-wildcard
+            for task in section_tasks:
+                # Parse task using new format
+                task_data = self._parse_task_line(task)
+                if not task_data:
+                    continue
+                
+                # Extract status and ID using current icon set
+                icons = self.icon_sets[self.icon_set]
+                if task_data['status'] == 'x':
+                    status = icons['complete']
+                elif task_data['status'] == '~':
+                    status = icons['progress']
+                else:
+                    status = icons['incomplete']
+                
+                task_id = task_data['id']
+                id_display = f"#{task_id}" if task_id else ""
+                
+                print(f"{status} {task_data['text']} {id_display}")
 
     def show_all_main(self):
         """Show all sections from the main list, organized by full header (main:subsection)"""
@@ -2626,8 +2702,15 @@ def main():
             # List all main sections when no arguments provided
             tm.show_all_main()
     elif command == "show" and len(args) > 1:
-        # Show details of a specific task by ID from main section
-        tm.show_task_from_main(args[1])
+        # Check if it's a section:subsection format or wildcard
+        if ":" in args[1] or args[1] == "*" or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+            tm.show_section(args[1])
+        elif not args[1].isdigit():
+            # Try as section name if it's not a number
+            tm.show_section(args[1])
+        else:
+            # Show details of a specific task by ID from main section
+            tm.show_task_from_main(args[1])
     elif command == "edit" and len(args) > 2:
         task_id = args[1]
         new_text = " ".join(args[2:])
