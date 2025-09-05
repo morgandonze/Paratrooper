@@ -521,7 +521,15 @@ class TestTaskManager(unittest.TestCase):
                 
                 # Should have carried over unfinished and progressed tasks in today's section
                 today_section_start = content.find(f"## {today}")
-                today_section = content[today_section_start:]
+                # Find the end of the daily section (next ## or end of DAILY section)
+                next_section_start = content.find("\n## ", today_section_start + 1)
+                if next_section_start == -1:
+                    next_section_start = content.find("\n# ", today_section_start + 1)
+                if next_section_start == -1:
+                    today_section = content[today_section_start:]
+                else:
+                    today_section = content[today_section_start:next_section_start]
+                
                 self.assertIn("unfinished task 1", today_section)
                 self.assertIn("unfinished task 2", today_section)
                 self.assertIn("progress task", today_section)

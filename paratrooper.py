@@ -283,7 +283,7 @@ class TaskFile:
         if self.daily_sections:
             lines.append('# DAILY')
             lines.append('')
-            for date in sorted(self.daily_sections.keys()):
+            for date in sorted(self.daily_sections.keys(), reverse=True):
                 lines.append(f'## {date}')
                 for task in self.daily_sections[date]:
                     lines.append(task.to_markdown())
