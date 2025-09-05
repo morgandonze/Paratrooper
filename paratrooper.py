@@ -963,6 +963,27 @@ class TaskManager:
         # Display the current daily section
         self.show_daily_list()
     
+    def _get_task_status_info(self, task_data):
+        """Get status symbol and days since activity for a task"""
+        if not task_data or not task_data.get('date'):
+            return "⚪", "?"
+        
+        try:
+            task_date = datetime.strptime(task_data['date'], "%d-%m-%Y")
+            days_ago = (datetime.now() - task_date).days
+            
+            # Status symbols: red (>7 days), yellow (>3 days), green (≤3 days)
+            if days_ago > 7:
+                status_symbol = "🔴"
+            elif days_ago > 3:
+                status_symbol = "🟡"
+            else:
+                status_symbol = "🟢"
+            
+            return status_symbol, days_ago
+        except ValueError:
+            return "⚪", "?"
+    
     def show_status_tasks(self, scope=None):
         """Show tasks ordered by status (staleness), excluding future-snoozed tasks
         
@@ -2444,10 +2465,15 @@ For more info: https://fortelabs.com/blog/para/
                     else:
                         status = icons['incomplete']
                     
+                    # Get status symbol and days for wildcard display
+                    status_symbol, days_ago = self._get_task_status_info(task_data)
+                    days_display = f"{days_ago}d" if isinstance(days_ago, int) else f"{days_ago}"
+                    status_info = f"{status_symbol} {days_display}"
+                    
                     task_id = task_data['id']
                     id_display = f"#{task_id}" if task_id else ""
                     
-                    print(f"{status} {task_data['text']} {id_display}")
+                    print(f"{status} {status_info} {task_data['text']} {id_display}")
         else:
             # Regular display for non-wildcard
             for task in section_tasks:
