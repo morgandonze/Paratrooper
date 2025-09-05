@@ -22,6 +22,7 @@ class Config:
     task_file: Path
     icon_set: str
     editor: str
+    carry_over_enabled: bool = True
     
     @classmethod
     def load(cls, config_path: Optional[Path] = None) -> 'Config':
@@ -33,7 +34,8 @@ class Config:
         default_config = cls(
             task_file=Path.home() / "home" / "tasks.md",
             icon_set="default",
-            editor="nvim"
+            editor="nvim",
+            carry_over_enabled=True
         )
         
         if not config_path.exists():
@@ -60,7 +62,12 @@ class Config:
             if 'general' in config and 'editor' in config['general']:
                 editor = config['general']['editor']
             
-            return cls(task_file=task_file, icon_set=icon_set, editor=editor)
+            # Load carry over setting
+            carry_over_enabled = default_config.carry_over_enabled
+            if 'general' in config and 'carry_over_enabled' in config['general']:
+                carry_over_enabled = config['general'].getboolean('carry_over_enabled')
+            
+            return cls(task_file=task_file, icon_set=icon_set, editor=editor, carry_over_enabled=carry_over_enabled)
             
         except Exception as e:
             print(f"Warning: Error loading config from {config_path}: {e}")
@@ -85,6 +92,9 @@ icon_set = {config.icon_set}
 
 # Default editor for 'open' command
 editor = {config.editor}
+
+# Carry over incomplete tasks from previous day (true/false)
+carry_over_enabled = {str(config.carry_over_enabled).lower()}
 """)
         print(f"Created default configuration file at {config_path}")
 
@@ -968,27 +978,19 @@ class TaskManager:
         existing_task_ids = {task.id for task in existing_tasks}
         new_recurring_tasks = [task for task in recurring_tasks if task['id'] not in existing_task_ids]
         
-        # Get unfinished tasks from the most recent daily section
-        most_recent_date, most_recent_tasks = self.get_most_recent_daily_section(task_file)
-        unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
-        
-        # Filter out unfinished tasks that are already in today's section or are recurring
-        recurring_task_ids = {task['id'] for task in recurring_tasks}
+        # Get unfinished tasks from the most recent daily section (if carry-over is enabled)
         new_unfinished_tasks = []
-        for task in unfinished_tasks:
-            # Don't carry over if already in today's section
-            if task.id in existing_task_ids:
-                continue
-                
-            # For progressed tasks: carry over if they are NOT recurring
-            # (if they are recurring, recurrence pattern controls when they appear)
-            if task.status == '~':
-                if task.id not in recurring_task_ids:
-                    new_unfinished_tasks.append(task)
-            else:  # Incomplete tasks
-                # Carry over if not recurring and not from a recurring task
-                if (task.id not in recurring_task_ids and 
-                    not task.from_section):
+        if self.config.carry_over_enabled:
+            most_recent_date, most_recent_tasks = self.get_most_recent_daily_section(task_file)
+            unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
+            
+            # Get recurring task IDs to avoid duplicates
+            recurring_task_ids = {task['id'] for task in recurring_tasks}
+            
+            # Simple carry-over: carry over all incomplete tasks that aren't already in today's section
+            # and aren't recurring tasks (recurring tasks are handled by the recurring logic)
+            for task in unfinished_tasks:
+                if task.id not in existing_task_ids and task.id not in recurring_task_ids:
                     new_unfinished_tasks.append(task)
         
         if not new_recurring_tasks and not new_unfinished_tasks and existing_tasks:
@@ -1027,17 +1029,8 @@ class TaskManager:
         if new_recurring_tasks:
             status_parts.append(f"{len(new_recurring_tasks)} new recurring tasks")
         if new_unfinished_tasks:
-            # Count unfinished vs progressed tasks
-            incomplete_count = sum(1 for task in new_unfinished_tasks if task.status == ' ')
-            progress_count = sum(1 for task in new_unfinished_tasks if task.status == '~')
-            
-            task_parts = []
-            if incomplete_count > 0:
-                task_parts.append(f"{incomplete_count} unfinished")
-            if progress_count > 0:
-                task_parts.append(f"{progress_count} progressed")
-            
-            status_parts.append(f"{len(new_unfinished_tasks)} tasks from {most_recent_date} ({', '.join(task_parts)})")
+            most_recent_date, _ = self.get_most_recent_daily_section(task_file)
+            status_parts.append(f"{len(new_unfinished_tasks)} tasks from {most_recent_date}")
         
         if existing_tasks:
             if status_parts:
@@ -2061,7 +2054,7 @@ COMMANDS:
   help                   Show this help message
   config                 Show current configuration
   init                   Initialize the task file with default structure
-  daily                  Add today's daily section with recurring tasks and carry over unfinished/progressed tasks from previous day
+  daily                  Add today's daily section with recurring tasks and carry over all incomplete tasks from previous day
   status [SCOPE]         Show task status (oldest first, ignores snoozed)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
   

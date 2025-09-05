@@ -537,11 +537,9 @@ class TestTaskManager(unittest.TestCase):
                 # Should not have completed tasks in today's section
                 self.assertNotIn("completed task", today_section)
                 
-                # Check status message mentions carry-over with both types
+                # Check status message mentions carry-over
                 output = str(mock_print.call_args_list)
                 self.assertIn("tasks from", output)
-                self.assertIn("unfinished", output)
-                self.assertIn("progressed", output)
     
     def test_daily_no_carry_over_when_no_previous_daily(self):
         """Test that daily command works normally when no previous daily section exists"""

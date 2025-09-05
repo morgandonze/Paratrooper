@@ -85,12 +85,12 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 - New daily tasks are automatically added to the **top** of daily sections
 - Recurring tasks appear at the **top** when added to daily sections
 - Pulled tasks from main list are added to the **top** of daily sections
-- **Unfinished and progressed tasks automatically carry over** from the previous day's daily section
-- **Smart filtering**: Recurring tasks follow their recurrence pattern, non-recurring tasks carry over regardless of status
+- **All incomplete tasks automatically carry over** from the previous day's daily section
+- **Simple behavior**: All unfinished and progressed tasks carry over by default (configurable)
 - This ensures your most recent tasks are always visible first and nothing falls through the cracks
 
 ### 2. **Daily Workflow Integration**
-- **Morning**: `python paratrooper.py daily` - auto-adds recurring tasks and carries over unfinished/progressed tasks from previous day
+- **Morning**: `python paratrooper.py daily` - auto-adds recurring tasks and carries over all incomplete tasks from previous day
 - **Work**: Use daily section, mark tasks as you work
 - **Evening**: `python paratrooper.py sync` - updates main list from daily progress
 
@@ -120,6 +120,8 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 python paratrooper.py config             # Show current configuration
 python paratrooper.py init               # Initialize task file with default structure
 ```
+
+**Carry-over Behavior**: By default, all incomplete tasks (unfinished and progressed) are automatically carried over from the previous day's daily section. You can disable this behavior by setting `carry_over_enabled = false` in your configuration file (`~/.ptconfig`).
 
 ### Daily Workflow
 ```bash
