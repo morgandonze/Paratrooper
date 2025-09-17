@@ -48,9 +48,9 @@ class TestIntegration(unittest.TestCase):
         test_date = "04-09-2025"
         with patch.object(self.tm, 'today', test_date):
             # Step 1: Add some tasks to main list
-            self.tm.add_task_to_main("Write blog post", "PROJECTS")
-            self.tm.add_task_to_main("Call client", "INBOX")
-            self.tm.add_task_to_main("Exercise", "AREAS")
+            self.tm.add_task_to_main("Write blog post", "WORK")
+            self.tm.add_task_to_main("Call client", "TASKS")
+            self.tm.add_task_to_main("Exercise", "HEALTH")
             
             # Step 2: Create daily section
             self.tm.add_daily_section()
@@ -62,8 +62,8 @@ class TestIntegration(unittest.TestCase):
             self.tm.add_task_to_daily_by_id("002")  # up command
             
             content = self.tm.read_file()
-            self.assertIn("Write blog post from PROJECTS", content)
-            self.assertIn("Call client from INBOX", content)
+            self.assertIn("Write blog post from WORK", content)
+            self.assertIn("Call client from TASKS", content)
             
             # Step 4: Simulate work (mark progress and completion)
             # Manually edit daily section to simulate work
@@ -72,17 +72,17 @@ class TestIntegration(unittest.TestCase):
             
             # Find and update the daily tasks
             for i, line in enumerate(lines):
-                if "Write blog post" in line and "from PROJECTS" in line:
+                if "Write blog post" in line and "from WORK" in line:
                     lines[i] = line.replace("- [ ]", "- [~]")  # Progress
-                elif "Call client" in line and "from INBOX" in line:
+                elif "Call client" in line and "from TASKS" in line:
                     lines[i] = line.replace("- [ ]", "- [x]")  # Complete
             
             self.tm.write_file('\n'.join(lines))
             
             # Verify the daily section state before sync
             content = self.tm.read_file()
-            self.assertIn("- [~] Write blog post from PROJECTS", content)
-            self.assertIn("- [x] Call client from INBOX", content)
+            self.assertIn("- [~] Write blog post from WORK", content)
+            self.assertIn("- [x] Call client from TASKS", content)
             
             # Step 5: Sync progress back to main list
             self.tm.sync_daily_sections()
@@ -100,7 +100,7 @@ class TestIntegration(unittest.TestCase):
         test_date = "04-09-2025"
         with patch.object(self.tm, 'today', test_date):
             # Step 1: Add recurring task
-            self.tm.add_task_to_main("Morning exercise", "AREAS")
+            self.tm.add_task_to_main("Morning exercise", "HEALTH")
             
             # Step 2: Manually make it recurring
             content = self.tm.read_file()
@@ -114,13 +114,13 @@ class TestIntegration(unittest.TestCase):
             # Step 3: Create daily section (should include recurring task)
             self.tm.add_daily_section()
             content = self.tm.read_file()
-            self.assertIn("Morning exercise from AREAS", content)
+            self.assertIn("Morning exercise from HEALTH", content)
             
             # Step 4: Complete the recurring task in daily section
             content = self.tm.read_file()
             lines = content.split('\n')
             for i, line in enumerate(lines):
-                if "Morning exercise" in line and "from AREAS" in line:
+                if "Morning exercise" in line and "from HEALTH" in line:
                     lines[i] = line.replace("- [ ]", "- [x]")
             self.tm.write_file('\n'.join(lines))
             
@@ -133,17 +133,17 @@ class TestIntegration(unittest.TestCase):
     def test_up_down_commands(self):
         """Test up/down command workflow"""
         # Add task to main list
-        self.tm.add_task_to_main("Test up down task", "PROJECTS")
+        self.tm.add_task_to_main("Test up down task", "WORK")
         
         # Up command (pull to daily)
         self.tm.add_task_to_daily_by_id("001")
         content = self.tm.read_file()
-        self.assertIn("Test up down task from PROJECTS", content)
+        self.assertIn("Test up down task from WORK", content)
         
         # Down command (remove from daily)
         self.tm.delete_task_from_daily("001")
         content = self.tm.read_file()
-        self.assertNotIn("Test up down task from PROJECTS", content)
+        self.assertNotIn("Test up down task from WORK", content)
         
         # Task should still exist in main list
         self.assertIn("Test up down task", content)
@@ -151,7 +151,7 @@ class TestIntegration(unittest.TestCase):
     def test_progress_tracking_workflow(self):
         """Test progress tracking: up -> pass -> sync"""
         # Add task to main list
-        self.tm.add_task_to_main("Long project task", "PROJECTS")
+        self.tm.add_task_to_main("Long project task", "WORK")
         
         # Pull to daily
         self.tm.add_task_to_daily_by_id("001")
@@ -172,7 +172,7 @@ class TestIntegration(unittest.TestCase):
     def test_progress_to_complete_workflow(self):
         """Test progress to complete workflow: up -> pass -> complete -> sync"""
         # Add task to main list
-        self.tm.add_task_to_main("Project task", "PROJECTS")
+        self.tm.add_task_to_main("Project task", "WORK")
         
         # Pull to daily
         self.tm.add_task_to_daily_by_id("001")
@@ -200,24 +200,24 @@ class TestIntegration(unittest.TestCase):
         self.tm.add_daily_section()
         
         # Add task to main list
-        self.tm.add_task_to_main("Auto-add test task", "INBOX")
+        self.tm.add_task_to_main("Auto-add test task", "TASKS")
         
         # Complete task in main list (should auto-add to daily)
         self.tm.complete_task("001")
         content = self.tm.read_file()
         
         # Task should be in daily section
-        self.assertIn("- [x] Auto-add test task from INBOX", content)
+        self.assertIn("- [x] Auto-add test task from TASKS", content)
         
         # Add another task for progress test
-        self.tm.add_task_to_main("Progress test task", "PROJECTS")
+        self.tm.add_task_to_main("Progress test task", "WORK")
         
         # Mark progress in main list (should auto-add to daily)
         self.tm.progress_task_in_daily("002")
         content = self.tm.read_file()
         
         # Task should be in daily section
-        self.assertIn("- [~] Progress test task from PROJECTS", content)
+        self.assertIn("- [~] Progress test task from WORK", content)
     
     def test_sync_auto_add_workflow(self):
         """Test sync auto-add workflow: manual changes in main -> sync adds to daily"""
@@ -225,8 +225,8 @@ class TestIntegration(unittest.TestCase):
         self.tm.add_daily_section()
         
         # Add tasks to main list
-        self.tm.add_task_to_main("Sync test 1", "INBOX")
-        self.tm.add_task_to_main("Sync test 2", "PROJECTS")
+        self.tm.add_task_to_main("Sync test 1", "TASKS")
+        self.tm.add_task_to_main("Sync test 2", "WORK")
         
         # Manually mark as complete/progress in main list
         content = self.tm.read_file()
@@ -245,13 +245,13 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         
         # Tasks should be in daily section
-        self.assertIn("- [x] Sync test 1 from INBOX", content)
-        self.assertIn("- [~] Sync test 2 from PROJECTS", content)
+        self.assertIn("- [x] Sync test 1 from TASKS", content)
+        self.assertIn("- [~] Sync test 2 from WORK", content)
     
     def test_snooze_workflow(self):
         """Test snooze workflow: add -> snooze -> check stale -> unsnooze"""
         # Add task
-        self.tm.add_task_to_main("Future task", "PROJECTS")
+        self.tm.add_task_to_main("Future task", "WORK")
         
         # Snooze for 5 days
         self.tm.snooze_task("001", "5")
@@ -277,7 +277,7 @@ class TestIntegration(unittest.TestCase):
     def test_delete_purge_commands(self):
         """Test delete and purge commands"""
         # Add task to main list
-        self.tm.add_task_to_main("Delete test task", "INBOX")
+        self.tm.add_task_to_main("Delete test task", "TASKS")
         
         # Pull to daily
         self.tm.add_task_to_daily_by_id("001")
@@ -295,7 +295,7 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("Delete test task", content)
         
         # Add another task for purge test
-        self.tm.add_task_to_main("Purge test task", "INBOX")
+        self.tm.add_task_to_main("Purge test task", "TASKS")
         self.tm.add_task_to_daily_by_id("002")
         
         # Purge from everywhere
@@ -306,28 +306,28 @@ class TestIntegration(unittest.TestCase):
     def test_section_management(self):
         """Test section management and organization"""
         # Add tasks to different sections
-        self.tm.add_task_to_main("Inbox task", "INBOX")
-        self.tm.add_task_to_main("Project task", "PROJECTS")
-        self.tm.add_task_to_main("Area task", "AREAS")
-        self.tm.add_task_to_main("Resource task", "RESOURCES")
-        self.tm.add_task_to_main("Zettel task", "ZETTELKASTEN")
+        self.tm.add_task_to_main("Inbox task", "TASKS")
+        self.tm.add_task_to_main("Project task", "WORK")
+        self.tm.add_task_to_main("Area task", "HEALTH")
+        self.tm.add_task_to_main("Resource task", "REFERENCE")
+        self.tm.add_task_to_main("Zettel task", "NOTES")
         
         # Add to subsections
-        self.tm.add_task_to_main("Home project", "PROJECTS:HOME")
-        self.tm.add_task_to_main("Health area", "AREAS:HEALTH")
+        self.tm.add_task_to_main("Home project", "WORK:HOME")
+        self.tm.add_task_to_main("Health area", "HEALTH:FITNESS")
         
         content = self.tm.read_file()
         
         # Check all sections exist
-        self.assertIn("## INBOX", content)
-        self.assertIn("## PROJECTS", content)
-        self.assertIn("## AREAS", content)
-        self.assertIn("## RESOURCES", content)
-        self.assertIn("## ZETTELKASTEN", content)
+        self.assertIn("## TASKS", content)
+        self.assertIn("## WORK", content)
+        self.assertIn("## HEALTH", content)
+        self.assertIn("## REFERENCE", content)
+        self.assertIn("## NOTES", content)
         
         # Check subsections exist
         self.assertIn("### HOME", content)
-        self.assertIn("### HEALTH", content)
+        self.assertIn("### FITNESS", content)
         
         # Check tasks are in correct sections
         self.assertIn("Inbox task", content)
@@ -341,9 +341,9 @@ class TestIntegration(unittest.TestCase):
     def test_file_formatting_consistency(self):
         """Test that file formatting remains consistent across operations"""
         # Perform multiple operations
-        self.tm.add_task_to_main("Task 1", "INBOX")
-        self.tm.add_task_to_main("Task 2", "PROJECTS")
-        self.tm.add_task_to_main("Task 3", "AREAS")
+        self.tm.add_task_to_main("Task 1", "TASKS")
+        self.tm.add_task_to_main("Task 2", "WORK")
+        self.tm.add_task_to_main("Task 3", "HEALTH")
         self.tm.add_daily_section()
         self.tm.add_task_to_daily_by_id("001")
         self.tm.add_task_to_daily_by_id("002")
@@ -370,9 +370,9 @@ class TestIntegration(unittest.TestCase):
     def test_id_consistency(self):
         """Test that IDs remain consistent across operations"""
         # Add multiple tasks
-        self.tm.add_task_to_main("Task 1", "INBOX")
-        self.tm.add_task_to_main("Task 2", "PROJECTS")
-        self.tm.add_task_to_main("Task 3", "AREAS")
+        self.tm.add_task_to_main("Task 1", "TASKS")
+        self.tm.add_task_to_main("Task 2", "WORK")
+        self.tm.add_task_to_main("Task 3", "HEALTH")
         
         # Pull tasks to daily
         self.tm.add_task_to_daily_by_id("001")

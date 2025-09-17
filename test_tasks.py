@@ -46,11 +46,6 @@ class TestTaskManager(unittest.TestCase):
         expected_sections = [
             "# DAILY",
             "# MAIN",
-            "## INBOX",
-            "## PROJECTS", 
-            "## AREAS",
-            "## RESOURCES",
-            "## ZETTELKASTEN",
             "# ARCHIVE"
         ]
         
@@ -248,11 +243,11 @@ class TestTaskManager(unittest.TestCase):
     
     def test_add_task_to_main(self):
         """Test adding tasks to main list"""
-        # Add to default section (INBOX)
+        # Add to default section (TASKS)
         self.tm.add_task_to_main("Test task")
         content = self.tm.read_file()
         self.assertIn("Test task", content)
-        self.assertIn("## INBOX", content)
+        self.assertIn("## TASKS", content)
         
         # Add to specific section
         self.tm.add_task_to_main("Project task", "PROJECTS")
@@ -418,21 +413,21 @@ class TestTaskManager(unittest.TestCase):
     
     def test_move_task(self):
         """Test move task command"""
-        # Add a task to INBOX
-        self.tm.add_task_to_main("test task", "INBOX")
+        # Add a task to TASKS
+        self.tm.add_task_to_main("test task", "TASKS")
         
-        # Move to PROJECTS
-        self.tm.move_task("001", "PROJECTS")
+        # Move to WORK
+        self.tm.move_task("001", "WORK")
         
-        # Check task is in PROJECTS
+        # Check task is in WORK
         result = self.tm.find_task_by_id("001")
         self.assertIsNotNone(result)
         
-        # Check task is not in INBOX
-        inbox_section = self.tm.find_section("INBOX", level=2)
-        self.assertIsNotNone(inbox_section)
-        inbox_content = '\n'.join(inbox_section)
-        self.assertNotIn("test task", inbox_content)
+        # Check task is not in TASKS
+        tasks_section = self.tm.find_section("TASKS", level=2)
+        self.assertIsNotNone(tasks_section)
+        tasks_content = '\n'.join(tasks_section)
+        self.assertNotIn("test task", tasks_content)
     
     def test_get_most_recent_daily_section(self):
         """Test finding the most recent daily section"""

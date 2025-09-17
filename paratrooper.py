@@ -394,16 +394,6 @@ class TaskManager:
 
 # MAIN
 
-## INBOX
-
-## PROJECTS
-
-## AREAS
-
-## RESOURCES
-
-## ZETTELKASTEN
-
 # ARCHIVE
 
 """
@@ -501,11 +491,7 @@ class TaskManager:
                     task_file.archive_sections[current_section].append(task)
                 continue
         
-        # Ensure all main sections exist
-        main_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
-        for section_name in main_sections:
-            if section_name not in task_file.main_sections:
-                task_file.main_sections[section_name] = Section(section_name, 2)
+        # No predefined sections - users create sections as needed
         
         self._task_file_obj = task_file
         return task_file
@@ -523,16 +509,6 @@ class TaskManager:
             default_content = """# DAILY
 
 # MAIN
-
-## INBOX
-
-## PROJECTS
-
-## AREAS
-
-## RESOURCES
-
-## ZETTELKASTEN
 
 # ARCHIVE
 
@@ -1411,6 +1387,7 @@ class TaskManager:
         # Find the section this task belongs to
         current_subsection = None
         current_project = None
+        section_name = None
         
         # Search backwards from the task line to find its section
         for i in range(line_num - 1, -1, -1):
@@ -1422,19 +1399,17 @@ class TaskManager:
             # Check for main section (##)
             if current_line.startswith("## ") and not current_line.startswith("### "):
                 section_name = current_line[3:].strip()
-                if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
-                    current_subsection = section_name
-                    break
-                elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
-                    continue
-                else:
-                    current_subsection = section_name
-                    break
-            
-            # Check for project subsection (###)
+                # Any section name is valid now
+                current_subsection = section_name
+                break
+            elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
+                continue
             elif current_line.startswith("### "):
                 if current_project is None:
                     current_project = current_line[4:].strip()
+            else:
+                # Continue searching for section
+                continue
         
         # Build section reference
         if current_project and current_subsection:
@@ -1572,7 +1547,7 @@ class TaskManager:
         else:
             print("No changes needed")
     
-    def add_task_to_main(self, task_text, section="INBOX"):
+    def add_task_to_main(self, task_text, section="TASKS"):
         """Add a new task to main list section or subsection"""
         task_file = self.parse_file()
         task_id = self.get_next_id()
@@ -1660,6 +1635,7 @@ class TaskManager:
         # Find the section this task belongs to
         current_subsection = None
         current_project = None
+        section_name = None
         
         # Search backwards from the task line to find its section
         for i in range(line_num - 1, -1, -1):
@@ -1671,23 +1647,20 @@ class TaskManager:
             # Check for main section (##)
             if current_line.startswith("## ") and not current_line.startswith("### "):
                 section_name = current_line[3:].strip()
-                if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
-                    current_subsection = section_name
-                    break
-                elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
-                    # This is a daily section, skip it
-                    continue
-                else:
-                    # This might be a subsection under MAIN
-                    current_subsection = section_name
-                    break
-            
-            # Check for project subsection (###)
+                # Any section name is valid now
+                current_subsection = section_name
+                break
+            elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
+                # This is a daily section, skip it
+                continue
             elif current_line.startswith("### "):
                 # Only set if we haven't found one yet (first one encountered when searching backwards)
                 if current_project is None:
                     current_project = current_line[4:].strip()
                 # Continue searching for the main section
+            else:
+                # Continue searching for section
+                continue
         
         # Build section reference
         if current_project and current_subsection:
@@ -1877,23 +1850,20 @@ class TaskManager:
             # Check for main section (##)
             if current_line.startswith("## ") and not current_line.startswith("### "):
                 section_name = current_line[3:].strip()
-                if section_name in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
-                    current_subsection = section_name
-                    break
-                elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
-                    # This is a daily section, skip it
-                    continue
-                else:
-                    # This might be a subsection under MAIN
-                    current_subsection = section_name
-                    break
-            
-            # Check for project subsection (###)
+                # Any section name is valid now
+                current_subsection = section_name
+                break
+            elif re.match(r"## \d{2}-\d{2}-\d{4}", current_line):
+                # This is a daily section, skip it
+                continue
             elif current_line.startswith("### "):
                 # Only set if we haven't found one yet (first one encountered when searching backwards)
                 if current_project is None:
                     current_project = current_line[4:].strip()
                 # Continue searching for the main section
+            else:
+                # Continue searching for section
+                continue
         
         # Build section reference
         if current_project and current_subsection:
@@ -2173,8 +2143,8 @@ COMMANDS:
                          [~] in daily = update date but keep incomplete
   
   add TEXT [SEC]         Add task to main list (alias for add-main)
-  add-main TEXT [SEC]    Add task to main list section (default: INBOX)
-                         Use SEC:SUBSEC for subsections (e.g., PROJECTS:HOME)
+  add-main TEXT [SEC]    Add task to main list section (default: TASKS)
+                         Use SEC:SUBSEC for subsections (e.g., WORK:HOME)
   add-daily TEXT         Add task directly to today's daily section
   up ID                  Pull task from main list into today's daily section
   
@@ -2201,8 +2171,8 @@ COMMANDS:
 EXAMPLES:
   tasks init                              # Initialize task file (first time setup)
   tasks daily                              # Start your day (creates or shows daily section)
-  tasks add "write blog post" PROJECTS     # Add task to specific section
-  tasks add "fix faucet" PROJECTS:HOME     # Add to subsection
+  tasks add "write blog post" WORK         # Add task to specific section
+  tasks add "fix faucet" WORK:HOME         # Add to subsection
   tasks add-daily "urgent client call"     # Add to today only
   tasks up 042                            # Pull task #042 to today's daily section
   tasks complete 042                       # Mark task done
@@ -2287,13 +2257,6 @@ FILE STRUCTURE:
   ## 15-01-2025
   
   # MAIN
-  ## INBOX
-  ## PROJECTS
-  ### Project Name
-  ## AREAS
-  ### Area Name
-  ## RESOURCES
-  ## ZETTELKASTEN
   
   # ARCHIVE
 
@@ -2487,13 +2450,16 @@ For more info: https://fortelabs.com/blog/para/
                     updated = True
             
             if not in_main_section:
-                print(f"Main section '{main_section}' not found. Available sections:")
-                main_lines = self.find_section("MAIN", level=1)
-                if main_lines:
-                    for line in main_lines:
-                        if line.startswith("## "):
-                            print(f"  - {line[3:]}")
-                return
+                # Create the section if it doesn't exist
+                # Find the MAIN section and add the new section after it
+                for i, line in enumerate(lines):
+                    if line.strip() == "# MAIN":
+                        # Insert the new section after MAIN
+                        lines.insert(i + 1, f"## {main_section}")
+                        lines.insert(i + 2, "")
+                        lines.insert(i + 3, new_task)
+                        updated = True
+                        break
             
             if updated:
                 self.write_file('\n'.join(lines))
@@ -2509,12 +2475,16 @@ For more info: https://fortelabs.com/blog/para/
             
             # Check if the replacement worked
             if new_content == '\n'.join(lines):
-                print(f"Section '{main_section}' not found. Available sections:")
-                # Look for sections in the current content
-                for line in lines:
-                    if line.startswith("## "):
-                        print(f"  - {line[3:]}")
-                return
+                # Create the section if it doesn't exist
+                # Find the MAIN section and add the new section after it
+                for i, line in enumerate(lines):
+                    if line.strip() == "# MAIN":
+                        # Insert the new section after MAIN
+                        lines.insert(i + 1, f"## {main_section}")
+                        lines.insert(i + 2, "")
+                        lines.insert(i + 3, new_task)
+                        new_content = '\n'.join(lines)
+                        break
             
             self.write_file(new_content)
             print(f"Moved task #{task_id} to {main_section}: {task_data['text']}")
@@ -2915,43 +2885,41 @@ def main():
         tm.sync_daily_sections()
     elif command == "add" and len(args) > 1:
         # Parse section argument properly
-        valid_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
+        # No predefined sections - any section name is valid
         
-        # Check if last argument is a section
+        # Check if last argument looks like a section (contains : or is uppercase)
         last_arg = args[-1]
-        main_part = last_arg.split(":")[0].upper()
         
-        if main_part in valid_sections:
+        if ":" in last_arg or last_arg.isupper():
             # Last argument is a section/subsection
             section = last_arg
             task_text = " ".join(args[1:-1])
         else:
             # All arguments are task text
             task_text = " ".join(args[1:])
-            section = "INBOX"
+            section = "TASKS"
         
         tm.add_task_to_main(task_text, section)
     elif command == "add-main" and len(args) > 2:
         # Parse section argument properly
-        valid_sections = ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]
+        # No predefined sections - any section name is valid
         
         if len(args) == 3:
             # Just task text, no section
             task_text = args[2]
-            section = "INBOX"
+            section = "TASKS"
         else:
-            # Check if last argument is a section
+            # Check if last argument looks like a section
             last_arg = args[-1]
-            main_part = last_arg.split(":")[0].upper()
             
-            if main_part in valid_sections:
+            if ":" in last_arg or last_arg.isupper():
                 # Last argument is a section/subsection
                 section = last_arg
                 task_text = " ".join(args[2:-1])
             else:
                 # All arguments are task text
                 task_text = " ".join(args[2:])
-                section = "INBOX"
+                section = "TASKS"
         
         tm.add_task_to_main(task_text, section)
     elif command == "add-daily" and len(args) > 1:
@@ -2976,7 +2944,7 @@ def main():
     elif command == "list":
         if len(args) > 1:
             # Check if it's a section:subsection format or a known section name
-            if ":" in args[1] or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+            if ":" in args[1] or args[1].upper() == args[1]:
                 tm.show_section(args[1])
             elif not args[1].isdigit():
                 # Try as section name if it's not a number
@@ -2989,7 +2957,7 @@ def main():
             tm.show_all_main()
     elif command == "show" and len(args) > 1:
         # Check if it's a section:subsection format or wildcard
-        if ":" in args[1] or args[1] == "*" or args[1].upper() in ["INBOX", "PROJECTS", "AREAS", "RESOURCES", "ZETTELKASTEN"]:
+        if ":" in args[1] or args[1] == "*" or args[1].upper() == args[1]:
             tm.show_section(args[1])
         elif not args[1].isdigit():
             # Try as section name if it's not a number
