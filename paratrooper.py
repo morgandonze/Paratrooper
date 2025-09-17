@@ -110,7 +110,7 @@ RECURRING_PATTERN = r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)'
 
 # Character restrictions for task text
 ALLOWED_TASK_CHARS = r'[a-zA-Z0-9\s.,!?:;-_"\''
-FORBIDDEN_TASK_CHARS = ['@', '#', '|', '(', ')', '[', ']', '{', '}', '<', '\\', '/', '~', '`']
+FORBIDDEN_TASK_CHARS = ['@', '#', '|', '(', ')', '[', ']', '{', '}', '<', '\\', '~', '`']
 
 # Task status constants
 TASK_STATUS = {
@@ -289,15 +289,16 @@ class TaskFile:
         """Convert entire file to markdown format"""
         lines = []
         
-        # Daily sections
+        # Daily sections - only show the most recent day
         if self.daily_sections:
             lines.append('# DAILY')
             lines.append('')
-            for date in sorted(self.daily_sections.keys(), reverse=True):
-                lines.append(f'## {date}')
-                for task in self.daily_sections[date]:
-                    lines.append(task.to_markdown())
-                lines.append('')
+            # Get the most recent date
+            most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
+            lines.append(f'## {most_recent_date}')
+            for task in self.daily_sections[most_recent_date]:
+                lines.append(task.to_markdown())
+            lines.append('')
         
         # Main sections
         if self.main_sections:
@@ -307,10 +308,22 @@ class TaskFile:
                 lines.append(section.to_markdown())
                 lines.append('')
         
-        # Archive sections
-        if self.archive_sections:
+        # Archive sections - include all non-recent daily sections
+        if self.archive_sections or (self.daily_sections and len(self.daily_sections) > 1):
             lines.append('# ARCHIVE')
             lines.append('')
+            
+            # Add all non-recent daily sections to archive
+            if self.daily_sections and len(self.daily_sections) > 1:
+                most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
+                for date in sorted(self.daily_sections.keys(), reverse=True):
+                    if date != most_recent_date:
+                        lines.append(f'## {date}')
+                        for task in self.daily_sections[date]:
+                            lines.append(task.to_markdown())
+                        lines.append('')
+            
+            # Add existing archive sections
             for section_name, tasks in self.archive_sections.items():
                 lines.append(f'## {section_name}')
                 for task in tasks:
@@ -318,6 +331,24 @@ class TaskFile:
                 lines.append('')
         
         return '\n'.join(lines)
+    
+    def reorganize_daily_sections(self):
+        """Move non-recent daily sections to archive"""
+        if not self.daily_sections or len(self.daily_sections) <= 1:
+            return
+        
+        # Get the most recent date
+        most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
+        
+        # Move non-recent daily sections to archive
+        dates_to_move = [date for date in self.daily_sections.keys() if date != most_recent_date]
+        for date in dates_to_move:
+            # Move tasks to archive
+            if date not in self.archive_sections:
+                self.archive_sections[date] = []
+            self.archive_sections[date].extend(self.daily_sections[date])
+            # Remove from daily sections
+            del self.daily_sections[date]
 
 class TaskManager:
     def __init__(self, config: Optional[Config] = None):
@@ -744,25 +775,55 @@ class TaskManager:
         """Mark a task as in progress"""
         return line.replace(TASK_STATUS['INCOMPLETE'], TASK_STATUS['PROGRESS'])
     
-    def _is_task_in_daily_section(self, task_id, content=None):
-        """Check if a task with given ID is already in today's daily section"""
+    def _get_most_recent_daily_date(self, content=None):
+        """Get the most recent daily section date"""
         if content is None:
             content = self.read_file()
         lines = content.split('\n')
-        in_today_section = False
+        in_daily_section = False
+        most_recent_date = None
         
         for line in lines:
-            # Check if we're entering today's daily section
-            if line.strip() == f"## {self.today}":
-                in_today_section = True
+            # Check if we're entering the DAILY section
+            if line.strip() == "# DAILY":
+                in_daily_section = True
                 continue
             
-            # Check if we're leaving today's daily section
-            if in_today_section and line.startswith("##") and line.strip() != f"## {self.today}":
+            # Check if we're leaving the DAILY section
+            if in_daily_section and line.startswith("# ") and line.strip() != "# DAILY":
                 break
             
-            # If we're in today's section, check for the task ID
-            if in_today_section and self._is_task_line(line):
+            # Check if this is a daily section date
+            if in_daily_section and line.startswith("## ") and not line.startswith("### "):
+                most_recent_date = line[3:].strip()
+        
+        return most_recent_date
+
+    def _is_task_in_daily_section(self, task_id, content=None):
+        """Check if a task with given ID is already in the most recent daily section"""
+        if content is None:
+            content = self.read_file()
+        lines = content.split('\n')
+        in_daily_section = False
+        most_recent_date = None
+        
+        for line in lines:
+            # Check if we're entering the DAILY section
+            if line.strip() == "# DAILY":
+                in_daily_section = True
+                continue
+            
+            # Check if we're leaving the DAILY section
+            if in_daily_section and line.startswith("# ") and line.strip() != "# DAILY":
+                break
+            
+            # Check if this is a daily section date
+            if in_daily_section and line.startswith("## ") and not line.startswith("### "):
+                most_recent_date = line[3:].strip()
+                continue
+            
+            # If we're in the most recent daily section, check for the task ID
+            if in_daily_section and most_recent_date and self._is_task_line(line):
                 if f"#{task_id}" in line:
                     return True
         
@@ -940,18 +1001,28 @@ class TaskManager:
         return recurring_tasks
     
     def get_most_recent_daily_section(self, task_file):
-        """Get the most recent daily section (excluding today)"""
+        """Get the most recent daily section (excluding today's section)"""
         if not task_file.daily_sections:
             return None, []
         
         # Get all daily section dates and sort them
-        daily_dates = [date for date in task_file.daily_sections.keys() if date != self.today]
+        daily_dates = list(task_file.daily_sections.keys())
         if not daily_dates:
             return None, []
         
         # Sort dates in descending order (most recent first)
         daily_dates.sort(key=lambda x: datetime.strptime(x, "%d-%m-%Y"), reverse=True)
-        most_recent_date = daily_dates[0]
+        
+        # Find the most recent date that is not today
+        most_recent_date = None
+        for date in daily_dates:
+            if date != self.today:
+                most_recent_date = date
+                break
+        
+        if most_recent_date is None:
+            return None, []
+        
         most_recent_tasks = task_file.daily_sections[most_recent_date]
         
         return most_recent_date, most_recent_tasks
@@ -987,16 +1058,30 @@ class TaskManager:
             # Get recurring task IDs to avoid duplicates
             recurring_task_ids = {task['id'] for task in recurring_tasks}
             
-            # Simple carry-over: carry over all incomplete tasks that aren't already in today's section
-            # and aren't recurring tasks (recurring tasks are handled by the recurring logic)
+            # Carry-over logic: carry over all incomplete tasks that aren't already in today's section
+            # and aren't recurring tasks that came from recurring logic (have from_section)
             for task in unfinished_tasks:
-                if task.id not in existing_task_ids and task.id not in recurring_task_ids:
-                    new_unfinished_tasks.append(task)
+                if task.id not in existing_task_ids:
+                    # Only exclude if this task is a recurring task (has from_section)
+                    # AND it's in the recurring task IDs list
+                    if not (task.from_section and task.id in recurring_task_ids):
+                        new_unfinished_tasks.append(task)
         
         if not new_recurring_tasks and not new_unfinished_tasks and existing_tasks:
             # Display the existing daily section
             self.show_daily_list()
             return
+        
+        # If today's section doesn't exist yet, create it (even if empty)
+        if not existing_tasks:
+            # Create an empty daily section for today
+            task_file.get_daily_section(self.today)
+            # Update existing_tasks to include the new empty section
+            existing_tasks = task_file.get_daily_section(self.today)
+            # Recalculate existing_task_ids for the new section
+            existing_task_ids = {task.id for task in existing_tasks}
+            # Write the file back to create the new section
+            self.write_file_from_objects(task_file)
         
         # Add new recurring tasks to today's section at the TOP
         for task_data in new_recurring_tasks:
@@ -1020,6 +1105,9 @@ class TaskManager:
                 from_section=task.from_section
             )
             existing_tasks.append(carried_task)
+        
+        # Reorganize daily sections (move non-recent to archive)
+        task_file.reorganize_daily_sections()
         
         # Write the file back
         self.write_file_from_objects(task_file)
@@ -1191,14 +1279,16 @@ class TaskManager:
             print(f"Task #{task_id} is already incomplete")
             return
         
-        # Check if this task is in today's daily section
+        # Check if this task is in the most recent daily section
+        most_recent_date = self._get_most_recent_daily_date(content)
         in_daily_section = False
-        for i in range(line_num, -1, -1):
-            if lines[i].strip() == f"## {self.today}":
-                in_daily_section = True
-                break
-            elif lines[i].startswith("## ") and lines[i].strip() != f"## {self.today}":
-                break
+        if most_recent_date:
+            for i in range(line_num, -1, -1):
+                if lines[i].strip() == f"## {most_recent_date}":
+                    in_daily_section = True
+                    break
+                elif lines[i].startswith("## ") and lines[i].strip() != f"## {most_recent_date}":
+                    break
         
         if in_daily_section:
             # Task is in daily section - mark as incomplete there
@@ -1238,14 +1328,16 @@ class TaskManager:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Check if this task is in today's daily section
+        # Check if this task is in the most recent daily section
+        most_recent_date = self._get_most_recent_daily_date(content)
         in_daily_section = False
-        for i in range(line_num, -1, -1):
-            if lines[i].strip() == f"## {self.today}":
-                in_daily_section = True
-                break
-            elif lines[i].startswith("## ") and lines[i].strip() != f"## {self.today}":
-                break
+        if most_recent_date:
+            for i in range(line_num, -1, -1):
+                if lines[i].strip() == f"## {most_recent_date}":
+                    in_daily_section = True
+                    break
+                elif lines[i].startswith("## ") and lines[i].strip() != f"## {most_recent_date}":
+                    break
         
         if in_daily_section:
             # Task is in daily section - mark as complete there
@@ -1299,7 +1391,7 @@ class TaskManager:
     
     
     def _add_task_to_daily_section(self, task_id, status="complete"):
-        """Add a task from main list to today's daily section with specified status"""
+        """Add a task from main list to the most recent daily section with specified status"""
         # Find the task in main list
         result = self.find_task_by_id_in_main(task_id)
         if not result:
@@ -1359,38 +1451,43 @@ class TaskManager:
         else:  # progress
             new_task = self._build_task_line('~', f"{task_text} from {section_ref}", task_id=task_id) + "\n"
         
-        # Find today's daily section and add the task at the TOP
-        today_section_found = False
-        for i, line in enumerate(lines):
-            if line.strip() == f"## {self.today}":
-                today_section_found = True
-                # Add right after the daily section header
-                lines.insert(i + 1, new_task)
-                self.write_file('\n'.join(lines))
-                return True
+        # Find the most recent daily section and add the task at the TOP
+        most_recent_date = self._get_most_recent_daily_date(content)
+        if most_recent_date:
+            for i, line in enumerate(lines):
+                if line.strip() == f"## {most_recent_date}":
+                    # Add right after the daily section header
+                    lines.insert(i + 1, new_task)
+                    self.write_file('\n'.join(lines))
+                    return True
         
         return False
     
     def sync_daily_sections(self, days_back=3):
-        """Sync completed items from today's daily section to master list and vice versa"""
+        """Sync completed items from the most recent daily section to master list and vice versa"""
         content = self.read_file()
         lines = content.split('\n')
         
-        # Find today's daily section specifically
-        today_section_found = False
+        # Find the most recent daily section specifically
+        most_recent_date = self._get_most_recent_daily_date(content)
+        if not most_recent_date:
+            print("No daily section found")
+            return
+            
+        daily_section_found = False
         completed_daily_ids = []
         progressed_daily_ids = []
         
         for line in lines:
-            # Check if we're entering today's daily section
-            if line.strip() == f"## {self.today}":
-                today_section_found = True
+            # Check if we're entering the most recent daily section
+            if line.strip() == f"## {most_recent_date}":
+                daily_section_found = True
                 continue
             
-            # If we're in today's section, process tasks
-            if today_section_found:
+            # If we're in the most recent section, process tasks
+            if daily_section_found:
                 # Stop if we hit another daily section or leave the DAILY section
-                if line.startswith("## ") and line.strip() != f"## {self.today}":
+                if line.startswith("## ") and line.strip() != f"## {most_recent_date}":
                     break
                 
                 # Look for completed and progressed tasks
@@ -1402,10 +1499,6 @@ class TaskManager:
                     task_id = self._extract_task_id(line)
                     if task_id:
                         progressed_daily_ids.append(task_id)
-        
-        if not today_section_found:
-            print(f"No daily section found for {self.today}")
-            return
         
         # Update corresponding master list tasks by ID
         updates_made = 0
@@ -1630,20 +1723,25 @@ class TaskManager:
         print(f"Pulled task #{task_id} to today's section: {task_text}")
     
     def progress_task_in_daily(self, task_id):
-        """Mark a task as progressed ([~]) in today's daily section"""
+        """Mark a task as progressed ([~]) in the most recent daily section"""
         content = self.read_file()
         lines = content.split('\n')
         
-        # Find today's daily section
-        today_section_found = False
+        # Find the most recent daily section
+        most_recent_date = self._get_most_recent_daily_date(content)
+        if not most_recent_date:
+            print("No daily section found. Run 'tasks daily' first.")
+            return
+            
+        daily_section_found = False
         task_found = False
         
         for i, line in enumerate(lines):
-            if line.strip() == f"## {self.today}":
-                today_section_found = True
+            if line.strip() == f"## {most_recent_date}":
+                daily_section_found = True
                 continue
             
-            if today_section_found:
+            if daily_section_found:
                 # Stop if we hit another section
                 if line.startswith("##") or line.startswith("#"):
                     break
@@ -1661,10 +1759,6 @@ class TaskManager:
                         lines[i] = new_line
                         task_found = True
                         break
-        
-        if not today_section_found:
-            print(f"No daily section found for {self.today}. Run 'tasks daily' first.")
-            return
         
         if not task_found:
             # Task not in daily section, check if it's in main list and add it
@@ -1824,18 +1918,27 @@ class TaskManager:
                 print(f"  Snoozed until: {task_data['snooze']}")
     
     def list_sections(self):
-        """List all available sections"""
+        """List all available sections within MAIN"""
         content = self.read_file()
         lines = content.split('\n')
         
-        print("Available sections:")
+        in_main_section = False
+        
         for line in lines:
-            if line.startswith("# "):
-                print(f"  {line}")
-            elif line.startswith("## "):
-                print(f"    {line}")
-            elif line.startswith("### "):
-                print(f"      {line}")
+            # Check if we're entering the MAIN section
+            if line.strip() == "# MAIN":
+                in_main_section = True
+                continue
+            
+            # Check if we're leaving the MAIN section (next top-level section)
+            if in_main_section and line.startswith("# ") and line.strip() != "# MAIN":
+                break
+            
+            # Only show subsections (##) within MAIN
+            if in_main_section and line.startswith("## "):
+                print(f"  {line[3:]}")  # Remove "## " prefix
+            elif in_main_section and line.startswith("### "):
+                print(f"    {line[4:]}")  # Remove "### " prefix
     
     def archive_old_content(self, days_to_keep=7):
         """Archive old daily sections to ARCHIVE section"""
@@ -1935,23 +2038,29 @@ class TaskManager:
         print(f"Deleted task #{task_id} from main list")
     
     def delete_task_from_daily(self, task_id):
-        """Delete a task from today's daily section by ID"""
+        """Delete a task from the most recent daily section by ID"""
         content = self.read_file()
         lines = content.split('\n')
         
-        today_section_found = False
+        # Find the most recent daily section
+        most_recent_date = self._get_most_recent_daily_date(content)
+        if not most_recent_date:
+            print("No daily section found")
+            return
+            
+        daily_section_found = False
         task_found = False
         
         for i, line in enumerate(lines):
-            # Check if we're entering today's daily section
-            if line.strip() == f"## {self.today}":
-                today_section_found = True
+            # Check if we're entering the most recent daily section
+            if line.strip() == f"## {most_recent_date}":
+                daily_section_found = True
                 continue
             
-            # If we're in today's section, look for the task
-            if today_section_found:
+            # If we're in the most recent section, look for the task
+            if daily_section_found:
                 # Stop if we hit another daily section or leave the DAILY section
-                if line.startswith("## ") and line.strip() != f"## {self.today}":
+                if line.startswith("## ") and line.strip() != f"## {most_recent_date}":
                     break
                 
                 # Look for the task ID in this daily section
@@ -1961,12 +2070,8 @@ class TaskManager:
                     task_found = True
                     break
         
-        if not today_section_found:
-            print(f"No daily section found for {self.today}")
-            return
-        
         if not task_found:
-            print(f"Task #{task_id} not found in today's daily section")
+            print(f"Task #{task_id} not found in the most recent daily section")
             return
         
 
@@ -2197,37 +2302,50 @@ For more info: https://fortelabs.com/blog/para/
         print(help_text)
 
     def show_daily_list(self):
-        """Show today's daily section"""
+        """Show the most recent daily section"""
         content = self.read_file()
         lines = content.split('\n')
         
-        today_section_found = False
+        # Find the most recent daily section
+        most_recent_date = None
         daily_tasks = []
+        in_daily_section = False
         
         for line in lines:
-            if line.strip() == f"## {self.today}":
-                today_section_found = True
+            # Check if we're entering the DAILY section
+            if line.strip() == "# DAILY":
+                in_daily_section = True
                 continue
             
-            if today_section_found:
-                # Stop if we hit another daily section or leave the DAILY section
-                if line.startswith("## ") and line.strip() != f"## {self.today}":
+            # Check if we're leaving the DAILY section
+            if in_daily_section and line.startswith("# ") and line.strip() != "# DAILY":
+                break
+            
+            # If we're in the DAILY section, look for daily section dates
+            if in_daily_section and line.startswith("## ") and not line.startswith("### "):
+                # This is a daily section date - only keep the first one (most recent)
+                if most_recent_date is None:
+                    most_recent_date = line[3:].strip()
+                    daily_tasks = []  # Reset tasks for this new date
+                else:
+                    # We've found a second daily section date, stop collecting tasks
                     break
-                
-                # Collect tasks from today's section
-                if self._is_task_line(line):
-                    daily_tasks.append(line)
+                continue
+            
+            # If we're in the most recent daily section, collect tasks
+            if in_daily_section and most_recent_date and self._is_task_line(line):
+                daily_tasks.append(line)
         
-        if not today_section_found:
-            print(f"No daily section found for {self.today}")
+        if not most_recent_date:
+            print("No daily section found")
             print("Run 'tasks daily' to create today's section")
             return
         
         if not daily_tasks:
-            print(f"Daily section for {self.today} is empty")
+            print(f"Daily section for {most_recent_date} is empty")
             return
         
-        print(f"=== Daily Tasks for {self.today} ===")
+        print(f"=== Daily Tasks for {most_recent_date} ===")
         print()
         for task in daily_tasks:
             # Parse task using new format
@@ -2849,15 +2967,6 @@ def main():
 
     elif command == "sections":
         tm.list_sections()
-    elif command == "archive":
-        if len(args) > 2:
-            try:
-                days = int(args[2])
-                tm.archive_old_content(days)
-            except ValueError:
-                print("Invalid number of days. Use: tasks archive [days]")
-        else:
-            tm.archive_old_content()
     elif command == "delete" and len(args) > 1:
         tm.delete_task_from_main(args[1])
     elif command == "down" and len(args) > 1:

@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 import subprocess
 
 # Import the TaskManager class
-from tasks import TaskManager
+from paratrooper import TaskManager
 
 class TestIntegration(unittest.TestCase):
     """Integration tests for full command workflows"""
@@ -25,9 +25,16 @@ class TestIntegration(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.test_file = Path(self.test_dir) / "test_tasks.md"
         
+        # Create a mock config with our test file
+        from paratrooper import Config
+        mock_config = Config(
+            task_file=self.test_file,
+            icon_set="default",
+            editor="nvim"
+        )
+        
         # Create TaskManager instance with test file
-        with patch('tasks.TASK_FILE', self.test_file):
-            self.tm = TaskManager()
+        self.tm = TaskManager(mock_config)
     
     def tearDown(self):
         """Clean up after each test"""
@@ -37,85 +44,91 @@ class TestIntegration(unittest.TestCase):
     
     def test_complete_daily_workflow(self):
         """Test complete daily workflow: daily -> up -> work -> sync"""
-        # Step 1: Add some tasks to main list
-        self.tm.add_task_to_main("Write blog post", "PROJECTS")
-        self.tm.add_task_to_main("Call client", "INBOX")
-        self.tm.add_task_to_main("Exercise", "AREAS")
-        
-        # Step 2: Create daily section
-        self.tm.add_daily_section()
-        content = self.tm.read_file()
-        self.assertIn("## 04-09-2025", content)
-        
-        # Step 3: Pull tasks to daily section
-        self.tm.add_task_to_daily_by_id("001")  # up command
-        self.tm.add_task_to_daily_by_id("002")  # up command
-        
-        content = self.tm.read_file()
-        self.assertIn("Write blog post from PROJECTS", content)
-        self.assertIn("Call client from INBOX", content)
-        
-        # Step 4: Simulate work (mark progress and completion)
-        # Manually edit daily section to simulate work
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        
-        # Find and update the daily tasks
-        for i, line in enumerate(lines):
-            if "Write blog post" in line and "from PROJECTS" in line:
-                lines[i] = line.replace("- [ ]", "- [~]")  # Progress
-            elif "Call client" in line and "from INBOX" in line:
-                lines[i] = line.replace("- [ ]", "- [x]")  # Complete
-        
-        self.tm.write_file('\n'.join(lines))
-        
-        # Verify the daily section state before sync
-        content = self.tm.read_file()
-        self.assertIn("- [~] Write blog post from PROJECTS", content)
-        self.assertIn("- [x] Call client from INBOX", content)
-        
-        # Step 5: Sync progress back to main list
-        self.tm.sync_daily_sections()
-        
-        # Verify sync results
-        content = self.tm.read_file()
-        # Write blog post should still be incomplete but date updated
-        self.assertIn("- [ ] Write blog post", content)
-        # Call client should be marked complete
-        self.assertIn("- [x] Call client", content)
+        # Mock today's date
+        test_date = "04-09-2025"
+        with patch.object(self.tm, 'today', test_date):
+            # Step 1: Add some tasks to main list
+            self.tm.add_task_to_main("Write blog post", "PROJECTS")
+            self.tm.add_task_to_main("Call client", "INBOX")
+            self.tm.add_task_to_main("Exercise", "AREAS")
+            
+            # Step 2: Create daily section
+            self.tm.add_daily_section()
+            content = self.tm.read_file()
+            self.assertIn(f"## {test_date}", content)
+            
+            # Step 3: Pull tasks to daily section
+            self.tm.add_task_to_daily_by_id("001")  # up command
+            self.tm.add_task_to_daily_by_id("002")  # up command
+            
+            content = self.tm.read_file()
+            self.assertIn("Write blog post from PROJECTS", content)
+            self.assertIn("Call client from INBOX", content)
+            
+            # Step 4: Simulate work (mark progress and completion)
+            # Manually edit daily section to simulate work
+            content = self.tm.read_file()
+            lines = content.split('\n')
+            
+            # Find and update the daily tasks
+            for i, line in enumerate(lines):
+                if "Write blog post" in line and "from PROJECTS" in line:
+                    lines[i] = line.replace("- [ ]", "- [~]")  # Progress
+                elif "Call client" in line and "from INBOX" in line:
+                    lines[i] = line.replace("- [ ]", "- [x]")  # Complete
+            
+            self.tm.write_file('\n'.join(lines))
+            
+            # Verify the daily section state before sync
+            content = self.tm.read_file()
+            self.assertIn("- [~] Write blog post from PROJECTS", content)
+            self.assertIn("- [x] Call client from INBOX", content)
+            
+            # Step 5: Sync progress back to main list
+            self.tm.sync_daily_sections()
+            
+            # Verify sync results
+            content = self.tm.read_file()
+            # Write blog post should still be incomplete but date updated
+            self.assertIn("- [ ] Write blog post", content)
+            # Call client should be marked complete
+            self.assertIn("- [x] Call client", content)
     
     def test_recurring_task_lifecycle(self):
         """Test recurring task lifecycle: add -> mark recurring -> appear in daily -> complete -> sync"""
-        # Step 1: Add recurring task
-        self.tm.add_task_to_main("Morning exercise", "AREAS")
-        
-        # Step 2: Manually make it recurring
-        content = self.tm.read_file()
-        content = content.replace("Morning exercise | @04-09-2025 #001", 
-                                "Morning exercise | @04-09-2025 (daily) #001")
-        self.tm.write_file(content)
-        
-        # Clear cache to ensure the manual edit is picked up
-        self.tm._task_file_obj = None
-        
-        # Step 3: Create daily section (should include recurring task)
-        self.tm.add_daily_section()
-        content = self.tm.read_file()
-        self.assertIn("Morning exercise from AREAS", content)
-        
-        # Step 4: Complete the recurring task in daily section
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        for i, line in enumerate(lines):
-            if "Morning exercise" in line and "from AREAS" in line:
-                lines[i] = line.replace("- [ ]", "- [x]")
-        self.tm.write_file('\n'.join(lines))
-        
-        # Step 5: Sync (recurring task should stay incomplete but date updated)
-        self.tm.sync_daily_sections()
-        content = self.tm.read_file()
-        self.assertIn("- [ ] Morning exercise", content)  # Should stay incomplete
-        # Date should be updated to today
+        # Mock today's date
+        test_date = "04-09-2025"
+        with patch.object(self.tm, 'today', test_date):
+            # Step 1: Add recurring task
+            self.tm.add_task_to_main("Morning exercise", "AREAS")
+            
+            # Step 2: Manually make it recurring
+            content = self.tm.read_file()
+            content = content.replace(f"Morning exercise | @{test_date} #001", 
+                                    f"Morning exercise | @{test_date} (daily) #001")
+            self.tm.write_file(content)
+            
+            # Clear cache to ensure the manual edit is picked up
+            self.tm._task_file_obj = None
+            
+            # Step 3: Create daily section (should include recurring task)
+            self.tm.add_daily_section()
+            content = self.tm.read_file()
+            self.assertIn("Morning exercise from AREAS", content)
+            
+            # Step 4: Complete the recurring task in daily section
+            content = self.tm.read_file()
+            lines = content.split('\n')
+            for i, line in enumerate(lines):
+                if "Morning exercise" in line and "from AREAS" in line:
+                    lines[i] = line.replace("- [ ]", "- [x]")
+            self.tm.write_file('\n'.join(lines))
+            
+            # Step 5: Sync (recurring task should stay incomplete but date updated)
+            self.tm.sync_daily_sections()
+            content = self.tm.read_file()
+            self.assertIn("- [ ] Morning exercise", content)  # Should stay incomplete
+            # Date should be updated to today
     
     def test_up_down_commands(self):
         """Test up/down command workflow"""
@@ -247,7 +260,7 @@ class TestIntegration(unittest.TestCase):
         
         # Check that it doesn't appear in stale tasks
         with patch('builtins.print') as mock_print:
-            self.tm.show_stale_tasks()
+            self.tm.show_status_tasks()
             output = str(mock_print.call_args_list)
             self.assertNotIn("Future task", output)
         
@@ -257,7 +270,7 @@ class TestIntegration(unittest.TestCase):
         
         # Now it should appear in stale tasks
         with patch('builtins.print') as mock_print:
-            self.tm.show_stale_tasks()
+            self.tm.show_status_tasks()
             output = str(mock_print.call_args_list)
             self.assertIn("Future task", output)
     
