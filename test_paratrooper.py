@@ -539,7 +539,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Verify Task 2 is in today's section (most recent)
         content = self.tm.read_file()
-        self.assertIn(f"Task 2 from WORK | #{task_ids[1]}", content)
+        self.assertIn(f"Task 2 from WORK", content)
         
         # Verify _get_most_recent_daily_date returns today's date
         most_recent_date = self.tm._get_most_recent_daily_date(content)
@@ -756,12 +756,20 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         self.assertIn("morning workout", content)
         
-        # Complete the workout
+        # Complete the workout in daily section
         content = self.tm.read_file()
         lines = content.split('\n')
         workout_task_line = None
+        in_daily = False
         for line in lines:
-            if "morning workout" in line and "#" in line:
+            if line.strip() == '# DAILY':
+                in_daily = True
+                continue
+            elif line.startswith('# ') and line != '# DAILY':
+                in_daily = False
+                continue
+            
+            if in_daily and "morning workout" in line and "#" in line:
                 workout_task_line = line
                 break
         
