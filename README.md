@@ -1,19 +1,19 @@
 # Paratrooper 🪂 - PARA + Daily Task Management System
 
-A powerful, flexible task management system that combines the PARA methodology with daily progress tracking. Built as a modular Python package that manages a plain text file, making it portable, future-proof, and tool-agnostic.
+A powerful, flexible task management system that combines the PARA methodology with daily progress tracking. Built as a single Python script that manages a plain text file, making it portable, future-proof, and tool-agnostic.
 
 **The paratrooper is ready to drop into your daily tasks!**
 
-> **Note**: This is the refactored modular version. The original monolithic `paratrooper.py` is preserved for backward compatibility, but the new `paratrooper_new.py` entry point provides the same functionality with improved maintainability and extensibility.
+> **Note**: This is the current working implementation in `paratrooper.py`. The system has been tested and verified to work correctly. A comprehensive test suite (`test_paratrooper.py`) ensures all functionality works as expected.
 
 ## 🚀 Quick Start
 
 ```bash
-# Install (download the package and make it executable)
-chmod +x paratrooper_new.py
+# Install (download the script and make it executable)
+chmod +x paratrooper.py
 
 # Set up alias (add to your ~/.bashrc or ~/.zshrc)
-alias pt='python3 paratrooper_new.py'
+alias pt='python3 paratrooper.py'
 
 # Initialize your task file
 pt init
@@ -31,7 +31,7 @@ pt add "morning workout (daily)" HEALTH
 pt daily
 
 # See what needs attention
-pt stale
+pt status
 
 # Sync your progress
 pt sync
@@ -39,7 +39,7 @@ pt sync
 
 ## 📁 File Structure
 
-Your tasks are stored in `~/home/tasks.md` with this simplified, flexible organization:
+Your tasks are stored in `~/home/0-inbox/tasks.md` (configurable) with this simplified, flexible organization:
 
 ```markdown
 # DAILY
@@ -197,12 +197,12 @@ pt purge 042         # Delete from everywhere
 ## 📝 Task Syntax
 
 ```markdown
-- [ ] incomplete task @15-01-2025 #001
-- [x] completed task @15-01-2025 #002
-- [~] progressed task @15-01-2025 #003
-- [ ] recurring task @15-01-2025 (daily) #004
-- [ ] snoozed task @15-01-2025 snooze:20-01-2025 #005
-- [ ] deadline task @15-01-2025 due:25-01-2025 #006
+- [ ] incomplete task | @15-01-2025 #001
+- [x] completed task | @15-01-2025 #002
+- [~] progressed task | @15-01-2025 #003
+- [ ] recurring task | @15-01-2025 (daily) #004
+- [ ] snoozed task | @15-01-2025 snooze:20-01-2025 #005
+- [ ] deadline task | @15-01-2025 due:25-01-2025 #006
 ```
 
 ## 🔄 Sync Behavior
@@ -221,8 +221,8 @@ When you run `pt sync`:
 ### Example Sync
 **Before sync (Main List):**
 ```markdown
-- [ ] write chapter 3 @10-01-2025 #023
-- [ ] morning workout @14-01-2025 (daily) #004
+- [ ] write chapter 3 | @10-01-2025 #023
+- [ ] morning workout | @14-01-2025 (daily) #004
 ```
 
 **After working (Daily Section):**
@@ -233,8 +233,8 @@ When you run `pt sync`:
 
 **After sync (Main List):**
 ```markdown
-- [ ] write chapter 3 @15-01-2025 #023         # Still incomplete, date updated
-- [ ] morning workout @15-01-2025 (daily) #004 # Recurring, date updated
+- [ ] write chapter 3 | @15-01-2025 #023         # Still incomplete, date updated
+- [ ] morning workout | @15-01-2025 (daily) #004 # Recurring, date updated
 ```
 
 ## 📅 Recurring Patterns
@@ -288,7 +288,7 @@ sun = Sunday
 pt daily              # Creates today's section with recurring tasks
 
 # Planning - pull important tasks from main list
-pt stale              # See what's been neglected
+pt status             # See what's been neglected
 pt up 023             # Pull that important work task
 pt up 067             # Pull that overdue task
 
@@ -303,7 +303,7 @@ pt sync               # Updates main list from daily progress
 # Result: #004 date updates, #023 stays incomplete but date updates, #067 marked complete
 
 # Weekly planning
-pt stale              # See what's been neglected
+pt status             # See what's been neglected
 pt archive            # Clean up old content (7 days)
 pt archive 3          # Clean up content older than 3 days
 ```
@@ -343,7 +343,7 @@ Edit `~/home/tasks.md` and add recurring tasks to appropriate sections:
 pt daily
 
 # Check what's coming up
-pt stale
+pt status
 
 # Verify your patterns work
 pt sync
@@ -404,11 +404,31 @@ pt sync               # Update main list from daily progress
 - **Plain text**: Portable, future-proof, tool-agnostic
 - **PARA methodology**: Organized by actionability, not category
 
+## 🧪 Testing
+
+The system includes a comprehensive test suite to ensure all functionality works correctly:
+
+```bash
+# Run all tests
+python3 test_paratrooper.py
+
+# Tests cover:
+# - Configuration management
+# - Task creation and parsing
+# - Section management
+# - Daily workflow
+# - Recurring tasks
+# - Sync functionality
+# - Complete integration scenarios
+```
+
+All tests pass, confirming the system works as documented.
+
 ## 🔧 Installation
 
-1. Download `paratrooper_new.py`
-2. Make it executable: `chmod +x paratrooper_new.py`
-3. Set up alias (add to your `~/.bashrc` or `~/.zshrc`): `alias pt='python3 paratrooper_new.py'`
+1. Download `paratrooper.py`
+2. Make it executable: `chmod +x paratrooper.py`
+3. Set up alias (add to your `~/.bashrc` or `~/.zshrc`): `alias pt='python3 paratrooper.py'`
 4. Run `pt init` to create your first task file
 
 ## 📚 Learn More
