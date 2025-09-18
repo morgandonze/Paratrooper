@@ -473,6 +473,207 @@ class TestTaskManager(unittest.TestCase):
             self.tm.show_task(task_id)
         except Exception as e:
             self.fail(f"show_task raised an exception: {e}")
+    
+    def test_add_task_to_daily_by_id_formatting(self):
+        """Test that add_task_to_daily_by_id includes 'from {section_ref}' formatting"""
+        self.tm.init()
+        
+        # Add a task to a specific section
+        self.tm.add_task_to_main("Write blog post", "PROJECTS")
+        
+        # Get the task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_line = None
+        for line in lines:
+            if "Write blog post" in line and "#" in line:
+                task_line = line
+                break
+        
+        task_id = task_line.split('#')[-1].strip()
+        
+        # Create daily section and add task
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily_by_id(task_id)
+        
+        # Verify the task appears in daily section with "from PROJECTS" formatting
+        content = self.tm.read_file()
+        self.assertIn("Write blog post from PROJECTS", content)
+        
+        # Verify it's in the daily section, not main
+        daily_section_start = content.find("# DAILY")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        self.assertIn("Write blog post from PROJECTS", daily_section)
+    
+    def test_most_recent_daily_section_logic(self):
+        """Test that operations work with the most recent daily section, not just today's"""
+        self.tm.init()
+        
+        # Create multiple daily sections with different dates
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        # Add tasks to main
+        self.tm.add_task_to_main("Task 1", "WORK")
+        self.tm.add_task_to_main("Task 2", "WORK")
+        
+        # Get task IDs
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_ids = []
+        for line in lines:
+            if ("Task 1" in line or "Task 2" in line) and "#" in line:
+                task_ids.append(line.split('#')[-1].strip())
+        
+        # Create yesterday's daily section manually
+        content = self.tm.read_file()
+        content = content.replace("# DAILY", f"# DAILY\n## {yesterday}\n- [ ] Task 1 from WORK #{task_ids[0]}")
+        self.tm.write_file(content)
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Add Task 2 to daily (should go to today's section, the most recent)
+        self.tm.add_task_to_daily_by_id(task_ids[1])
+        
+        # Verify Task 2 is in today's section (most recent)
+        content = self.tm.read_file()
+        self.assertIn(f"Task 2 from WORK | #{task_ids[1]}", content)
+        
+        # Verify _get_most_recent_daily_date returns today's date
+        most_recent_date = self.tm._get_most_recent_daily_date(content)
+        self.assertEqual(most_recent_date, today)
+    
+    def test_reorganize_daily_sections(self):
+        """Test that reorganize_daily_sections moves old daily sections to archive"""
+        self.tm.init()
+        
+        # Create a task file with multiple daily sections
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        content = f"""# DAILY
+
+## {yesterday}
+- [x] Old task from WORK #001
+
+## {today}
+- [ ] New task from WORK #002
+
+# MAIN
+
+## WORK
+- [ ] New task | @{today} #002
+
+# ARCHIVE
+"""
+        self.tm.write_file(content)
+        
+        # Call reorganize_daily_sections
+        task_file = self.tm.parse_file()
+        task_file.reorganize_daily_sections()
+        
+        # Verify old daily section moved to archive
+        self.assertNotIn(yesterday, task_file.daily_sections)
+        self.assertIn(yesterday, task_file.archive_sections)
+        
+        # Verify today's section remains in daily
+        self.assertIn(today, task_file.daily_sections)
+        self.assertNotIn(today, task_file.archive_sections)
+    
+    def test_daily_section_display_only_most_recent(self):
+        """Test that DAILY section only shows the most recent day in markdown output"""
+        self.tm.init()
+        
+        # Create multiple daily sections
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        content = f"""# DAILY
+
+## {yesterday}
+- [x] Old task from WORK #001
+
+## {today}
+- [ ] New task from WORK #002
+
+# MAIN
+
+## WORK
+- [ ] New task | @{today} #002
+
+# ARCHIVE
+"""
+        self.tm.write_file(content)
+        
+        # Parse file and convert to markdown
+        task_file = self.tm.parse_file()
+        markdown = task_file.to_markdown()
+        
+        # Verify only today's section appears in DAILY section
+        daily_section_start = markdown.find("# DAILY")
+        main_section_start = markdown.find("# MAIN")
+        daily_section = markdown[daily_section_start:main_section_start]
+        
+        self.assertIn(f"## {today}", daily_section)
+        self.assertIn("New task", daily_section)
+        self.assertNotIn(f"## {yesterday}", daily_section)
+        self.assertNotIn("Old task", daily_section)
+        
+        # Verify yesterday's section appears in ARCHIVE
+        archive_section_start = markdown.find("# ARCHIVE")
+        archive_section = markdown[archive_section_start:]
+        self.assertIn(f"## {yesterday}", archive_section)
+        self.assertIn("Old task", archive_section)
+    
+    def test_automatic_reorganization_on_daily_operations(self):
+        """Test that daily operations automatically reorganize sections"""
+        self.tm.init()
+        
+        # Create multiple daily sections manually
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        content = f"""# DAILY
+
+## {yesterday}
+- [x] Old task from WORK #001
+
+## {today}
+- [ ] New task from WORK #002
+
+# MAIN
+
+## WORK
+- [ ] New task | @{today} #002
+
+# ARCHIVE
+"""
+        self.tm.write_file(content)
+        
+        # Parse the file to get the TaskFile object
+        task_file = self.tm.parse_file()
+        
+        # Manually call reorganize_daily_sections to test the functionality
+        task_file.reorganize_daily_sections()
+        
+        # Write the reorganized file back
+        self.tm.write_file_from_objects(task_file)
+        
+        # Verify reorganization happened
+        content = self.tm.read_file()
+        
+        # Yesterday's section should be in archive
+        archive_section_start = content.find("# ARCHIVE")
+        archive_section = content[archive_section_start:]
+        self.assertIn(f"## {yesterday}", archive_section)
+        
+        # Today's section should remain in daily
+        daily_section_start = content.find("# DAILY")
+        main_section_start = content.find("# MAIN")
+        daily_section = content[daily_section_start:main_section_start]
+        self.assertIn(f"## {today}", daily_section)
 
 
 class TestIntegration(unittest.TestCase):
