@@ -1,16 +1,22 @@
+#!/usr/bin/env python3
 """
-PARA + Daily Task Management System
+Paratrooper - PARA + Daily Task Management System
 
-A simple, powerful task management system that combines the PARA methodology
-with daily progress tracking in a plain text markdown file.
+A powerful, flexible task management system that combines the PARA methodology 
+with daily progress tracking. Built as a modular Python package that manages 
+a plain text file, making it portable, future-proof, and tool-agnostic.
+
+The paratrooper is ready to drop into your daily tasks!
 """
 
-from .config import Config
-from .models import Task, Section, TaskFile
-from .task_manager import TaskManager
-from .cli import main
+# Import all public classes for easy access
+from models import Config, Task, Section, TaskFile
+from task_manager import TaskManager
 
-__version__ = "2.0.0"
-__author__ = "Paratrooper Team"
+# Make classes available at package level for backward compatibility
+__all__ = ['Config', 'Task', 'Section', 'TaskFile', 'TaskManager']
 
-__all__ = ["Config", "Task", "Section", "TaskFile", "TaskManager", "main"]
+# Version information
+__version__ = "1.0.0"
+__author__ = "Paratrooper Development Team"
+__description__ = "PARA + Daily Task Management System"
