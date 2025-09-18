@@ -8,7 +8,6 @@ recurring tasks, and synchronization between daily and main sections.
 
 import re
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
 
 from models import Task, TaskFile, TODAY, TASK_ID_PATTERN, RECURRING_PATTERN
 from file_operations import FileOperations

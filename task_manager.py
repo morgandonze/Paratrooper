@@ -8,7 +8,6 @@ to specialized modules for different functional areas.
 
 import subprocess
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 
 from models import Config

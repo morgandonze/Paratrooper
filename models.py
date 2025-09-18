@@ -11,7 +11,7 @@ import configparser
 from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 
 # Configuration
 TODAY = datetime.now().strftime("%d-%m-%Y")

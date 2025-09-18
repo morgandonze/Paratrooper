@@ -8,8 +8,6 @@ for tasks in the main sections.
 
 import re
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, Tuple
 
 from models import Task, TODAY, TASK_ID_PATTERN, FORBIDDEN_TASK_CHARS
 from file_operations import FileOperations

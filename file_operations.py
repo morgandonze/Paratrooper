@@ -9,7 +9,6 @@ for the task management system.
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
 
 from models import (
     Task, TaskFile, TODAY,

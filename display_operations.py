@@ -8,8 +8,6 @@ and formatting for the task management system.
 
 import re
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
 
 from models import Config, Task, TaskFile, TODAY, TASK_ID_PATTERN, DATE_PATTERN
 from file_operations import FileOperations
