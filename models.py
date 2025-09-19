@@ -308,9 +308,12 @@ class TaskFile:
         if self.main_sections:
             lines.append('# MAIN')
             lines.append('')
-            for section in self.main_sections.values():
+            section_list = list(self.main_sections.values())
+            for i, section in enumerate(section_list):
                 lines.append(section.to_markdown())
-                lines.append('')
+                # Only add blank line if this is not the last section
+                if i < len(section_list) - 1:
+                    lines.append('')
         
         # Archive sections - include all non-recent daily sections
         if self.archive_sections or (self.daily_sections and len(self.daily_sections) > 1):
