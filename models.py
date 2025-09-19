@@ -23,7 +23,7 @@ TASK_COMPLETE_PATTERN = r'- \[x\] '
 TASK_PROGRESS_PATTERN = r'- \[~\] '
 TASK_ID_PATTERN = r'#(\d{3})'
 DATE_PATTERN = r'@(\d{2}-\d{2}-\d{4})'
-SNOOZE_PATTERN = r'snooze:(\d{2}-\d{2}-\d{4})'
+# SNOOZE_PATTERN removed - snoozing now handled by future dates
 RECURRING_PATTERN = r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)'
 
 # Character restrictions for task text
@@ -42,7 +42,6 @@ TASK_STATUS = {
 class Config:
     """Configuration settings for the task manager"""
     task_file: Path
-    icon_set: str
     editor: str
     carry_over_enabled: bool = True
     
@@ -55,7 +54,6 @@ class Config:
         # Default configuration
         default_config = cls(
             task_file=Path.home() / "home" / "tasks.md",
-            icon_set="default",
             editor="nvim",
             carry_over_enabled=True
         )
@@ -74,11 +72,6 @@ class Config:
             if 'general' in config and 'task_file' in config['general']:
                 task_file = Path(config['general']['task_file']).expanduser()
             
-            # Load icon set
-            icon_set = default_config.icon_set
-            if 'general' in config and 'icon_set' in config['general']:
-                icon_set = config['general']['icon_set']
-            
             # Load editor
             editor = default_config.editor
             if 'general' in config and 'editor' in config['general']:
@@ -89,7 +82,7 @@ class Config:
             if 'general' in config and 'carry_over_enabled' in config['general']:
                 carry_over_enabled = config['general'].getboolean('carry_over_enabled')
             
-            return cls(task_file=task_file, icon_set=icon_set, editor=editor, carry_over_enabled=carry_over_enabled)
+            return cls(task_file=task_file, editor=editor, carry_over_enabled=carry_over_enabled)
             
         except Exception as e:
             print(f"Warning: Error loading config from {config_path}: {e}")
@@ -109,9 +102,6 @@ class Config:
 # Task file location (supports ~ for home directory)
 task_file = {config.task_file}
 
-# Icon set: default, basic, nest
-icon_set = {config.icon_set}
-
 # Default editor for 'open' command
 editor = {config.editor}
 
@@ -129,98 +119,79 @@ class Task:
     status: str  # ' ', 'x', '~'
     date: Optional[str] = None
     recurring: Optional[str] = None
-    snooze: Optional[str] = None
-    due: Optional[str] = None
     section: Optional[str] = None
     subsection: Optional[str] = None
     is_daily: bool = False
     from_section: Optional[str] = None  # For daily tasks, shows where it came from
     
     def to_markdown(self) -> str:
-        """Convert task to markdown format"""
-        # Include "from" information in the task text if it exists and isn't already there
-        task_text = self.text
-        if self.from_section and f" from {self.from_section}" not in self.text:
-            task_text = f"{self.text} from {self.from_section}"
-        
-        status_part = f"- [{self.status}] {task_text}"
-        
-        metadata_parts = []
-        if self.date:
-            metadata_parts.append(f"@{self.date}")
-        if self.recurring:
-            metadata_parts.append(self.recurring)
-        if self.snooze:
-            metadata_parts.append(f"snooze:{self.snooze}")
-        if self.due:
-            metadata_parts.append(f"due:{self.due}")
-        if self.id:
-            metadata_parts.append(f"#{self.id}")
-        
-        if metadata_parts:
-            metadata_part = " ".join(metadata_parts)
-            return f"{status_part} | {metadata_part}"
-        else:
-            return status_part
+        """Convert task to markdown format using centralized formatter"""
+        from task_formatter import TaskFormatter
+        formatter = TaskFormatter()
+        return formatter.format_for_file(self)
     
     @classmethod
     def from_markdown(cls, line: str, section: str = None, subsection: str = None) -> Optional['Task']:
-        """Parse a markdown line into a Task object"""
+        """Parse a markdown line into a Task object using explicit pipe-separated format"""
         if not line.strip().startswith('- ['):
             return None
         
-        # Extract status
-        status_match = re.match(r'- \[(.)\]', line)
+        # Extract status and ID
+        status_match = re.match(r'- \[(.)\]\s*(?:#(\d{3}))?', line)
         if not status_match:
             return None
         status = status_match.group(1)
+        task_id = status_match.group(2) or ''
         
-        # Extract text (everything after status until | or end)
-        text_part = line[5:]  # Remove '- [x] '
-        if ' | ' in text_part:
-            text = text_part.split(' | ')[0].strip()
+        # Split by pipes to get explicit fields
+        parts = line.split(' | ')
+        if len(parts) < 2:
+            return None
+        
+        # Remove the status+ID part from the first element
+        remaining_first = parts[0]
+        if task_id:
+            remaining_first = remaining_first.replace(f'- [{status}] #{task_id}', '').strip()
         else:
-            text = text_part.strip()
+            remaining_first = remaining_first.replace(f'- [{status}]', '').strip()
         
-        # Extract metadata
-        metadata = {}
-        if ' | ' in line:
-            metadata_str = line.split(' | ')[1]
-            # Parse date
-            date_match = re.search(r'@(\d{2}-\d{2}-\d{4})', metadata_str)
-            if date_match:
-                metadata['date'] = date_match.group(1)
-            
-            # Parse recurring
-            recur_match = re.search(r'\(([^)]*(?:daily|weekly|monthly|recur:)[^)]*)\)', metadata_str)
-            if recur_match:
-                metadata['recurring'] = f"({recur_match.group(1)})"
-            
-            # Parse snooze
-            snooze_match = re.search(r'snooze:(\d{2}-\d{2}-\d{4})', metadata_str)
-            if snooze_match:
-                metadata['snooze'] = snooze_match.group(1)
-            
-            # Parse due
-            due_match = re.search(r'due:(\d{2}-\d{2}-\d{4})', metadata_str)
-            if due_match:
-                metadata['due'] = due_match.group(1)
-            
-            # Parse ID
-            id_match = re.search(r'#(\d{3})', metadata_str)
-            if id_match:
-                metadata['id'] = id_match.group(1)
+        # Reconstruct parts array with cleaned first element
+        if remaining_first:
+            parts[0] = remaining_first
+        else:
+            parts = parts[1:]  # Remove empty first element
+        
+        # Parse fields based on position
+        task_text = parts[0] if len(parts) > 0 else ''
+        section_field = parts[1] if len(parts) > 1 else ''
+        date_field = parts[2] if len(parts) > 2 else ''
+        recurring_field = parts[3] if len(parts) > 3 else ''
+        
+        # Parse section field (may contain "SECTION > SUBSECTION")
+        parsed_section = section.upper() if section else None
+        parsed_subsection = subsection
+        if section_field:
+            if ' > ' in section_field:
+                parsed_section, parsed_subsection = section_field.split(' > ', 1)
+                parsed_section = parsed_section.upper()
+            else:
+                parsed_section = section_field.upper()
+                parsed_subsection = None
+        
+        # Parse date field (no @ prefix needed)
+        parsed_date = date_field if date_field else None
+        
+        # Parse recurring field (no () wrapper needed)
+        parsed_recurring = f"({recurring_field})" if recurring_field else None
         
         return cls(
-            id=metadata.get('id', ''),
-            text=text,
+            id=task_id,
+            text=task_text,
             status=status,
-            date=metadata.get('date'),
-            recurring=metadata.get('recurring'),
-            snooze=metadata.get('snooze'),
-            due=metadata.get('due'),
-            section=section,
-            subsection=subsection
+            date=parsed_date,
+            recurring=parsed_recurring,
+            section=parsed_section,
+            subsection=parsed_subsection
         )
 
 

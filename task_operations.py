@@ -66,6 +66,9 @@ class TaskOperations:
     
     def add_task_to_main(self, task_text, section="TASKS"):
         """Add a task to the main list"""
+        # Normalize section name to uppercase
+        section = section.upper()
+        
         # Validate task text
         is_valid, error_msg = self.file_ops._validate_task_text(task_text)
         if not is_valid:
@@ -83,14 +86,16 @@ class TaskOperations:
         
         task_id = self.get_next_id()
         
-        # Build the task line
-        task_line = self.file_ops._build_task_line(
-            status=" ",
+        # Build the task line using new format
+        task = Task(
+            id=task_id,
             text=task_text,
+            status=" ",
             date=self.today,
             recurring=recurring,
-            task_id=task_id
+            section=section
         )
+        task_line = task.to_markdown()
         
         # Parse the file to get current structure
         task_file = self.file_ops.parse_file()
@@ -168,7 +173,7 @@ class TaskOperations:
         print(f"Reopened task #{task_id}")
     
     def snooze_task(self, task_id, days_or_date):
-        """Snooze a task for specified days or until a date"""
+        """Snooze a task by setting its date to a future date"""
         line_number, line_content = self.find_task_by_id(task_id)
         
         if not line_content:
@@ -184,25 +189,15 @@ class TaskOperations:
             # It's a date
             snooze_date = days_or_date
         
-        # Update the task line
-        if ' | ' in line_content:
-            parts = line_content.split(' | ')
-            text_part = parts[0]
-            metadata_part = parts[1]
-            
-            # Remove existing snooze if present
-            metadata_part = re.sub(r'snooze:\d{2}-\d{2}-\d{4}', '', metadata_part).strip()
-            metadata_part = re.sub(r'\s+', ' ', metadata_part)  # Clean up extra spaces
-            
-            # Add new snooze
-            if metadata_part:
-                metadata_part = f"{metadata_part} snooze:{snooze_date}"
-            else:
-                metadata_part = f"snooze:{snooze_date}"
-            
-            updated_line = f"{text_part} | {metadata_part}"
-        else:
-            updated_line = f"{line_content} | snooze:{snooze_date}"
+        # Parse the task to get its components
+        task = Task.from_markdown(line_content)
+        if not task:
+            print(f"Could not parse task #{task_id}")
+            return
+        
+        # Update the task with new date
+        task.date = snooze_date
+        updated_line = task.to_markdown()
         
         content = self.file_ops.read_file()
         lines = content.split('\n')
@@ -231,15 +226,15 @@ class TaskOperations:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Build new task line with updated text
-        updated_line = self.file_ops._build_task_line(
-            status=task_data['status'],
+        # Build new task line with updated text using new format
+        task = Task(
+            id=task_data['metadata'].get('id'),
             text=new_text,
+            status=task_data['status'],
             date=task_data['metadata'].get('date'),
-            recurring=task_data['metadata'].get('recurring'),
-            snooze=task_data['metadata'].get('snooze'),
-            task_id=task_data['metadata'].get('id')
+            recurring=task_data['metadata'].get('recurring')
         )
+        updated_line = task.to_markdown()
         
         content = self.file_ops.read_file()
         lines = content.split('\n')
@@ -250,6 +245,9 @@ class TaskOperations:
     
     def move_task(self, task_id, new_section):
         """Move a task to a new section"""
+        # Normalize section name to uppercase
+        new_section = new_section.upper()
+        
         line_number, line_content = self.find_task_by_id(task_id)
         
         if not line_content:
@@ -301,15 +299,15 @@ class TaskOperations:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Build new task line with updated recurrence
-        updated_line = self.file_ops._build_task_line(
-            status=task_data['status'],
+        # Build new task line with updated recurrence using new format
+        task = Task(
+            id=task_data['metadata'].get('id'),
             text=task_data['text'],
+            status=task_data['status'],
             date=task_data['metadata'].get('date'),
-            recurring=f"({new_recurrence})",
-            snooze=task_data['metadata'].get('snooze'),
-            task_id=task_data['metadata'].get('id')
+            recurring=f"({new_recurrence})"
         )
+        updated_line = task.to_markdown()
         
         content = self.file_ops.read_file()
         lines = content.split('\n')

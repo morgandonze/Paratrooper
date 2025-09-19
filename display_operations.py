@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from models import Config, Task, TaskFile, TODAY, TASK_ID_PATTERN, DATE_PATTERN
 from file_operations import FileOperations
+from task_formatter import TaskFormatter
 
 
 class DisplayOperations:
@@ -20,31 +21,7 @@ class DisplayOperations:
         self.file_ops = file_ops
         self.config = config
         self.today = TODAY
-        
-        # Define icon sets
-        self.icon_sets = {
-            "default": {
-                "incomplete": "[ ]",
-                "progress": "[~]",
-                "complete": "[x]"
-            },
-            "basic": {
-                "incomplete": "⏳",
-                "progress": "🔄", 
-                "complete": "✅"
-            },
-            "nest": {
-                "incomplete": "🪹",
-                "progress": "🔜",
-                "complete": "🪺"
-            }
-        }
-        
-        # Set current icon set
-        self.icon_set = config.icon_set
-        if self.icon_set not in self.icon_sets:
-            print(f"Warning: Unknown icon set '{self.icon_set}', using default")
-            self.icon_set = "default"
+        self.formatter = TaskFormatter()
     
     def find_section(self, section_name, level=1):
         """Find a section by name and level"""
@@ -66,15 +43,13 @@ class DisplayOperations:
         status = task_data.get('status', ' ')
         text = task_data.get('text', '')
         date_str = task_data.get('metadata', {}).get('date')
-        snooze_str = task_data.get('metadata', {}).get('snooze')
-        
-        # Check if task is snoozed
-        if snooze_str:
+        # Check if task is snoozed (date is in the future)
+        if date_str:
             try:
-                snooze_date = datetime.strptime(snooze_str, "%d-%m-%Y")
+                task_date = datetime.strptime(date_str, "%d-%m-%Y")
                 today = datetime.now()
-                if snooze_date > today:
-                    return "snoozed", 0, snooze_str
+                if task_date > today:
+                    return "snoozed", 0, date_str
             except ValueError:
                 pass
         
@@ -168,11 +143,16 @@ class DisplayOperations:
             else:
                 color = "🟢"  # Green for recent
             
-            # Extract task ID and text
-            task_id = task_data['metadata'].get('id', '???')
-            text = task_data['text']
+            # Create a Task object for consistent formatting
+                task = Task(
+                    id=task_data['metadata'].get('id', '???'),
+                    text=task_data['text'],
+                    status=task_data['status'],
+                    date=task_data['metadata'].get('date'),
+                    recurring=task_data['metadata'].get('recurring')
+                )
             
-            print(f"{color} {days_old:2d} days | #{task_id} | {text} | {section}")
+            print(self.formatter.format_for_status_display(task, days_old, section))
     
     def show_task(self, task_id):
         """Show details of a specific task"""
@@ -182,21 +162,14 @@ class DisplayOperations:
             print(f"Task #{task_id} not found")
             return
         
-        print(f"Task #{task_id}:")
-        print(f"  {line_content}")
-        print(f"  Line: {line_number}")
-        
-        # Parse and show details
-        task_data = self.file_ops._parse_task_line(line_content)
-        if task_data:
-            print(f"  Status: {task_data['status']}")
-            print(f"  Text: {task_data['text']}")
-            if task_data['metadata'].get('date'):
-                print(f"  Date: {task_data['metadata']['date']}")
-            if task_data['metadata'].get('recurring'):
-                print(f"  Recurring: {task_data['metadata']['recurring']}")
-            if task_data['metadata'].get('snooze'):
-                print(f"  Snoozed until: {task_data['metadata']['snooze']}")
+        # Parse the task line to create a Task object for consistent formatting
+        task = Task.from_markdown(line_content)
+        if task:
+            print(self.formatter.format_for_task_details(task, line_number))
+        else:
+            print(f"Task #{task_id}:")
+            print(f"  {line_content}")
+            print(f"  Line: {line_number}")
     
     def show_task_from_main(self, task_id):
         """Show details of a specific task from main section only"""
@@ -206,21 +179,14 @@ class DisplayOperations:
             print(f"Task #{task_id} not found in main section")
             return
         
-        print(f"Task #{task_id}:")
-        print(f"  {line_content}")
-        print(f"  Line: {line_number}")
-        
-        # Parse and show details
-        task_data = self.file_ops._parse_task_line(line_content)
-        if task_data:
-            print(f"  Status: {task_data['status']}")
-            print(f"  Text: {task_data['text']}")
-            if task_data['metadata'].get('date'):
-                print(f"  Date: {task_data['metadata']['date']}")
-            if task_data['metadata'].get('recurring'):
-                print(f"  Recurring: {task_data['metadata']['recurring']}")
-            if task_data['metadata'].get('snooze'):
-                print(f"  Snoozed until: {task_data['metadata']['snooze']}")
+        # Parse the task line to create a Task object for consistent formatting
+        task = Task.from_markdown(line_content)
+        if task:
+            print(self.formatter.format_for_task_details(task, line_number))
+        else:
+            print(f"Task #{task_id}:")
+            print(f"  {line_content}")
+            print(f"  Line: {line_number}")
     
     def list_sections(self):
         """List all available sections"""
@@ -423,19 +389,7 @@ For more info: https://fortelabs.com/blog/para/"""
             return
         
         for task in tasks:
-            status_icon = self.icon_sets[self.icon_set]["incomplete"]
-            if task.status == 'x':
-                status_icon = self.icon_sets[self.icon_set]["complete"]
-            elif task.status == '~':
-                status_icon = self.icon_sets[self.icon_set]["progress"]
-            
-            task_line = f"{status_icon} {task.text}"
-            if task.from_section:
-                task_line += f" from {task.from_section}"
-            if task.id:
-                task_line += f" #{task.id}"
-            
-            print(task_line)
+            print(self.formatter.format_for_daily_list(task))
     
     def show_section(self, section_name):
         """Show tasks in a specific section"""
@@ -482,8 +436,11 @@ For more info: https://fortelabs.com/blog/para/"""
                 continue
             
             if in_main and current_section == section_name and self.file_ops._is_task_line(line):
-                print(f"  {line}")
-                tasks_found = True
+                # Parse the task line to create a Task object for consistent formatting
+                task = Task.from_markdown(line)
+                if task:
+                    print(self.formatter.format_for_section_display(task))
+                    tasks_found = True
         
         if not tasks_found:
             print("No tasks found in this section")
@@ -518,8 +475,11 @@ For more info: https://fortelabs.com/blog/para/"""
             
             if (in_main and current_section == main_section and 
                 current_subsection == subsection and self.file_ops._is_task_line(line)):
-                print(f"  {line}")
-                tasks_found = True
+                # Parse the task line to create a Task object for consistent formatting
+                task = Task.from_markdown(line)
+                if task:
+                    print(self.formatter.format_for_section_display(task))
+                    tasks_found = True
         
         if not tasks_found:
             print("No tasks found in this subsection")
@@ -552,4 +512,7 @@ For more info: https://fortelabs.com/blog/para/"""
                 continue
             
             if in_main and self.file_ops._is_task_line(line):
-                print(f"  {line}")
+                # Parse the task line to create a Task object for consistent formatting
+                task = Task.from_markdown(line)
+                if task:
+                    print(self.formatter.format_for_section_display(task))

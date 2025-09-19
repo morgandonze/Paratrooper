@@ -245,8 +245,7 @@ class DailyOperations:
                 status=" ",
                 date=self.today,
                 recurring=unfinished_task.recurring,
-                snooze=unfinished_task.snooze,
-                due=unfinished_task.due,
+                # Snooze and due functionality removed - use future dates instead
                 section=unfinished_task.section,
                 subsection=unfinished_task.subsection,
                 is_daily=True,
@@ -334,7 +333,7 @@ class DailyOperations:
             
             if in_main and f"#{task_id}" in line and self.file_ops._is_task_line(line):
                 task_line = line
-                task_section = current_section
+                task_section = current_section.upper() if current_section else None
                 break
         
         if not task_line:
@@ -355,8 +354,7 @@ class DailyOperations:
             status=" ",
             date=self.today,
             recurring=task_data['metadata'].get('recurring'),
-            snooze=task_data['metadata'].get('snooze'),
-            due=task_data['metadata'].get('due'),
+            # Snooze and due functionality removed
             section=task_section,
             is_daily=True,
             from_section=task_section

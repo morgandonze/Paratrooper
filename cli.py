@@ -66,29 +66,36 @@ def main():
             task_text = " ".join(args[1:])
             section = "TASKS"
         
-        tm.add_task_to_main(task_text, section)
+        tm.add_task_to_main(task_text, section.upper())
     elif command == "add-main" and len(args) > 2:
         # Parse section argument properly
         # No predefined sections - any section name is valid
         
         if len(args) == 3:
-            # Just task text, no section
-            task_text = args[2]
-            section = "TASKS"
+            # Check if this is "command task_text section" or "command task_text" (no section)
+            # If the last arg looks like a section name (no spaces, not too long), treat it as section
+            last_arg = args[2]
+            if len(last_arg) < 20 and not " " in last_arg and not last_arg.isdigit():
+                # Last argument looks like a section name
+                task_text = args[1]
+                section = last_arg
+            else:
+                # Just task text, no section
+                task_text = args[1]
+                section = "TASKS"
         else:
             # Check if last argument looks like a section
             last_arg = args[-1]
             
-            if ":" in last_arg or last_arg.isupper():
-                # Last argument is a section/subsection
+            if ":" in last_arg:
+                # Last argument is a section/subsection (contains colon)
                 section = last_arg
-                task_text = " ".join(args[2:-1])
+                task_text = " ".join(args[1:-1])
             else:
-                # All arguments are task text
-                task_text = " ".join(args[2:])
-                section = "TASKS"
-        
-        tm.add_task_to_main(task_text, section)
+                # Assume last argument is section name (case-insensitive)
+                section = last_arg
+                task_text = " ".join(args[1:-1])
+        tm.add_task_to_main(task_text, section.upper())
     elif command == "add-daily" and len(args) > 1:
         tm.add_task_to_daily(" ".join(args[1:]))
     elif command == "up" and len(args) > 1:
@@ -117,28 +124,28 @@ def main():
                 # Try as section name if it's not a number
                 tm.show_section(args[1])
             else:
-                # Original show task by ID functionality
-                tm.show_task(args[1])
+                # Numbers should be treated as section names for list command
+                tm.show_section(args[1])
         else:
             # List all main sections when no arguments provided
             tm.show_all_main()
     elif command == "show" and len(args) > 1:
         # Check if it's a section:subsection format or wildcard
-        if ":" in args[1] or args[1] == "*" or args[1].upper() == args[1]:
+        if ":" in args[1] or args[1] == "*":
             tm.show_section(args[1])
-        elif not args[1].isdigit():
-            # Try as section name if it's not a number
-            tm.show_section(args[1])
-        else:
+        elif args[1].isdigit():
             # Show details of a specific task by ID from main section
             tm.show_task_from_main(args[1])
+        else:
+            # Try as section name if it's not a number
+            tm.show_section(args[1])
     elif command == "edit" and len(args) > 2:
         task_id = args[1]
         new_text = " ".join(args[2:])
         tm.edit_task(task_id, new_text)
     elif command == "move" and len(args) > 2:
         task_id = args[1]
-        new_section = args[2]
+        new_section = args[2].upper()
         tm.move_task(task_id, new_section)
     elif command == "open":
         editor = args[1] if len(args) > 1 else None

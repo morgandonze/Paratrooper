@@ -35,7 +35,6 @@ class TestConfig(unittest.TestCase):
         config = Config.load(self.config_path)
         self.assertIsNotNone(config)
         self.assertEqual(str(config.task_file), str(Path.home() / "home" / "tasks.md"))
-        self.assertEqual(config.icon_set, "default")
         self.assertEqual(config.editor, "nvim")
     
     def test_config_file_creation(self):
@@ -78,12 +77,12 @@ class TestTask(unittest.TestCase):
             section="TASKS"
         )
         markdown = task.to_markdown()
-        expected = "- [x] Test task | @15-01-2025 #001"
+        expected = "- [x] #001 | Test task | TASKS | 15-01-2025 | "
         self.assertEqual(markdown, expected)
     
     def test_task_from_markdown(self):
         """Test parsing task from markdown"""
-        line = "- [x] Test task | @15-01-2025 #001"
+        line = "- [x] #001 | Test task | TASKS | 15-01-2025 | "
         task = Task.from_markdown(line, "TASKS")
         
         self.assertIsNotNone(task)
@@ -95,7 +94,7 @@ class TestTask(unittest.TestCase):
     
     def test_recurring_task_parsing(self):
         """Test parsing recurring tasks"""
-        line = "- [ ] morning workout | @15-01-2025 (daily) #004"
+        line = "- [ ] #004 | morning workout | HEALTH | 15-01-2025 | daily"
         task = Task.from_markdown(line, "HEALTH")
         
         self.assertIsNotNone(task)
@@ -106,16 +105,15 @@ class TestTask(unittest.TestCase):
         self.assertEqual(task.recurring, "(daily)")
     
     def test_snoozed_task_parsing(self):
-        """Test parsing snoozed tasks"""
-        line = "- [ ] review budget | @15-01-2025 snooze:20-01-2025 #005"
+        """Test parsing tasks with future dates (snoozing)"""
+        line = "- [ ] #005 | review budget | FINANCE | 20-01-2025 | "
         task = Task.from_markdown(line, "FINANCE")
         
         self.assertIsNotNone(task)
         self.assertEqual(task.text, "review budget")
         self.assertEqual(task.status, " ")
-        self.assertEqual(task.date, "15-01-2025")
+        self.assertEqual(task.date, "20-01-2025")
         self.assertEqual(task.id, "005")
-        self.assertEqual(task.snooze, "20-01-2025")
 
 
 class TestSection(unittest.TestCase):
@@ -385,9 +383,9 @@ class TestTaskManager(unittest.TestCase):
         # Snooze for 3 days
         self.tm.snooze_task(task_id, "3")
         
-        # Check that task has snooze date
+        # Check that task has future date (snoozing)
         content = self.tm.read_file()
-        self.assertIn("snooze:", content)
+        self.assertIn("21-09-2025", content)  # 3 days from test date
     
     def test_archive_old_content(self):
         """Test archiving old content"""

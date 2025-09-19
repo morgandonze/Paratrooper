@@ -13,7 +13,7 @@ from pathlib import Path
 from models import (
     Task, TaskFile, TODAY,
     TASK_STATUS_PATTERN, TASK_INCOMPLETE_PATTERN, TASK_COMPLETE_PATTERN, TASK_PROGRESS_PATTERN,
-    TASK_ID_PATTERN, DATE_PATTERN, SNOOZE_PATTERN, RECURRING_PATTERN,
+    TASK_ID_PATTERN, DATE_PATTERN, RECURRING_PATTERN,
     FORBIDDEN_TASK_CHARS
 )
 
@@ -82,7 +82,7 @@ class FileOperations:
             
             # Main sections
             elif in_main and line.startswith('## '):
-                current_section = line[3:].strip()
+                current_section = line[3:].strip().upper()
                 current_subsection = None
                 continue
             elif in_main and line.startswith('### '):
@@ -101,7 +101,7 @@ class FileOperations:
             
             # Archive sections
             elif in_archive and line.startswith('## '):
-                current_section = line[3:].strip()
+                current_section = line[3:].strip().upper()
                 continue
             elif in_archive and line.startswith('- ['):
                 task = Task.from_markdown(line)
@@ -247,60 +247,26 @@ class FileOperations:
         return True, None
     
     def _parse_task_line(self, line):
-        """Parse a task line into components"""
+        """Parse a task line into components using the new explicit format"""
         if not self._is_task_line(line):
             return None
         
-        # Extract status
-        status_match = re.match(r'- \[(.)\]', line)
-        if not status_match:
+        # Use the Task.from_markdown method for consistent parsing
+        task = Task.from_markdown(line)
+        if not task:
             return None
-        status = status_match.group(1)
-        
-        # Extract text (everything after status until | or end)
-        text_part = line[5:]  # Remove '- [x] '
-        if ' | ' in text_part:
-            text = text_part.split(' | ')[0].strip()
-        else:
-            text = text_part.strip()
-        
-        # Extract metadata
-        metadata = {}
-        if ' | ' in line:
-            metadata_str = line.split(' | ')[1]
-            
-            # Parse date
-            date_match = re.search(r'@(\d{2}-\d{2}-\d{4})', metadata_str)
-            if date_match:
-                metadata['date'] = date_match.group(1)
-            
-            # Parse recurring
-            recur_match = re.search(r'\(([^)]*(?:daily|weekly|monthly|recur:)[^)]*)\)', metadata_str)
-            if recur_match:
-                metadata['recurring'] = f"({recur_match.group(1)})"
-            
-            # Parse snooze
-            snooze_match = re.search(r'snooze:(\d{2}-\d{2}-\d{4})', metadata_str)
-            if snooze_match:
-                metadata['snooze'] = snooze_match.group(1)
-            
-            # Parse due
-            due_match = re.search(r'due:(\d{2}-\d{2}-\d{4})', metadata_str)
-            if due_match:
-                metadata['due'] = due_match.group(1)
-            
-            # Parse ID
-            id_match = re.search(r'#(\d{3})', metadata_str)
-            if id_match:
-                metadata['id'] = id_match.group(1)
         
         return {
-            'status': status,
-            'text': text,
-            'metadata': metadata
+            'status': task.status,
+            'text': task.text,
+            'metadata': {
+                'id': task.id,
+                'date': task.date,
+                'recurring': task.recurring
+            }
         }
     
-    def _build_task_line(self, status, text, date=None, recurring=None, snooze=None, task_id=None):
+    def _build_task_line(self, status, text, date=None, recurring=None, task_id=None):
         """Build a task line from components"""
         status_part = f"- [{status}] {text}"
         
@@ -309,8 +275,7 @@ class FileOperations:
             metadata_parts.append(f"@{date}")
         if recurring:
             metadata_parts.append(recurring)
-        if snooze:
-            metadata_parts.append(f"snooze:{snooze}")
+        # Snooze functionality removed
         if task_id:
             metadata_parts.append(f"#{task_id}")
         
