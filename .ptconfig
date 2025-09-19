@@ -5,8 +5,6 @@
 # Task file location (supports ~ for home directory)
 task_file = /Users/morgan/dev/projects/paratrooper/tasks.md
 
-# Icon set: default, basic, nest
-icon_set = default
 
 # Default editor for 'open' command
 editor = nvim

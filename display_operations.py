@@ -220,10 +220,8 @@ class DisplayOperations:
         """Show current configuration"""
         print("Current Configuration:")
         print(f"  Task file: {self.config.task_file}")
-        print(f"  Icon set: {self.config.icon_set}")
         print(f"  Editor: {self.config.editor}")
         print(f"  Config file: ~/.ptconfig")
-        print(f"  Available icon sets: basic, default, nest")
     
     def show_help(self):
         """Show help information"""
@@ -249,8 +247,8 @@ COMMANDS:
                          [x] in daily = complete main task  
                          [~] in daily = update date but keep incomplete
   
-  add TEXT SEC           Add task to main list (alias for add-main)
-  add-main TEXT SEC      Add task to main list section
+  add TEXT [SEC]         Add task to main list (alias for add-main)
+  add-main TEXT [SEC]    Add task to main list section (default: TASKS)
                          Use SEC:SUBSEC for subsections (e.g., WORK:HOME)
   add-daily TEXT         Add task directly to today's daily section
   up ID                  Pull task from main list into today's daily section
@@ -347,13 +345,7 @@ CONFIGURATION:
   Settings:
   [general]
   task_file = ~/home/0-inbox/tasks.md
-  icon_set = default
   editor = nvim
-  
-  Available icon sets:
-  - default: [ ] [~] [x] (text-based)
-  - basic: ⏳ 🔄 ✅ (emoji)
-  - nest: 🪹 🔜 🪺 (nest theme)
   
   Editor options:
   - nvim, vim, nano, code, subl, atom, or any command-line editor
