@@ -138,7 +138,12 @@ class Task:
     
     def to_markdown(self) -> str:
         """Convert task to markdown format"""
-        status_part = f"- [{self.status}] {self.text}"
+        # Include "from" information in the task text if it exists and isn't already there
+        task_text = self.text
+        if self.from_section and f" from {self.from_section}" not in self.text:
+            task_text = f"{self.text} from {self.from_section}"
+        
+        status_part = f"- [{self.status}] {task_text}"
         
         metadata_parts = []
         if self.date:

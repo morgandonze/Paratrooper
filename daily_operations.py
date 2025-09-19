@@ -16,8 +16,9 @@ from file_operations import FileOperations
 class DailyOperations:
     """Handles all operations related to daily sections and recurring tasks."""
     
-    def __init__(self, file_ops: FileOperations):
+    def __init__(self, file_ops: FileOperations, config=None):
         self.file_ops = file_ops
+        self.config = config
         self.today = TODAY
     
     def _get_most_recent_daily_date(self, content=None):
@@ -210,10 +211,12 @@ class DailyOperations:
         
         # Get unfinished tasks from previous day (if carry-over is enabled)
         unfinished_tasks = []
-        if hasattr(self.file_ops, 'config') and self.file_ops.config.carry_over_enabled:
-            most_recent_date, most_recent_tasks = self.get_most_recent_daily_section(task_file)
-            if most_recent_date and most_recent_date != self.today:
-                unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
+        if self.config and self.config.carry_over_enabled:
+            most_recent_result = self.get_most_recent_daily_section(task_file)
+            if most_recent_result:
+                most_recent_date, most_recent_tasks = most_recent_result
+                if most_recent_date and most_recent_date != self.today:
+                    unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
         
         # Create today's daily section
         today_tasks = []
@@ -254,10 +257,11 @@ class DailyOperations:
         # Add tasks to today's section
         task_file.daily_sections[self.today] = today_tasks
         
-        # Reorganize daily sections (move old ones to archive)
-        task_file.reorganize_daily_sections()
-        
         # Write back to file
+        self.file_ops.write_file_from_objects(task_file)
+        
+        # Reorganize daily sections (move old ones to archive) AFTER carry-over is complete
+        task_file.reorganize_daily_sections()
         self.file_ops.write_file_from_objects(task_file)
         
         if recurring_tasks:

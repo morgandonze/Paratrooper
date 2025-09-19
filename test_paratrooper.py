@@ -675,6 +675,87 @@ class TestTaskManager(unittest.TestCase):
         daily_section = content[daily_section_start:main_section_start]
         self.assertIn(f"## {today}", daily_section)
 
+    def test_daily_carry_over_functionality(self):
+        """Test that incomplete tasks from previous day are carried over to today's daily section"""
+        self.tm.init()
+        
+        # Create dates for testing
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        # Add tasks to main sections
+        self.tm.add_task_to_main("morning workout (daily)", "HEALTH")
+        self.tm.add_task_to_main("write report", "WORK")
+        self.tm.add_task_to_main("call client", "WORK")
+        
+        # Get task IDs
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_ids = {}
+        for line in lines:
+            if "morning workout" in line and "#" in line:
+                task_ids['workout'] = line.split('#')[-1].strip()
+            elif "write report" in line and "#" in line:
+                task_ids['report'] = line.split('#')[-1].strip()
+            elif "call client" in line and "#" in line:
+                task_ids['client'] = line.split('#')[-1].strip()
+        
+        # Create yesterday's daily section manually with incomplete tasks
+        yesterday_content = f"""# DAILY
+
+## {yesterday}
+- [ ] morning workout from HEALTH | @{today} (daily) #{task_ids['workout']}
+- [~] write report from WORK | @{today} #{task_ids['report']}
+- [x] call client from WORK | @{today} #{task_ids['client']}
+
+# MAIN
+
+## HEALTH
+- [ ] morning workout (daily) | @{today} #{task_ids['workout']}
+
+## WORK
+- [ ] write report | @{today} #{task_ids['report']}
+- [ ] call client | @{today} #{task_ids['client']}
+
+# ARCHIVE
+"""
+        
+        # Write the test content
+        self.tm.task_file.write_text(yesterday_content)
+        
+        # Run daily command to create today's section
+        self.tm.add_daily_section()
+        
+        # Verify the results
+        content = self.tm.read_file()
+        
+        # Should have today's daily section
+        self.assertIn(f"## {today}", content)
+        
+        # Should carry over incomplete tasks (workout and report, but not client)
+        daily_section_start = content.find(f"## {today}")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        # Recurring task should be added
+        self.assertIn("morning workout from HEALTH", daily_section)
+        
+        # Incomplete task should be carried over (status reset to incomplete)
+        self.assertIn("write report from WORK", daily_section)
+        self.assertIn(f"- [ ] write report from WORK | @{today} #{task_ids['report']}", daily_section)
+        
+        # Completed task should NOT be carried over
+        self.assertNotIn("call client from WORK", daily_section)
+        
+        # Previous day's section should be moved to archive
+        self.assertIn("# ARCHIVE", content)
+        archive_section_start = content.find("# ARCHIVE")
+        archive_section = content[archive_section_start:]
+        self.assertIn(f"## {yesterday}", archive_section)
+        
+        # Verify carry-over message was shown (we can't easily test stdout, but the functionality works)
+        # The test passes if the assertions above pass
+
 
 class TestIntegration(unittest.TestCase):
     """Integration tests for the complete workflow"""

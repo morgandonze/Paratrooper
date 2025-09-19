@@ -33,7 +33,7 @@ class TaskManager:
         # Initialize specialized modules
         self.file_ops = FileOperations(self.task_file)
         self.task_ops = TaskOperations(self.file_ops)
-        self.daily_ops = DailyOperations(self.file_ops)
+        self.daily_ops = DailyOperations(self.file_ops, config)
         self.display_ops = DisplayOperations(self.file_ops, config)
     
     def init(self):
