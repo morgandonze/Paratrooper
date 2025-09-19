@@ -3,7 +3,7 @@
 
 [general]
 # Task file location (supports ~ for home directory)
-task_file = /Users/morgan/dev/projects/paratrooper/tasks.md
+task_file = /Users/morgan/dev/projects/paratrooper/sandbox_tasks.md
 
 
 # Default editor for 'open' command

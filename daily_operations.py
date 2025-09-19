@@ -221,20 +221,24 @@ class DailyOperations:
         # Create today's daily section
         today_tasks = []
         
-        # Add recurring tasks
+        # Get IDs of unfinished tasks to avoid duplication
+        unfinished_task_ids = {task.id for task in unfinished_tasks}
+        
+        # Add recurring tasks (skip if already being carried over)
         for recurring_task in recurring_tasks:
-            task_text = recurring_task['text']  # No need for "from" text anymore
-            task = Task(
-                id=recurring_task['id'],
-                text=task_text,
-                status=" ",
-                date=self.today,
-                recurring=recurring_task['recurring'],
-                section=recurring_task['section'],
-                is_daily=True,
-                from_section=recurring_task['section']
-            )
-            today_tasks.append(task)
+            if recurring_task['id'] not in unfinished_task_ids:
+                task_text = recurring_task['text']  # No need for "from" text anymore
+                task = Task(
+                    id=recurring_task['id'],
+                    text=task_text,
+                    status=" ",
+                    date=self.today,
+                    recurring=recurring_task['recurring'],
+                    section=recurring_task['section'],
+                    is_daily=True,
+                    from_section=recurring_task['section']
+                )
+                today_tasks.append(task)
         
         # Add unfinished tasks from previous day
         for unfinished_task in unfinished_tasks:

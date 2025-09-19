@@ -754,6 +754,86 @@ class TestTaskManager(unittest.TestCase):
         # Verify carry-over message was shown (we can't easily test stdout, but the functionality works)
         # The test passes if the assertions above pass
 
+    def test_daily_duplication_prevention(self):
+        """Test that recurring tasks don't get duplicated when also being carried over from previous day"""
+        self.tm.init()
+        
+        # Create dates for testing
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        # Add a recurring task to main section
+        self.tm.add_task_to_main("Take out trash (daily)", "DOMESTIC")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "Take out trash" in line and "#" in line:
+                # Extract just the task ID number (e.g., "001" from "#001")
+                parts = line.split('#')
+                if len(parts) > 1:
+                    task_id = parts[1].split()[0]  # Get just the ID part
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Create yesterday's daily section with the recurring task as incomplete
+        yesterday_content = f"""# DAILY
+
+## {yesterday}
+- [ ] Take out trash from DOMESTIC | @{today} (daily) #{task_id}
+
+# MAIN
+
+## DOMESTIC
+- [ ] Take out trash (daily) | @{today} #{task_id}
+
+# ARCHIVE
+"""
+        
+        # Write the test content
+        self.tm.task_file.write_text(yesterday_content)
+        
+        # Run daily command to create today's section
+        self.tm.add_daily_section()
+        
+        # Verify the results
+        content = self.tm.read_file()
+        
+        # Should have today's daily section
+        self.assertIn(f"## {today}", content)
+        
+        # Get today's daily section content
+        daily_section_start = content.find(f"## {today}")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        # Count occurrences of the task in today's daily section
+        task_occurrences = daily_section.count("Take out trash")
+        
+        # Should appear exactly once (not duplicated)
+        self.assertEqual(task_occurrences, 1, 
+                        f"Task 'Take out trash' appears {task_occurrences} times in daily section, should appear exactly once")
+        
+        # Should appear as a carry-over task (check for task ID to ensure it's the same task)
+        # The task ID should be present in the daily section
+        self.assertIn(f"#{task_id}", daily_section)
+        self.assertIn("Take out trash", daily_section)
+        
+        # Verify it's the carry-over task by checking the format
+        self.assertIn("(DAILY)", daily_section)
+        
+        # The key test: should appear exactly once (no duplication)
+        # This is the main assertion that verifies the fix works
+        
+        # Previous day's section should be moved to archive
+        self.assertIn("# ARCHIVE", content)
+        archive_section_start = content.find("# ARCHIVE")
+        archive_section = content[archive_section_start:]
+        self.assertIn(f"## {yesterday}", archive_section)
+
     def test_main_section_headers_always_persist(self):
         """Test that all main section headers persist regardless of content"""
         # Test 1: Newly initialized file
