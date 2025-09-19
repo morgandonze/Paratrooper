@@ -137,8 +137,8 @@ class TaskManager:
         return self.daily_ops.get_unfinished_tasks_from_daily(daily_tasks)
     
     # Display Operations - delegate to DisplayOperations
-    def show_status_tasks(self, scope=None):
-        return self.display_ops.show_status_tasks(scope)
+    def show_status_tasks(self, scope=None, limit=5):
+        return self.display_ops.show_status_tasks(scope, limit)
     
     def show_task(self, task_id):
         return self.display_ops.show_task(task_id)

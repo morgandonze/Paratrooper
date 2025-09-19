@@ -71,8 +71,8 @@ class DisplayOperations:
         
         return "no_date", 0, "no_date"
     
-    def show_status_tasks(self, scope=None):
-        """Show task status (staleness) with optional scope filtering"""
+    def show_status_tasks(self, scope=None, limit=5):
+        """Show task status (staleness) with optional scope filtering and limit"""
         content = self.file_ops.read_file()
         lines = content.split('\n')
         
@@ -127,9 +127,12 @@ class DisplayOperations:
         # Sort by staleness (oldest first)
         tasks_by_status.sort(key=lambda x: x['days_old'], reverse=True)
         
-        print("=== Tasks by status (oldest first) ===")
+        # Apply limit
+        limited_tasks = tasks_by_status[:limit]
         
-        for task_info in tasks_by_status:
+        print(f"=== Tasks by status (oldest first, showing {len(limited_tasks)} of {len(tasks_by_status)}) ===")
+        
+        for task_info in limited_tasks:
             days_old = task_info['days_old']
             status_type = task_info['status_type']
             section = task_info['section']
@@ -235,8 +238,9 @@ COMMANDS:
   config                 Show current configuration
   init                   Initialize the task file with default structure
   daily                  Add today's daily section with recurring tasks and carry over all incomplete tasks from previous day                                   
-  status [SCOPE]         Show task status (oldest first, ignores snoozed)
-                         SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')                                                     
+  status [SCOPE] [N]     Show task status (oldest first, ignores snoozed)
+                         SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
+                         N is number of tasks to show (default: 5)                                                     
   
   complete ID            Mark task with ID as complete
   done ID                Alias for complete
@@ -291,8 +295,10 @@ EXAMPLES:
   tasks pass 042                           # Mark progress on task in daily section                                                                             
   tasks snooze 023 7                       # Hide task for a week
   tasks recur 042 daily                    # Set task to recur daily
-  tasks status                             # See what needs attention
-  tasks status projects                    # See task status in PROJECTS section
+  tasks status                             # See what needs attention (shows 5 tasks)
+  tasks status 10                          # See 10 oldest tasks
+  tasks status projects                    # See task status in PROJECTS section (5 tasks)
+  tasks status projects 3                  # See 3 oldest tasks in PROJECTS section
   tasks status areas:work                  # See task status in AREAS > WORK subsection                                                                         
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text

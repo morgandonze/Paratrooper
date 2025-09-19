@@ -130,7 +130,8 @@ pt init               # Initialize task file with default structure
 ### Daily Workflow
 ```bash
 pt daily              # Add today's section with recurring tasks
-pt stale              # Show oldest tasks from MAIN section (staleness tracking)
+pt status             # Show oldest tasks from MAIN section (default: 5 tasks)
+pt status 10          # Show 10 oldest tasks
 pt sync               # Update MAIN from daily progress
 ```
 

@@ -36,8 +36,20 @@ def main():
         if result == "show_daily_list":
             tm.show_daily_list()
     elif command == "status":
-        scope = args[1] if len(args) > 1 else None
-        tm.show_status_tasks(scope)
+        # Parse arguments: first arg could be scope or number, second could be number
+        if len(args) > 1:
+            # Check if first argument is a number (limit)
+            if args[1].isdigit():
+                limit = int(args[1])
+                scope = None
+            else:
+                # First argument is scope, check if second is number
+                scope = args[1]
+                limit = int(args[2]) if len(args) > 2 and args[2].isdigit() else 5
+        else:
+            scope = None
+            limit = 5
+        tm.show_status_tasks(scope, limit)
     elif command == "complete" and len(args) > 1:
         tm.complete_task(args[1])
     elif command == "done" and len(args) > 1:
