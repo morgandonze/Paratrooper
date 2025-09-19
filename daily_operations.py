@@ -203,8 +203,8 @@ class DailyOperations:
         
         # Check if today's section already exists
         if self.today in task_file.daily_sections:
-            print(f"Daily section for {self.today} already exists")
-            return
+            # Instead of just printing an error, show the daily list
+            return "show_daily_list"
         
         # Get recurring tasks for today
         recurring_tasks = self.get_recurring_tasks()

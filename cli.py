@@ -32,7 +32,9 @@ def main():
         tm.init()
     elif command == "daily":
         # Always check for new recurring tasks and add them
-        tm.add_daily_section()
+        result = tm.add_daily_section()
+        if result == "show_daily_list":
+            tm.show_daily_list()
     elif command == "status":
         scope = args[1] if len(args) > 1 else None
         tm.show_status_tasks(scope)
