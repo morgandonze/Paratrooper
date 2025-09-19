@@ -1,4 +1,15 @@
-{
-    "task_file_path": "./sandbox_tasks.md",
-    "editor": "vim"
-}
+# Paratrooper Configuration File
+# Location: /Users/morgan/dev/projects/paratrooper/.ptconfig
+
+[general]
+# Task file location (supports ~ for home directory)
+task_file = /Users/morgan/dev/projects/paratrooper/tasks.md
+
+# Icon set: default, basic, nest
+icon_set = default
+
+# Default editor for 'open' command
+editor = nvim
+
+# Carry over incomplete tasks from previous day (true/false)
+carry_over_enabled = true
