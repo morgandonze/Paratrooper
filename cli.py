@@ -54,10 +54,10 @@ def main():
         # Parse section argument properly
         # No predefined sections - any section name is valid
         
-        # Check if last argument looks like a section (contains : or is uppercase)
+        # Check if last argument looks like a section (contains : or is uppercase or is a single word)
         last_arg = args[-1]
         
-        if ":" in last_arg or last_arg.isupper():
+        if ":" in last_arg or last_arg.isupper() or (len(last_arg) < 20 and not " " in last_arg and not last_arg.isdigit()):
             # Last argument is a section/subsection
             section = last_arg
             task_text = " ".join(args[1:-1])

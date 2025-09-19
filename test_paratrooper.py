@@ -1394,6 +1394,59 @@ class TestCLICommands(unittest.TestCase):
         content = self.tm.read_file()
         self.assertIn("21-09-2025", content)
         self.assertIn("Test task", content)
+    
+    def test_add_command_section_parsing(self):
+        """Test that add command correctly parses section names"""
+        # Test various section name formats
+        test_cases = [
+            # (task_text, section_arg, expected_section)
+            ("Read books phychology-books-lucas-segeren-2025-sep-14.txt", "inbox", "INBOX"),
+            ("Test task without section", None, "TASKS"),  # No section arg
+            ("Test task with uppercase section", "PROJECTS", "PROJECTS"),
+            ("Test task with subsection", "AREAS:HEALTH", "AREAS:HEALTH"),
+            ("Test task with lowercase section", "work", "WORK"),
+            ("Test task with mixed case", "Health", "HEALTH"),
+        ]
+        
+        for task_text, section_arg, expected_section in test_cases:
+            with self.subTest(task_text=task_text, section_arg=section_arg):
+                # Simulate the CLI parsing logic from cli.py
+                if section_arg:
+                    args = ['add', task_text, section_arg]
+                else:
+                    args = ['add', task_text]
+                
+                # Extract the parsing logic
+                last_arg = args[-1]
+                
+                if ":" in last_arg or last_arg.isupper() or (len(last_arg) < 20 and not " " in last_arg and not last_arg.isdigit()):
+                    # Last argument is a section/subsection
+                    section = last_arg
+                    parsed_task_text = " ".join(args[1:-1])
+                else:
+                    # All arguments are task text
+                    parsed_task_text = " ".join(args[1:])
+                    section = "TASKS"
+                
+                # Verify parsing results
+                self.assertEqual(section.upper(), expected_section)
+                self.assertEqual(parsed_task_text, task_text)
+                
+                # Test actual task addition
+                self.tm.add_task_to_main(parsed_task_text, section.upper())
+                
+                # Verify task was added to correct section
+                content = self.tm.read_file()
+                
+                # For subsections, check for both main section and subsection headers
+                if ':' in expected_section:
+                    main_section, subsection = expected_section.split(':', 1)
+                    self.assertIn(f"## {main_section}", content)
+                    self.assertIn(f"### {subsection}", content)
+                else:
+                    self.assertIn(f"## {expected_section}", content)
+                
+                self.assertIn(task_text, content)
 
 
 def run_tests():
