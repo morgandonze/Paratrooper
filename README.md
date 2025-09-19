@@ -1,10 +1,10 @@
-# Paratrooper 🪂 - PARA + Daily Task Management System
+# Paratrooper 🪂 - Daily Task Management System
 
-A powerful, flexible task management system that combines the PARA methodology with daily progress tracking. Built as a single Python script that manages a plain text file, making it portable, future-proof, and tool-agnostic.
+A powerful, flexible task management system that combines organization with daily progress tracking. Built as a modular Python system that manages a plain text file, making it portable, future-proof, and tool-agnostic.
 
 **The paratrooper is ready to drop into your daily tasks!**
 
-> **Note**: This is the current working implementation in `paratrooper.py`. The system has been tested and verified to work correctly. A comprehensive test suite (`test_paratrooper.py`) ensures all functionality works as expected.
+> **Note**: This is the current working implementation with a modular architecture. The system has been tested and verified to work correctly. A comprehensive test suite (`test_paratrooper.py`) ensures all functionality works as expected.
 
 ## 🚀 Quick Start
 
@@ -39,7 +39,7 @@ pt sync
 
 ## 📁 File Structure
 
-Your tasks are stored in `~/home/0-inbox/tasks.md` (configurable) with this simplified, flexible organization:
+Your tasks are stored in `~/tasks.md` (configurable) with this simplified, flexible organization:
 
 ```markdown
 # DAILY
@@ -132,7 +132,7 @@ pt init               # Initialize task file with default structure
 ### Daily Workflow
 ```bash
 pt daily              # Add today's section with recurring tasks
-pt stale              # Show oldest tasks from MAIN section
+pt stale              # Show oldest tasks from MAIN section (staleness tracking)
 pt sync               # Update MAIN from daily progress
 ```
 
@@ -197,12 +197,20 @@ pt purge 042         # Delete from everywhere
 ## 📝 Task Syntax
 
 ```markdown
-- [ ] incomplete task | @15-01-2025 #001
-- [x] completed task | @15-01-2025 #002
-- [~] progressed task | @15-01-2025 #003
-- [ ] recurring task | @15-01-2025 (daily) #004
-- [ ] snoozed task | @15-01-2025 snooze:20-01-2025 #005
-- [ ] deadline task | @15-01-2025 due:25-01-2025 #006
+- [ ] #001 | incomplete task | WORK | @15-01-2025 | 
+- [x] #002 | completed task | HEALTH | @15-01-2025 | 
+- [~] #003 | progressed task | PROJECTS | @15-01-2025 | 
+- [ ] #004 | recurring task | HEALTH | @15-01-2025 | daily
+- [ ] #005 | task with subsection | WORK:HOME | @15-01-2025 | 
+```
+
+**Format breakdown:**
+- `[status]` - `[ ]` incomplete, `[x]` complete, `[~]` progress
+- `#id` - Unique 3-digit task identifier
+- `task_text` - Description of the task
+- `section` - Section name (e.g., WORK, HEALTH) or `section:subsection` for hierarchical organization
+- `@date` - Last engagement date (for staleness tracking)
+- `recurring` - Recurrence pattern (daily, weekly, monthly, etc.) or empty for one-time tasks
 ```
 
 ## 🔄 Sync Behavior
@@ -313,7 +321,7 @@ pt archive 3          # Clean up content older than 3 days
 Here's a complete workflow for setting up a robust recurring task system:
 
 ### Step 1: Create Your Recurring Tasks
-Edit `~/home/tasks.md` and add recurring tasks to appropriate sections:
+Edit `~/tasks.md` and add recurring tasks to appropriate sections:
 
 ```markdown
 ## HEALTH
@@ -402,7 +410,7 @@ pt sync               # Update main list from daily progress
 - **Robust automation**: ID-based commands, hierarchical parsing
 - **Scalable structure**: Add projects/areas as needed
 - **Plain text**: Portable, future-proof, tool-agnostic
-- **PARA methodology**: Organized by actionability, not category
+- **Organized by actionability**: Tasks organized by what you can act on, not category
 
 ## 🧪 Testing
 
@@ -430,11 +438,6 @@ All tests pass, confirming the system works as documented.
 2. Make it executable: `chmod +x paratrooper.py`
 3. Set up alias (add to your `~/.bashrc` or `~/.zshrc`): `alias pt='python3 paratrooper.py'`
 4. Run `pt init` to create your first task file
-
-## 📚 Learn More
-
-- **PARA Method**: [Forte Labs](https://fortelabs.com/blog/para/)
-- **Zettelkasten**: [Ahrens, S. (2017). How to Take Smart Notes](https://www.soenkeahrens.de/en/takesmartnotes)
 
 ---
 
