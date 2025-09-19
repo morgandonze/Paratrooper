@@ -64,8 +64,10 @@ class TaskOperations:
         
         return None, None
     
-    def add_task_to_main(self, task_text, section="TASKS"):
+    def add_task_to_main(self, task_text, section=None):
         """Add a task to the main list"""
+        if section is None:
+            raise ValueError("Section name is required. Please specify a section (e.g., 'WORK', 'HEALTH', 'PROJECTS')")
         # Normalize section name to uppercase
         section = section.upper()
         

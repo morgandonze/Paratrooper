@@ -249,8 +249,8 @@ COMMANDS:
                          [x] in daily = complete main task  
                          [~] in daily = update date but keep incomplete
   
-  add TEXT [SEC]         Add task to main list (alias for add-main)
-  add-main TEXT [SEC]    Add task to main list section (default: TASKS)
+  add TEXT SEC           Add task to main list (alias for add-main)
+  add-main TEXT SEC      Add task to main list section
                          Use SEC:SUBSEC for subsections (e.g., WORK:HOME)
   add-daily TEXT         Add task directly to today's daily section
   up ID                  Pull task from main list into today's daily section

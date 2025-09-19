@@ -4,8 +4,6 @@ A powerful, flexible task management system that combines organization with dail
 
 **The paratrooper is ready to drop into your daily tasks!**
 
-> **Note**: This is the current working implementation with a modular architecture. The system has been tested and verified to work correctly. A comprehensive test suite (`test_paratrooper.py`) ensures all functionality works as expected.
-
 ## 🚀 Quick Start
 
 ```bash
@@ -138,7 +136,6 @@ pt sync               # Update MAIN from daily progress
 
 ### Task Management
 ```bash
-pt add "text"         # Add to TASKS section
 pt add "text" WORK    # Add to specific section
 pt add "fix sink" WORK:HOME # Add to subsection
 pt add-daily "text"   # Add to today's section

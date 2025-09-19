@@ -78,7 +78,7 @@ class TaskManager:
     def find_task_by_id_in_main(self, task_id):
         return self.task_ops.find_task_by_id_in_main(task_id)
     
-    def add_task_to_main(self, task_text, section="TASKS"):
+    def add_task_to_main(self, task_text, section=None):
         return self.task_ops.add_task_to_main(task_text, section)
     
     def complete_task(self, task_id):

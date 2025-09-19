@@ -1401,7 +1401,7 @@ class TestCLICommands(unittest.TestCase):
         test_cases = [
             # (task_text, section_arg, expected_section)
             ("Read books phychology-books-lucas-segeren-2025-sep-14.txt", "inbox", "INBOX"),
-            ("Test task without section", None, "TASKS"),  # No section arg
+            ("Test task without section", None, "TASKS"),  # No section arg - defaults to TASKS
             ("Test task with uppercase section", "PROJECTS", "PROJECTS"),
             ("Test task with subsection", "AREAS:HEALTH", "AREAS:HEALTH"),
             ("Test task with lowercase section", "work", "WORK"),
