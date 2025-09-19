@@ -26,9 +26,8 @@ class TaskFormatter:
         This is the canonical format used in the task file.
         """
         # Clean task text (remove any existing "from" info since we have explicit section fields)
-        # But keep "from" text for daily tasks since they need to show origin
         task_text = task.text
-        if task.from_section and f" from {task.from_section}" in task_text and not task.is_daily:
+        if task.from_section and f" from {task.from_section}" in task_text:
             task_text = task_text.replace(f" from {task.from_section}", "")
         
         # Build section field (combine section and subsection)

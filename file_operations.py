@@ -71,6 +71,7 @@ class FileOperations:
                 if task:
                     task.is_daily = True
                     # Check if this task came from a main section (indicated by " from " in text)
+                    # This is for backward compatibility with existing tasks that might have "from" text
                     if " from " in task.text:
                         # Extract the section name from the text
                         parts = task.text.split(" from ")

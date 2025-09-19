@@ -223,7 +223,7 @@ class DailyOperations:
         
         # Add recurring tasks
         for recurring_task in recurring_tasks:
-            task_text = f"{recurring_task['text']} from {recurring_task['section']}"
+            task_text = recurring_task['text']  # No need for "from" text anymore
             task = Task(
                 id=recurring_task['id'],
                 text=task_text,
@@ -346,8 +346,8 @@ class DailyOperations:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Create task for daily section with "from" formatting
-        task_text = f"{task_data['text']} from {task_section}"
+        # Create task for daily section (no need for "from" text anymore)
+        task_text = task_data['text']
         task = Task(
             id=task_id,
             text=task_text,
