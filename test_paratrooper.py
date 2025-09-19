@@ -1020,6 +1020,382 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("[ ] morning workout", main_section)
 
 
+class TestCaseInsensitiveSections(unittest.TestCase):
+    """Test case-insensitive section handling functionality"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_add_task_case_insensitive_section(self):
+        """Test adding tasks with different case section names"""
+        # Test various case combinations
+        test_cases = [
+            ("work", "WORK"),
+            ("WORK", "WORK"), 
+            ("Work", "WORK"),
+            ("health", "HEALTH"),
+            ("HEALTH", "HEALTH"),
+            ("Health", "HEALTH"),
+            ("projects", "PROJECTS"),
+            ("PROJECTS", "PROJECTS"),
+            ("Projects", "PROJECTS")
+        ]
+        
+        for input_section, expected_section in test_cases:
+            with self.subTest(input_section=input_section):
+                self.tm.add_task_to_main(f"Test task for {input_section}", input_section)
+                
+                # Check that task was added to the correct uppercase section
+                content = self.tm.read_file()
+                self.assertIn(f"## {expected_section}", content)
+                self.assertIn(f"Test task for {input_section}", content)
+    
+    def test_move_task_case_insensitive_section(self):
+        """Test moving tasks with different case section names"""
+        # Add a task first
+        self.tm.add_task_to_main("Test task", "work")
+        
+        # Move to different case variations
+        test_cases = [
+            ("WORK", "WORK"),
+            ("Work", "WORK"),
+            ("health", "HEALTH"),
+            ("HEALTH", "HEALTH")
+        ]
+        
+        for target_section, expected_section in test_cases:
+            with self.subTest(target_section=target_section):
+                # Find the task ID
+                content = self.tm.read_file()
+                task_id = None
+                for line in content.split('\n'):
+                    if "Test task" in line and "#" in line:
+                        task_id = line.split('#')[1].split()[0]
+                        break
+                
+                self.assertIsNotNone(task_id, "Could not find task ID")
+                
+                # Move the task
+                self.tm.move_task(task_id, target_section)
+                
+                # Check that task moved to correct uppercase section
+                content = self.tm.read_file()
+                self.assertIn(f"## {expected_section}", content)
+                self.assertIn(f"Test task", content)
+    
+    def test_new_section_creation_case_insensitive(self):
+        """Test that new sections are created with uppercase names regardless of input case"""
+        new_sections = ["learning", "LEARNING", "Learning", "finance", "FINANCE", "Finance"]
+        
+        for section in new_sections:
+            with self.subTest(section=section):
+                self.tm.add_task_to_main(f"Task for {section}", section)
+                
+                # Check that section was created in uppercase
+                content = self.tm.read_file()
+                expected_section = section.upper()
+                self.assertIn(f"## {expected_section}", content)
+    
+    def test_task_from_markdown_case_insensitive(self):
+        """Test that Task.from_markdown normalizes section names"""
+        test_cases = [
+            ("work", "WORK"),
+            ("WORK", "WORK"),
+            ("Work", "WORK"),
+            ("health > fitness", "HEALTH > fitness"),
+            ("HEALTH > FITNESS", "HEALTH > FITNESS")
+        ]
+        
+        for input_section, expected_section in test_cases:
+            with self.subTest(input_section=input_section):
+                task_line = f"- [ ] #001 | Test task | {input_section} | 18-09-2025 | "
+                task = Task.from_markdown(task_line)
+                
+                self.assertIsNotNone(task)
+                self.assertEqual(task.section, expected_section.split(' > ')[0])
+                if ' > ' in expected_section:
+                    self.assertEqual(task.subsection, expected_section.split(' > ')[1])
+
+
+class TestTaskFormatter(unittest.TestCase):
+    """Test the TaskFormatter functionality"""
+    
+    def setUp(self):
+        from task_formatter import TaskFormatter
+        self.formatter = TaskFormatter()
+    
+    def test_format_for_file(self):
+        """Test formatting tasks for file storage"""
+        task = Task(
+            id="001",
+            text="Test task",
+            status=" ",
+            section="WORK",
+            subsection=None,
+            date="18-09-2025",
+            recurring=None
+        )
+        
+        result = self.formatter.format_for_file(task)
+        expected = "- [ ] #001 | Test task | WORK | 18-09-2025 | "
+        self.assertEqual(result, expected)
+    
+    def test_format_for_file_with_subsection(self):
+        """Test formatting tasks with subsections"""
+        task = Task(
+            id="002",
+            text="Test task",
+            status="x",
+            section="HEALTH",
+            subsection="FITNESS",
+            date="18-09-2025",
+            recurring="daily"
+        )
+        
+        result = self.formatter.format_for_file(task)
+        expected = "- [x] #002 | Test task | HEALTH > FITNESS | 18-09-2025 | daily"
+        self.assertEqual(result, expected)
+    
+    def test_format_for_file_daily_task(self):
+        """Test formatting daily tasks (preserves 'from' text)"""
+        task = Task(
+            id="003",
+            text="Workout from HEALTH",
+            status=" ",
+            section="DAILY",
+            subsection=None,
+            date="18-09-2025",
+            recurring=None,
+            is_daily=True,
+            from_section="HEALTH"
+        )
+        
+        result = self.formatter.format_for_file(task)
+        expected = "- [ ] #003 | Workout from HEALTH | DAILY | 18-09-2025 | "
+        self.assertEqual(result, expected)
+    
+    def test_format_for_daily_list(self):
+        """Test formatting for daily list display"""
+        task = Task(
+            id="001",
+            text="Test task",
+            status=" ",
+            section="WORK",
+            subsection=None,
+            date="18-09-2025",
+            recurring=None
+        )
+        
+        result = self.formatter.format_for_daily_list(task)
+        # Should include task text and basic info
+        self.assertIn("Test task", result)
+        self.assertIn("#001", result)
+    
+    def test_format_for_status_display(self):
+        """Test formatting for status display"""
+        task = Task(
+            id="001",
+            text="Test task",
+            status=" ",
+            section="WORK",
+            subsection=None,
+            date="18-09-2025",
+            recurring=None
+        )
+        
+        result = self.formatter.format_for_status_display(task, days_old=5, section="WORK")
+        # Should include status indicator and task info
+        self.assertIn("Test task", result)
+        self.assertIn("#001", result)
+        self.assertIn("5 days", result)
+
+
+class TestCLICommands(unittest.TestCase):
+    """Test CLI command functionality"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_add_main_command_case_insensitive(self):
+        """Test add-main command with case-insensitive sections"""
+        # Test various case combinations
+        test_cases = [
+            ("work", "WORK"),
+            ("WORK", "WORK"),
+            ("Work", "WORK"),
+            ("health", "HEALTH"),
+            ("projects", "PROJECTS")
+        ]
+        
+        for input_section, expected_section in test_cases:
+            with self.subTest(input_section=input_section):
+                # Simulate CLI command: add-main "Test task" section
+                self.tm.add_task_to_main("Test task", input_section)
+                
+                # Check that task was added to correct uppercase section
+                content = self.tm.read_file()
+                self.assertIn(f"## {expected_section}", content)
+                self.assertIn("Test task", content)
+    
+    def test_move_command_case_insensitive(self):
+        """Test move command with case-insensitive sections"""
+        # Add a task first
+        self.tm.add_task_to_main("Test task", "work")
+        
+        # Move to different case variations
+        test_cases = [
+            ("WORK", "WORK"),
+            ("Work", "WORK"),
+            ("health", "HEALTH"),
+            ("HEALTH", "HEALTH")
+        ]
+        
+        for target_section, expected_section in test_cases:
+            with self.subTest(target_section=target_section):
+                # Find the task ID
+                content = self.tm.read_file()
+                task_id = None
+                for line in content.split('\n'):
+                    if "Test task" in line and "#" in line:
+                        task_id = line.split('#')[1].split()[0]
+                        break
+                
+                self.assertIsNotNone(task_id, "Could not find task ID")
+                
+                # Move the task
+                self.tm.move_task(task_id, target_section)
+                
+                # Check that task moved to correct uppercase section
+                content = self.tm.read_file()
+                self.assertIn(f"## {expected_section}", content)
+    
+    def test_list_command_functionality(self):
+        """Test list command functionality"""
+        # Add some tasks to different sections
+        self.tm.add_task_to_main("Work task", "work")
+        self.tm.add_task_to_main("Health task", "health")
+        self.tm.add_task_to_main("Project task", "projects")
+        
+        # Test listing all sections
+        try:
+            self.tm.list_sections()
+        except Exception as e:
+            self.fail(f"list_sections raised an exception: {e}")
+    
+    def test_show_command_functionality(self):
+        """Test show command functionality"""
+        # Add a task
+        self.tm.add_task_to_main("Test task", "work")
+        
+        # Find the task ID
+        content = self.tm.read_file()
+        task_id = None
+        for line in content.split('\n'):
+            if "Test task" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Test showing the task
+        try:
+            self.tm.show_task(task_id)
+        except Exception as e:
+            self.fail(f"show_task raised an exception: {e}")
+    
+    def test_complete_command_functionality(self):
+        """Test complete command functionality"""
+        # Add a task
+        self.tm.add_task_to_main("Test task", "work")
+        
+        # Find the task ID
+        content = self.tm.read_file()
+        task_id = None
+        for line in content.split('\n'):
+            if "Test task" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Complete the task
+        self.tm.complete_task(task_id)
+        
+        # Check that task is marked as complete
+        content = self.tm.read_file()
+        self.assertIn("[x]", content)
+        self.assertIn("Test task", content)
+    
+    def test_delete_command_functionality(self):
+        """Test delete command functionality"""
+        # Add a task
+        self.tm.add_task_to_main("Test task", "work")
+        
+        # Find the task ID
+        content = self.tm.read_file()
+        task_id = None
+        for line in content.split('\n'):
+            if "Test task" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Delete the task
+        self.tm.delete_task_from_main(task_id)
+        
+        # Check that task is removed
+        content = self.tm.read_file()
+        self.assertNotIn("Test task", content)
+    
+    def test_snooze_command_functionality(self):
+        """Test snooze command functionality"""
+        # Add a task
+        self.tm.add_task_to_main("Test task", "work")
+        
+        # Find the task ID
+        content = self.tm.read_file()
+        task_id = None
+        for line in content.split('\n'):
+            if "Test task" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Snooze the task
+        self.tm.snooze_task(task_id, "21-09-2025")
+        
+        # Check that task has future date
+        content = self.tm.read_file()
+        self.assertIn("21-09-2025", content)
+        self.assertIn("Test task", content)
+
+
 def run_tests():
     """Run all tests"""
     # Create test suite
@@ -1033,6 +1409,9 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestTaskFile))
     suite.addTests(loader.loadTestsFromTestCase(TestTaskManager))
     suite.addTests(loader.loadTestsFromTestCase(TestIntegration))
+    suite.addTests(loader.loadTestsFromTestCase(TestCaseInsensitiveSections))
+    suite.addTests(loader.loadTestsFromTestCase(TestTaskFormatter))
+    suite.addTests(loader.loadTestsFromTestCase(TestCLICommands))
     
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
