@@ -298,10 +298,12 @@ class TaskFile:
         """Convert entire file to markdown format"""
         lines = []
         
+        # Always include DAILY section
+        lines.append('# DAILY')
+        lines.append('')
+        
         # Daily sections - only show the most recent day
         if self.daily_sections:
-            lines.append('# DAILY')
-            lines.append('')
             # Get the most recent date
             most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
             lines.append(f'## {most_recent_date}')
@@ -309,10 +311,12 @@ class TaskFile:
                 lines.append(task.to_markdown())
             lines.append('')
         
+        # Always include MAIN section
+        lines.append('# MAIN')
+        lines.append('')
+        
         # Main sections
         if self.main_sections:
-            lines.append('# MAIN')
-            lines.append('')
             section_list = list(self.main_sections.values())
             for i, section in enumerate(section_list):
                 lines.append(section.to_markdown())
@@ -320,11 +324,12 @@ class TaskFile:
                 if i < len(section_list) - 1:
                     lines.append('')
         
+        # Always include ARCHIVE section
+        lines.append('# ARCHIVE')
+        lines.append('')
+        
         # Archive sections - include all non-recent daily sections
         if self.archive_sections or (self.daily_sections and len(self.daily_sections) > 1):
-            lines.append('# ARCHIVE')
-            lines.append('')
-            
             # Add all non-recent daily sections to archive
             if self.daily_sections and len(self.daily_sections) > 1:
                 most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))

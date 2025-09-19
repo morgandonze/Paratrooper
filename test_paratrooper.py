@@ -756,6 +756,161 @@ class TestTaskManager(unittest.TestCase):
         # Verify carry-over message was shown (we can't easily test stdout, but the functionality works)
         # The test passes if the assertions above pass
 
+    def test_main_section_headers_always_persist(self):
+        """Test that all main section headers persist regardless of content"""
+        # Test 1: Newly initialized file
+        self.tm.init()
+        
+        # Verify initial structure has all three main sections
+        initial_content = self.tm.read_file()
+        self.assertIn("# DAILY", initial_content)
+        self.assertIn("# MAIN", initial_content)
+        self.assertIn("# ARCHIVE", initial_content)
+        
+        # Add a task using the default section (TASKS)
+        self.tm.add_task_to_main("Test")
+        
+        # Verify all main sections still exist after adding task
+        final_content = self.tm.read_file()
+        self.assertIn("# DAILY", final_content)
+        self.assertIn("# MAIN", final_content)
+        self.assertIn("# ARCHIVE", final_content)
+        
+        # Should have created a Tasks subsection under MAIN
+        self.assertIn("## TASKS", final_content)
+        
+        # Should have the task in the Tasks subsection
+        self.assertIn("- [ ] Test | @", final_content)
+        self.assertIn("#001", final_content)
+        
+        # Verify the structure is correct by checking the order
+        lines = final_content.split('\n')
+        daily_index = lines.index('# DAILY')
+        main_index = lines.index('# MAIN')
+        tasks_index = lines.index('## TASKS')
+        archive_index = lines.index('# ARCHIVE')
+        
+        # Verify proper ordering
+        self.assertLess(daily_index, main_index)
+        self.assertLess(main_index, tasks_index)
+        self.assertLess(tasks_index, archive_index)
+        
+        # Verify the task appears between Tasks header and ARCHIVE
+        task_line_index = None
+        for i, line in enumerate(lines):
+            if "Test" in line and "#001" in line:
+                task_line_index = i
+                break
+        
+        self.assertIsNotNone(task_line_index)
+        self.assertGreater(task_line_index, tasks_index)
+        self.assertLess(task_line_index, archive_index)
+    
+    def test_main_section_headers_persist_with_existing_content(self):
+        """Test that main section headers persist even when sections have existing content"""
+        # Initialize and add some content to different sections
+        self.tm.init()
+        
+        # Add tasks to main sections
+        self.tm.add_task_to_main("Work task", "WORK")
+        self.tm.add_task_to_main("Health task", "HEALTH")
+        
+        # Add a daily section with content
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily("Daily task")
+        
+        # Verify all main sections exist
+        content = self.tm.read_file()
+        self.assertIn("# DAILY", content)
+        self.assertIn("# MAIN", content)
+        self.assertIn("# ARCHIVE", content)
+        
+        # Add another task to a new section
+        self.tm.add_task_to_main("New task", "PROJECTS")
+        
+        # Verify all main sections still exist after adding more content
+        final_content = self.tm.read_file()
+        self.assertIn("# DAILY", final_content)
+        self.assertIn("# MAIN", final_content)
+        self.assertIn("# ARCHIVE", final_content)
+        
+        # Verify the new section was added
+        self.assertIn("## PROJECTS", final_content)
+        self.assertIn("New task", final_content)
+    
+    def test_main_section_headers_persist_after_deletions(self):
+        """Test that main section headers persist even after deleting all content from sections"""
+        # Initialize and add content
+        self.tm.init()
+        self.tm.add_task_to_main("Work task", "WORK")
+        self.tm.add_task_to_main("Health task", "HEALTH")
+        
+        # Verify all sections exist
+        content = self.tm.read_file()
+        self.assertIn("# DAILY", content)
+        self.assertIn("# MAIN", content)
+        self.assertIn("# ARCHIVE", content)
+        self.assertIn("## WORK", content)
+        self.assertIn("## HEALTH", content)
+        
+        # Get task IDs
+        lines = content.split('\n')
+        work_task_id = None
+        health_task_id = None
+        for line in lines:
+            if "Work task" in line and "#" in line:
+                work_task_id = line.split('#')[-1].strip()
+            elif "Health task" in line and "#" in line:
+                health_task_id = line.split('#')[-1].strip()
+        
+        # Delete all tasks from main sections
+        self.tm.delete_task_from_main(work_task_id)
+        self.tm.delete_task_from_main(health_task_id)
+        
+        # Verify all main section headers still exist even with empty sections
+        final_content = self.tm.read_file()
+        self.assertIn("# DAILY", final_content)
+        self.assertIn("# MAIN", final_content)
+        self.assertIn("# ARCHIVE", final_content)
+        
+        # Note: Currently empty subsections are preserved, but this behavior 
+        # may change in the future to remove empty subsections
+        # For now, verify they still exist (current behavior)
+        self.assertIn("## WORK", final_content)
+        self.assertIn("## HEALTH", final_content)
+    
+    def test_main_section_headers_persist_with_manual_file_modification(self):
+        """Test that main section headers persist even when manually modifying the file structure"""
+        # Initialize file
+        self.tm.init()
+        
+        # Manually create a file with only MAIN section
+        manual_content = """# DAILY
+
+# MAIN
+
+## WORK
+- [ ] Existing task | @18-09-2025 #001
+
+# ARCHIVE
+"""
+        self.tm.write_file(manual_content)
+        
+        # Add a new task
+        self.tm.add_task_to_main("New task", "PROJECTS")
+        
+        # Verify all main sections still exist
+        final_content = self.tm.read_file()
+        self.assertIn("# DAILY", final_content)
+        self.assertIn("# MAIN", final_content)
+        self.assertIn("# ARCHIVE", final_content)
+        
+        # Verify both old and new content exists
+        self.assertIn("Existing task", final_content)
+        self.assertIn("New task", final_content)
+        self.assertIn("## WORK", final_content)
+        self.assertIn("## PROJECTS", final_content)
+
 
 class TestIntegration(unittest.TestCase):
     """Integration tests for the complete workflow"""
