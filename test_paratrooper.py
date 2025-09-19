@@ -1320,8 +1320,8 @@ class TestCLICommands(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
     
-    def test_add_main_command_case_insensitive(self):
-        """Test add-main command with case-insensitive sections"""
+    def test_add_command_case_insensitive(self):
+        """Test add command with case-insensitive sections"""
         # Test various case combinations
         test_cases = [
             ("work", "WORK"),
@@ -1333,7 +1333,7 @@ class TestCLICommands(unittest.TestCase):
         
         for input_section, expected_section in test_cases:
             with self.subTest(input_section=input_section):
-                # Simulate CLI command: add-main "Test task" section
+                # Simulate CLI command: add "Test task" section
                 self.tm.add_task_to_main("Test task", input_section)
                 
                 # Check that task was added to correct uppercase section
@@ -1407,8 +1407,8 @@ class TestCLICommands(unittest.TestCase):
         except Exception as e:
             self.fail(f"show_task raised an exception: {e}")
     
-    def test_complete_command_functionality(self):
-        """Test complete command functionality"""
+    def test_done_command_functionality(self):
+        """Test done command functionality"""
         # Add a task
         self.tm.add_task_to_main("Test task", "work")
         

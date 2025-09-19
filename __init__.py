@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Paratrooper - PARA + Daily Task Management System
+Paratrooper - Daily Task Management System
 
 A powerful, flexible task management system that combines the PARA methodology 
 with daily progress tracking. Built as a modular Python package that manages 
@@ -19,4 +19,4 @@ __all__ = ['Config', 'Task', 'Section', 'TaskFile', 'TaskManager']
 # Version information
 __version__ = "1.0.0"
 __author__ = "Paratrooper Development Team"
-__description__ = "PARA + Daily Task Management System"
+__description__ = "Daily Task Management System"

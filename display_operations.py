@@ -228,7 +228,7 @@ class DisplayOperations:
     
     def show_help(self):
         """Show help information"""
-        help_text = """PARA + Daily Task Management System
+        help_text = """Daily Task Management System
 
 USAGE:
   tasks [command] [args]
@@ -242,8 +242,7 @@ COMMANDS:
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
                          N is number of tasks to show (default: 5)                                                     
   
-  complete ID            Mark task with ID as complete
-  done ID                Alias for complete
+  done ID                Mark task with ID as complete
   reopen ID              Reopen completed task (mark as incomplete)
   undone ID              Alias for reopen
   pass ID                Mark task as progressed [~] in today's daily section
@@ -251,10 +250,8 @@ COMMANDS:
                          [x] in daily = complete main task  
                          [~] in daily = update date but keep incomplete
   
-  add TEXT [SEC]         Add task to main list (alias for add-main)
-  add-main TEXT [SEC]    Add task to main list section (default: TASKS)
+  add TEXT [SEC]         Add task to main list section (default: TASKS)
                          Use SEC:SUBSEC for subsections (e.g., WORK:HOME)
-  add-daily TEXT         Add task directly to today's daily section
   up ID                  Pull task from main list into today's daily section
   
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
@@ -267,7 +264,6 @@ COMMANDS:
   show SECTION[:SUBSEC]   Show tasks in a specific section (e.g., show PROJECTS:HOME)                                                                           
   show *:SUBSEC          Show tasks from all sections with matching subsection (e.g., show *:justculture)                                                       
   sections               List all available sections
-  archive [DAYS]         Clean up old daily sections and completed tasks (default: 7 days)                                                                      
   
   edit ID TEXT           Edit task text by ID
   move ID SECTION        Move task to new section (e.g., move 001 PROJECTS:HOME)
@@ -282,11 +278,9 @@ EXAMPLES:
   tasks daily                              # Start your day (creates or shows daily section)                                                                    
   tasks add "write blog post" WORK         # Add task to specific section
   tasks add "fix faucet" WORK:HOME         # Add to subsection
-  tasks add-daily "urgent client call"     # Add to today only
   tasks up 042                            # Pull task #042 to today's daily section                                                                             
-  tasks complete 042                       # Mark task done
-  tasks show *:justculture                # Show all tasks from subsections named 'justculture'                                                                 
-  tasks done 042                           # Alias for complete
+  tasks done 042                           # Mark task done
+  tasks show *:justculture                # Show all tasks from subsections named 'justculture'
   tasks reopen 042                         # Reopen completed task
   tasks undone 042                         # Alias for reopen
   tasks list                               # List all tasks from main sections
@@ -365,7 +359,7 @@ FILE STRUCTURE:
   
   # ARCHIVE
 
-For more info: https://fortelabs.com/blog/para/"""
+"""
         
         print(help_text)
     

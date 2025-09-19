@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Task management scripts for PARA + Daily system with hierarchical sections
+Task management scripts for Daily system with hierarchical sections
 Usage: python paratrooper.py [command] [args]
 
 This file now serves as a backward-compatible entry point to the modular

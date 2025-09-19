@@ -50,8 +50,6 @@ def main():
             scope = None
             limit = 5
         tm.show_status_tasks(scope, limit)
-    elif command == "complete" and len(args) > 1:
-        tm.complete_task(args[1])
     elif command == "done" and len(args) > 1:
         tm.complete_task(args[1])
     elif command == "reopen" and len(args) > 1:
@@ -79,37 +77,6 @@ def main():
             section = "TASKS"
         
         tm.add_task_to_main(task_text, section.upper())
-    elif command == "add-main" and len(args) > 2:
-        # Parse section argument properly
-        # No predefined sections - any section name is valid
-        
-        if len(args) == 3:
-            # Check if this is "command task_text section" or "command task_text" (no section)
-            # If the last arg looks like a section name (no spaces, not too long), treat it as section
-            last_arg = args[2]
-            if len(last_arg) < 20 and not " " in last_arg and not last_arg.isdigit():
-                # Last argument looks like a section name
-                task_text = args[1]
-                section = last_arg
-            else:
-                # Just task text, no section
-                task_text = args[1]
-                section = "TASKS"
-        else:
-            # Check if last argument looks like a section
-            last_arg = args[-1]
-            
-            if ":" in last_arg:
-                # Last argument is a section/subsection (contains colon)
-                section = last_arg
-                task_text = " ".join(args[1:-1])
-            else:
-                # Assume last argument is section name (case-insensitive)
-                section = last_arg
-                task_text = " ".join(args[1:-1])
-        tm.add_task_to_main(task_text, section.upper())
-    elif command == "add-daily" and len(args) > 1:
-        tm.add_task_to_daily(" ".join(args[1:]))
     elif command == "up" and len(args) > 1:
         tm.add_task_to_daily_by_id(args[1])
     elif command == "snooze" and len(args) > 2:

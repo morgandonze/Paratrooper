@@ -111,7 +111,6 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 ### 5. **Enhanced Archive System**
 - Archive only contains **daily subsections** (no completed task clutter)
 - Clean, organized archive with just the daily sections you've worked on
-- Use `pt archive` to clean up old daily sections
 
 ### 6. **Easy Initialization**
 - Use `pt init` to create your task file with proper structure
@@ -139,7 +138,6 @@ pt sync               # Update MAIN from daily progress
 ```bash
 pt add "text" WORK    # Add to specific section
 pt add "fix sink" WORK:HOME # Add to subsection
-pt add-daily "text"   # Add to today's section
 pt up 042             # Pull task #042 to today's daily section
 ```
 
@@ -175,7 +173,7 @@ pt add "annual review (recur:1y)" FINANCE
 
 ### Task Status
 ```bash
-pt complete 042       # Mark task #042 as complete
+pt done 042          # Mark task #042 as complete
 pt pass 042           # Mark progress [~] on task in daily section
 pt snooze 042 3       # Hide task #042 for 3 days
 pt snooze 042 25-12-2025 # Hide until specific date
@@ -185,8 +183,6 @@ pt snooze 042 25-12-2025 # Hide until specific date
 ```bash
 pt show 042          # Show task details
 pt sections          # List all available sections
-pt archive           # Clean up old content (7 days)
-pt archive 3         # Clean up content older than 3 days
 pt delete 042        # Delete from main list only
 pt down 042          # Remove from today's daily section
 pt purge 042         # Delete from everywhere
@@ -310,8 +306,6 @@ pt sync               # Updates main list from daily progress
 
 # Weekly planning
 pt status             # See what's been neglected
-pt archive            # Clean up old content (7 days)
-pt archive 3          # Clean up content older than 3 days
 ```
 
 ## 🏃‍♂️ Setting Up Your Recurring Tasks
