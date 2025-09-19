@@ -251,7 +251,7 @@ COMMANDS:
                          [~] in daily = update date but keep incomplete
   
   add TEXT [SEC]         Add task to main list section (default: TASKS)
-                         Use SEC:SUBSEC for subsections (e.g., WORK:HOME)
+                         Use SEC:SUBSEC for subsections (e.g., WORK:OFFICE)
   up ID                  Pull task from main list into today's daily section
   
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
@@ -277,14 +277,14 @@ EXAMPLES:
   tasks init                              # Initialize task file (first time setup)                                                                             
   tasks daily                              # Start your day (creates or shows daily section)                                                                    
   tasks add "write blog post" WORK         # Add task to specific section
-  tasks add "fix faucet" WORK:HOME         # Add to subsection
+  tasks add "fix faucet" HOME:MAINTENANCE  # Add to subsection
   tasks up 042                            # Pull task #042 to today's daily section                                                                             
   tasks done 042                           # Mark task done
   tasks show *:justculture                # Show all tasks from subsections named 'justculture'
   tasks reopen 042                         # Reopen completed task
   tasks undone 042                         # Alias for reopen
   tasks list                               # List all tasks from main sections
-  tasks list PROJECTS:HOME                 # List tasks in PROJECTS > HOME subsection                                                                           
+  tasks list PROJECTS:CLIENT               # List tasks in PROJECTS > CLIENT subsection                                                                           
   tasks show 001                           # Show details of task #001
   tasks pass 042                           # Mark progress on task in daily section                                                                             
   tasks snooze 023 7                       # Hide task for a week
@@ -293,10 +293,10 @@ EXAMPLES:
   tasks status 10                          # See 10 oldest tasks
   tasks status projects                    # See task status in PROJECTS section (5 tasks)
   tasks status projects 3                  # See 3 oldest tasks in PROJECTS section
-  tasks status areas:work                  # See task status in AREAS > WORK subsection                                                                         
+  tasks status areas:health                # See task status in AREAS > HEALTH subsection                                                                         
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text
-  tasks move 042 PROJECTS:HOME             # Move task to subsection
+  tasks move 042 PROJECTS:CLIENT           # Move task to subsection
   tasks open                               # Open tasks file with configured editor                                                                             
   tasks open vim                           # Open tasks file with vim (override config)                                                                         
   tasks open code                          # Open tasks file with VS Code (override config)                                                                     

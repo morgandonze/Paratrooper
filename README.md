@@ -100,7 +100,7 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 ### 3. **Flexible Organization**
 - **Simplified structure**: Only DAILY, MAIN, ARCHIVE sections required
 - **Dynamic sections**: Create any section you need (WORK, HEALTH, FINANCE, etc.)
-- **Hierarchical sections**: Use `:` for subsections (e.g., `WORK:HOME`)
+- **Hierarchical sections**: Use `:` for subsections (e.g., `WORK:OFFICE`, `HOME:MAINTENANCE`)
 - **Order-agnostic**: Script finds sections by headers, not position
 
 ### 4. **Smart Recurring Tasks**
@@ -137,7 +137,7 @@ pt sync               # Update MAIN from daily progress
 ### Task Management
 ```bash
 pt add "text" WORK    # Add to specific section
-pt add "fix sink" WORK:HOME # Add to subsection
+pt add "fix sink" HOME:MAINTENANCE # Add to subsection
 pt up 042             # Pull task #042 to today's daily section
 ```
 
@@ -195,7 +195,7 @@ pt purge 042         # Delete from everywhere
 - [x] #002 | completed task | HEALTH | @15-01-2025 | 
 - [~] #003 | progressed task | PROJECTS | @15-01-2025 | 
 - [ ] #004 | recurring task | HEALTH | @15-01-2025 | daily
-- [ ] #005 | task with subsection | WORK:HOME | @15-01-2025 | 
+- [ ] #005 | task with subsection | HOME:MAINTENANCE | @15-01-2025 | 
 ```
 
 **Format breakdown:**
