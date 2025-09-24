@@ -120,16 +120,9 @@ class FileOperations:
         self.write_file(content)
     
     def read_file(self):
-        """Read the task file, create if doesn't exist"""
+        """Read the task file, create if doesn't exist."""
         if not self.task_file.exists():
-            self.task_file.touch()
-            default_content = """# DAILY
-
-# MAIN
-
-# ARCHIVE
-
-"""
+            default_content = "# DAILY\n\n# MAIN\n\n# ARCHIVE\n\n"
             self.task_file.write_text(default_content)
         return self.task_file.read_text()
     

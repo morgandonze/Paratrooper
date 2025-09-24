@@ -37,16 +37,9 @@ class TaskManager:
         self.display_ops = DisplayOperations(self.file_ops, config)
     
     def init(self):
-        """Initialize the task file with default structure if it doesn't exist"""
+        """Initialize the task file with default structure if it doesn't exist."""
         if not self.task_file.exists():
-            self.task_file.touch()
-            default_content = """# DAILY
-
-# MAIN
-
-# ARCHIVE
-
-"""
+            default_content = "# DAILY\n\n# MAIN\n\n# ARCHIVE\n\n"
             self.task_file.write_text(default_content)
             print(f"Created new task file at {self.task_file}")
         else:

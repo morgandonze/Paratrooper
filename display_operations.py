@@ -147,13 +147,13 @@ class DisplayOperations:
                 color = "🟢"  # Green for recent
             
             # Create a Task object for consistent formatting
-                task = Task(
-                    id=task_data['metadata'].get('id', '???'),
-                    text=task_data['text'],
-                    status=task_data['status'],
-                    date=task_data['metadata'].get('date'),
-                    recurring=task_data['metadata'].get('recurring')
-                )
+            task = Task(
+                id=task_data['metadata'].get('id', '???'),
+                text=task_data['text'],
+                status=task_data['status'],
+                date=task_data['metadata'].get('date'),
+                recurring=task_data['metadata'].get('recurring')
+            )
             
             print(self.formatter.format_for_status_display(task, days_old, section))
     

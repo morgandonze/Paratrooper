@@ -121,37 +121,76 @@ class TaskOperations:
     
     def complete_task(self, task_id):
         """Mark a task as complete"""
-        line_number, line_content = self.find_task_by_id(task_id)
-        
-        if not line_content:
-            print(f"Task #{task_id} not found")
-            return
-        
-        # Check if the found line is in daily section
+        # First check if task is already in daily section
         content = self.file_ops.read_file()
         lines = content.split('\n')
+        
         in_daily = False
+        current_daily_date = None
+        task_found_in_daily = False
         
-        # Check context around the found line
-        for i in range(max(0, line_number - 10), min(len(lines), line_number + 10)):
-            line = lines[i].strip()
-            if line == '# DAILY':
-                in_daily = True
-            elif line.startswith('# ') and line != '# DAILY':
-                in_daily = False
-        
-        if in_daily:
-            # Complete task in daily section
-            updated_line = self.file_ops._mark_task_complete(line_content)
-            lines[line_number - 1] = updated_line
-            self.file_ops.write_file('\n'.join(lines))
-        else:
-            # Update the main task
-            updated_line = self.file_ops._mark_task_complete(line_content)
-            updated_line = self.file_ops._update_task_date(updated_line)
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
             
-            lines[line_number - 1] = updated_line
-            self.file_ops.write_file('\n'.join(lines))
+            if line_stripped == '# DAILY':
+                in_daily = True
+                continue
+            elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
+                in_daily = False
+                continue
+            
+            if in_daily and line_stripped.startswith('## '):
+                current_daily_date = line_stripped[3:].strip()
+                continue
+            
+            if in_daily and current_daily_date and f"#{task_id}" in line and self.file_ops._is_task_line(line):
+                # Task found in daily section - mark as complete
+                updated_line = self.file_ops._mark_task_complete(line)
+                lines[i] = updated_line
+                self.file_ops.write_file('\n'.join(lines))
+                task_found_in_daily = True
+                break
+        
+        if not task_found_in_daily:
+            # Task not in daily section - check if it exists in main section
+            line_number, line_content = self.find_task_by_id(task_id)
+            
+            if not line_content:
+                print(f"Task #{task_id} not found")
+                return
+            
+            # Add task to daily section first
+            from daily_operations import DailyOperations
+            daily_ops = DailyOperations(self.file_ops)
+            daily_ops.add_task_to_daily_by_id(task_id)
+            
+            # Now find and complete the task in daily section
+            content = self.file_ops.read_file()
+            lines = content.split('\n')
+            
+            in_daily = False
+            current_daily_date = None
+            
+            for i, line in enumerate(lines):
+                line_stripped = line.strip()
+                
+                if line_stripped == '# DAILY':
+                    in_daily = True
+                    continue
+                elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
+                    in_daily = False
+                    continue
+                
+                if in_daily and line_stripped.startswith('## '):
+                    current_daily_date = line_stripped[3:].strip()
+                    continue
+                
+                if in_daily and current_daily_date and f"#{task_id}" in line and self.file_ops._is_task_line(line):
+                    # Mark as complete
+                    updated_line = self.file_ops._mark_task_complete(line)
+                    lines[i] = updated_line
+                    self.file_ops.write_file('\n'.join(lines))
+                    break
         
         print(f"Completed task #{task_id}")
     

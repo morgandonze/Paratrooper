@@ -386,19 +386,21 @@ class DailyOperations:
         
         in_daily = False
         current_daily_date = None
+        task_found_in_daily = False
         
+        # First check if task is already in daily section
         for i, line in enumerate(lines):
-            line = line.strip()
+            line_stripped = line.strip()
             
-            if line == '# DAILY':
+            if line_stripped == '# DAILY':
                 in_daily = True
                 continue
-            elif line.startswith('# ') and line != '# DAILY':
+            elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
                 in_daily = False
                 continue
             
-            if in_daily and line.startswith('## '):
-                current_daily_date = line[3:].strip()
+            if in_daily and line_stripped.startswith('## '):
+                current_daily_date = line_stripped[3:].strip()
                 continue
             
             if in_daily and current_daily_date and f"#{task_id}" in line and self.file_ops._is_task_line(line):
@@ -407,9 +409,41 @@ class DailyOperations:
                 lines[i] = updated_line
                 self.file_ops.write_file('\n'.join(lines))
                 print(f"Marked progress on task #{task_id} in today's daily section")
-                return
+                task_found_in_daily = True
+                break
         
-        print(f"Task #{task_id} not found in today's daily section")
+        if not task_found_in_daily:
+            # Task not in daily section - add it first, then mark progress
+            self.add_task_to_daily_by_id(task_id)
+            
+            # Now find and mark progress on the task in daily section
+            content = self.file_ops.read_file()
+            lines = content.split('\n')
+            
+            in_daily = False
+            current_daily_date = None
+            
+            for i, line in enumerate(lines):
+                line_stripped = line.strip()
+                
+                if line_stripped == '# DAILY':
+                    in_daily = True
+                    continue
+                elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
+                    in_daily = False
+                    continue
+                
+                if in_daily and line_stripped.startswith('## '):
+                    current_daily_date = line_stripped[3:].strip()
+                    continue
+                
+                if in_daily and current_daily_date and f"#{task_id}" in line and self.file_ops._is_task_line(line):
+                    # Mark as progressed
+                    updated_line = self.file_ops._mark_task_progress(line)
+                    lines[i] = updated_line
+                    self.file_ops.write_file('\n'.join(lines))
+                    print(f"Marked progress on task #{task_id} in today's daily section")
+                    break
     
     def delete_task_from_daily(self, task_id):
         """Remove a task from today's daily section"""
