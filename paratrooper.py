@@ -2003,8 +2003,12 @@ FILE STRUCTURE:
         
         if task.date:
             lines.append(f"  Date: {task.date}")
+        
+        # Always show recurring field for clarity
         if task.recurring:
             lines.append(f"  Recurring: {task.recurring}")
+        else:
+            lines.append(f"  Recurring: None")
         # Snoozing is now handled by setting date to future
         if task.date:
             try:

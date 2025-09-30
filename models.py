@@ -205,6 +205,9 @@ class Task:
             parsed_date = remaining_parts[2].strip()
         if len(remaining_parts) >= 4:
             parsed_recurring = remaining_parts[3].strip()
+            # If recurring field is empty or just a pipe, set to None
+            if not parsed_recurring or parsed_recurring == '|':
+                parsed_recurring = None
         
         # Use provided section if no section found in parsing
         if not parsed_section and section:
