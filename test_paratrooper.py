@@ -679,34 +679,31 @@ class TestTaskManager(unittest.TestCase):
         self.tm.add_task_to_main("write report", "WORK")
         self.tm.add_task_to_main("call client", "WORK")
         
-        # Get task IDs
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        task_ids = {}
-        for line in lines:
-            if "morning workout" in line and "#" in line:
-                task_ids['workout'] = line.split('#')[-1].strip()
-            elif "write report" in line and "#" in line:
-                task_ids['report'] = line.split('#')[-1].strip()
-            elif "call client" in line and "#" in line:
-                task_ids['client'] = line.split('#')[-1].strip()
+        # Get task IDs using the proper method
+        workout_line_num, workout_line = self.tm.find_task_by_id("001")
+        report_line_num, report_line = self.tm.find_task_by_id("002")
+        client_line_num, client_line = self.tm.find_task_by_id("003")
+        
+        self.assertIsNotNone(workout_line, "Workout task should be found")
+        self.assertIsNotNone(report_line, "Report task should be found")
+        self.assertIsNotNone(client_line, "Client task should be found")
         
         # Create yesterday's daily section manually with incomplete tasks
         yesterday_content = f"""# DAILY
 
 ## {yesterday}
-- [ ] morning workout from HEALTH | @{today} (daily) #{task_ids['workout']}
-- [~] write report from WORK | @{today} #{task_ids['report']}
-- [x] call client from WORK | @{today} #{task_ids['client']}
+- [ ] #001 | morning workout | HEALTH | {today} | daily
+- [~] #002 | write report | WORK | {today}
+- [x] #003 | call client | WORK | {today}
 
 # MAIN
 
 ## HEALTH
-- [ ] morning workout (daily) | @{today} #{task_ids['workout']}
+- [ ] #001 | morning workout | HEALTH | {today} | daily
 
 ## WORK
-- [ ] write report | @{today} #{task_ids['report']}
-- [ ] call client | @{today} #{task_ids['client']}
+- [ ] #002 | write report | WORK | {today}
+- [ ] #003 | call client | WORK | {today}
 
 # ARCHIVE
 """
@@ -757,30 +754,21 @@ class TestTaskManager(unittest.TestCase):
         # Add a recurring task to main section
         self.tm.add_task_to_main("Take out trash (daily)", "DOMESTIC")
         
-        # Get task ID
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        task_id = None
-        for line in lines:
-            if "Take out trash" in line and "#" in line:
-                # Extract just the task ID number (e.g., "001" from "#001")
-                parts = line.split('#')
-                if len(parts) > 1:
-                    task_id = parts[1].split()[0]  # Get just the ID part
-                break
-        
-        self.assertIsNotNone(task_id, "Could not find task ID")
+        # Get task ID using the proper method
+        line_num, task_line = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(task_line, "Task should be found")
+        task_id = "001"
         
         # Create yesterday's daily section with the recurring task as incomplete
         yesterday_content = f"""# DAILY
 
 ## {yesterday}
-- [ ] Take out trash from DOMESTIC | @{today} (daily) #{task_id}
+- [ ] #{task_id} | Take out trash | DOMESTIC | {today} | daily
 
 # MAIN
 
 ## DOMESTIC
-- [ ] Take out trash (daily) | @{today} #{task_id}
+- [ ] #{task_id} | Take out trash | DOMESTIC | {today} | daily
 
 # ARCHIVE
 """
@@ -815,7 +803,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn("Take out trash", daily_section)
         
         # Verify it's the carry-over task by checking the format
-        self.assertIn("(DAILY)", daily_section)
+        self.assertIn("daily", daily_section)
         
         # The key test: should appear exactly once (no duplication)
         # This is the main assertion that verifies the fix works
@@ -1854,27 +1842,21 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         # Add a daily recurring task
         self.tm.add_task_to_main("Morning workout (daily)", "HEALTH")
         
-        # Get task ID
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        task_id = None
-        for line in lines:
-            if "Morning workout" in line and "#" in line:
-                task_id = line.split('#')[1].split()[0]
-                break
-        
-        self.assertIsNotNone(task_id, "Could not find task ID")
+        # Get task ID using the proper method
+        line_num, task_line = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(task_line, "Task should be found")
+        task_id = "001"
         
         # Create yesterday's daily section with the task as incomplete
         yesterday_content = f"""# DAILY
 
 ## {yesterday}
-- [ ] Morning workout from HEALTH | @{today} (daily) #{task_id}
+- [ ] #{task_id} | Morning workout | HEALTH | {today} | daily
 
 # MAIN
 
 ## HEALTH
-- [ ] Morning workout (daily) | @{today} #{task_id}
+- [ ] #{task_id} | Morning workout | HEALTH | {today} | daily
 
 # ARCHIVE
 """
