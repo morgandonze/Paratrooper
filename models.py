@@ -166,6 +166,9 @@ class Task:
         else:
             parts = parts[1:]  # Remove empty first element
         
+        # Filter out empty parts to handle extra pipes
+        parts = [part.strip() for part in parts if part.strip()]
+        
         # Parse fields based on position
         task_text = parts[0] if len(parts) > 0 else ''
         section_field = parts[1] if len(parts) > 1 else ''

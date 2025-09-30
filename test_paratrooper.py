@@ -846,7 +846,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn("# ARCHIVE", initial_content)
         
         # Add a task using the default section (TASKS)
-        self.tm.add_task_to_main("Test")
+        self.tm.add_task_to_main("Test", "TASKS")
         
         # Verify all main sections still exist after adding task
         final_content = self.tm.read_file()
@@ -1302,6 +1302,367 @@ class TestTaskFormatter(unittest.TestCase):
         self.assertIn("5 days", result)
 
 
+class TestSyncCommandFixes(unittest.TestCase):
+    """Test the sync command fixes from commit f062213"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_sync_only_updates_main_section_tasks(self):
+        """Test that sync only updates tasks in main sections, not daily sections"""
+        # Add a task to main section
+        self.tm.add_task_to_main("Test task", "WORK")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "Test task" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Add task to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily_by_id(task_id)
+        
+        # Manually mark task as complete in daily section
+        content = self.tm.read_file()
+        # Find the daily section task and mark it complete
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if f"#{task_id}" in line and "Test task" in line and "[ ]" in line:
+                lines[i] = line.replace("[ ]", "[x]")
+                break
+        content = '\n'.join(lines)
+        self.tm.write_file(content)
+        
+        # Sync - should only update main section task
+        self.tm.sync_daily_sections()
+        
+        # Verify main section task is updated
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        # Task should be marked complete in main section
+        self.assertIn(f"[x] #001 | Test task", main_section)
+        
+        # Daily section should remain unchanged (not updated by sync)
+        daily_section_start = content.find("# DAILY")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        # Daily section should still have the original format
+        self.assertIn(f"[x] #001 | Test task", daily_section)
+    
+    def test_sync_warning_when_task_not_found_in_main(self):
+        """Test that sync shows warning when task cannot be found in main sections"""
+        # First add a real task to main
+        self.tm.add_task_to_main("Real task", "WORK")
+        
+        # Get the real task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        real_task_id = None
+        for line in lines:
+            if "Real task" in line and "#" in line:
+                real_task_id = line.split('#')[1].split()[0]
+                break
+        
+        # Add the real task to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily_by_id(real_task_id)
+        
+        # Manually add a fake task to daily section to test warning
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if f"#{real_task_id}" in line and "Real task" in line and "[ ]" in line:
+                # Mark real task as complete
+                lines[i] = line.replace("[ ]", "[x]")
+                # Add fake task after it
+                lines.insert(i + 1, f"- [x] #999 | Fake task | WORK | {self.tm.today or '30-09-2025'}")
+                break
+        content = '\n'.join(lines)
+        self.tm.write_file(content)
+        
+        # Capture stdout to check for warning message
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            # Sync should show warning for task #999
+            self.tm.sync_daily_sections()
+            
+            # Check that warning was printed
+            output = captured_output.getvalue()
+            self.assertIn("Warning: Could not find task #999 in main sections to sync", output)
+        finally:
+            sys.stdout = old_stdout
+    
+    def test_update_task_date_pipe_separated_format(self):
+        """Test _update_task_date with pipe-separated format"""
+        from file_operations import FileOperations
+        
+        file_ops = FileOperations(self.tm.task_file)
+        
+        # Test various pipe-separated formats
+        test_cases = [
+            # (input_line, expected_pattern)
+            ("- [ ] #001 | Test task | WORK | 15-01-2025 | ", "Test task | WORK | " + file_ops.today + " | "),
+            ("- [x] #002 | Another task | HEALTH | @15-01-2025 | daily", "Another task | HEALTH | " + file_ops.today + " | daily"),
+            ("- [ ] #003 | Task without date | WORK | ", "Task without date | WORK | " + file_ops.today + " | "),
+            ("- [~] #004 | Progress task | PROJECTS | 15-01-2025 | ", "Progress task | PROJECTS | " + file_ops.today + " | "),
+        ]
+        
+        for input_line, expected_pattern in test_cases:
+            with self.subTest(input_line=input_line):
+                result = file_ops._update_task_date(input_line)
+                
+                # Check that date was updated to today
+                self.assertIn(file_ops.today, result)
+                
+                # Check that @ prefix was removed if it existed
+                self.assertNotIn("@" + file_ops.today, result)
+                
+                # Check that the expected pattern is present
+                self.assertIn(expected_pattern, result)
+    
+    def test_update_task_date_old_format_fallback(self):
+        """Test _update_task_date fallback for old format without pipes"""
+        from file_operations import FileOperations
+        
+        file_ops = FileOperations(self.tm.task_file)
+        
+        # Test old format without pipes
+        input_line = "- [ ] #001 Test task"
+        result = file_ops._update_task_date(input_line)
+        
+        # Should add pipe-separated format with @ prefix for old format
+        expected = f"- [ ] #001 Test task | @{file_ops.today}"
+        self.assertEqual(result, expected)
+    
+    def test_sync_recurring_task_date_update(self):
+        """Test that recurring tasks get their dates updated during sync"""
+        # Add a recurring task
+        self.tm.add_task_to_main("morning workout (daily)", "HEALTH")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "morning workout" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Add to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily_by_id(task_id)
+        
+        # Complete the task in daily section
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if f"#{task_id}" in line and "morning workout" in line and "[ ]" in line:
+                lines[i] = line.replace("[ ]", "[x]")
+                break
+        content = '\n'.join(lines)
+        self.tm.write_file(content)
+        
+        # Sync
+        self.tm.sync_daily_sections()
+        
+        # Verify main section task has updated date
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        # Should have today's date
+        from datetime import datetime
+        today = datetime.now().strftime("%d-%m-%Y")
+        self.assertIn(today, main_section)
+        self.assertIn("morning workout", main_section)
+        
+        # Should still be incomplete (recurring task)
+        self.assertIn("[ ] #001 | morning workout", main_section)
+
+
+class TestDailyTaskDeletionRefactor(unittest.TestCase):
+    """Test the daily task deletion refactor from commit 937864d"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_delete_task_from_daily_model_based_approach(self):
+        """Test that delete_task_from_daily uses model-based approach"""
+        # Add a task to main section
+        self.tm.add_task_to_main("Test task", "WORK")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "Test task" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Add task to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily_by_id(task_id)
+        
+        # Verify task is in daily section
+        content = self.tm.read_file()
+        self.assertIn("Test task", content)
+        
+        # Delete task from daily section
+        self.tm.delete_task_from_daily(task_id)
+        
+        # Verify task is removed from daily section
+        content = self.tm.read_file()
+        daily_section_start = content.find("# DAILY")
+        main_section_start = content.find("# MAIN")
+        daily_section = content[daily_section_start:main_section_start]
+        
+        # Task should be removed from daily section
+        self.assertNotIn("Test task", daily_section)
+        
+        # But should still exist in main section
+        main_section = content[main_section_start:]
+        self.assertIn("Test task", main_section)
+    
+    def test_delete_task_from_daily_error_handling(self):
+        """Test error handling when deleting non-existent task from daily section"""
+        # Create daily section with a task
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily("Test task")
+        
+        # Try to delete non-existent task
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.delete_task_from_daily("999")
+            
+            # Check that error message was printed
+            output = captured_output.getvalue()
+            self.assertIn("Task #999 not found in today's daily section", output)
+        finally:
+            sys.stdout = old_stdout
+    
+    def test_delete_task_from_daily_no_daily_section(self):
+        """Test error handling when no daily section exists"""
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.delete_task_from_daily("001")
+            
+            # Check that error message was printed
+            output = captured_output.getvalue()
+            self.assertIn("No daily section for", output)
+        finally:
+            sys.stdout = old_stdout
+
+
+class TestDisplayOperationsFix(unittest.TestCase):
+    """Test the display operations fix from commit 937864d"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_daily_tasks_display_no_extra_blank_line(self):
+        """Test that daily tasks display doesn't have extra blank line"""
+        # Add a task to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily("Test daily task")
+        
+        # Capture the output of show_daily_tasks
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.show_daily_list()
+            output = captured_output.getvalue()
+            
+            # Check that there's no extra blank line after the header
+            lines = output.split('\n')
+            
+            # Find the header line
+            header_index = None
+            for i, line in enumerate(lines):
+                if "=== Daily Tasks for" in line and "===" in line:
+                    header_index = i
+                    break
+            
+            self.assertIsNotNone(header_index, "Could not find header line")
+            
+            # The line after the header should not be empty
+            if header_index + 1 < len(lines):
+                next_line = lines[header_index + 1]
+                self.assertNotEqual(next_line.strip(), "", "Extra blank line found after header")
+        finally:
+            sys.stdout = old_stdout
+
+
 class TestCLICommands(unittest.TestCase):
     """Test CLI command functionality"""
     
@@ -1544,6 +1905,9 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestIntegration))
     suite.addTests(loader.loadTestsFromTestCase(TestCaseInsensitiveSections))
     suite.addTests(loader.loadTestsFromTestCase(TestTaskFormatter))
+    suite.addTests(loader.loadTestsFromTestCase(TestSyncCommandFixes))
+    suite.addTests(loader.loadTestsFromTestCase(TestDailyTaskDeletionRefactor))
+    suite.addTests(loader.loadTestsFromTestCase(TestDisplayOperationsFix))
     suite.addTests(loader.loadTestsFromTestCase(TestCLICommands))
     
     # Run tests

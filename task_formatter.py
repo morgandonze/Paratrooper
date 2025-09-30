@@ -43,9 +43,12 @@ class TaskFormatter:
             f"- [{task.status}] #{task.id}" if task.id else f"- [{task.status}]",
             task_text,
             section_field,
-            task.date or "",
-            task.recurring.replace("(", "").replace(")", "") if task.recurring else ""
+            task.date or ""
         ]
+        
+        # Only add recurring field if it exists
+        if task.recurring:
+            parts.append(task.recurring.replace("(", "").replace(")", ""))
         
         return " | ".join(parts)
     
