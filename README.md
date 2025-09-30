@@ -57,10 +57,10 @@ Your tasks are stored in `~/tasks.md` (configurable) with this simplified, flexi
 - [ ] create social media posts #003
 
 ## HEALTH
-- [ ] morning workout @15-01-2025 (daily) #004
+- [ ] morning workout (daily) #004
 
 ## FINANCE
-- [ ] review budget @10-01-2025 (weekly) #067
+- [ ] review budget (weekly) #067
 
 ## REFERENCE
 - [ ] reference materials #005
@@ -186,8 +186,6 @@ pt done 042          # Mark task #042 as complete
 pt reopen 042        # Reopen completed task (mark as incomplete)
 pt undone 042        # Alias for reopen
 pt pass 042          # Mark progress [~] on task in daily section
-pt snooze 042 3      # Hide task #042 for 3 days
-pt snooze 042 25-12-2025 # Hide until specific date
 pt recur 042 daily   # Modify task recurrence pattern
 ```
 
@@ -212,11 +210,11 @@ pt purge 042        # Delete from everywhere
 ## 📝 Task Syntax
 
 ```markdown
-- [ ] #001 | incomplete task | WORK | @15-01-2025 | 
-- [x] #002 | completed task | HEALTH | @15-01-2025 | 
-- [~] #003 | progressed task | PROJECTS | @15-01-2025 | 
-- [ ] #004 | recurring task | HEALTH | @15-01-2025 | daily
-- [ ] #005 | task with subsection | HOME:MAINTENANCE | @15-01-2025 | 
+- [ ] #001 | incomplete task | WORK | 
+- [x] #002 | completed task | HEALTH | 
+- [~] #003 | progressed task | PROJECTS | 
+- [ ] #004 | recurring task | HEALTH | daily
+- [ ] #005 | task with subsection | HOME:MAINTENANCE | 
 ```
 
 **Format breakdown:**
@@ -224,7 +222,6 @@ pt purge 042        # Delete from everywhere
 - `#id` - Unique 3-digit task identifier
 - `task_text` - Description of the task
 - `section` - Section name (e.g., WORK, HEALTH) or `section:subsection` for hierarchical organization
-- `@date` - Last engagement date (for staleness tracking)
 - `recurring` - Recurrence pattern (daily, weekly, monthly, etc.) or empty for one-time tasks
 ```
 
@@ -244,8 +241,8 @@ When you run `pt sync`:
 ### Example Sync
 **Before sync (Main List):**
 ```markdown
-- [ ] write chapter 3 | @10-01-2025 #023
-- [ ] morning workout | @14-01-2025 (daily) #004
+- [ ] write chapter 3 #023
+- [ ] morning workout (daily) #004
 ```
 
 **After working (Daily Section):**
@@ -256,8 +253,8 @@ When you run `pt sync`:
 
 **After sync (Main List):**
 ```markdown
-- [ ] write chapter 3 | @15-01-2025 #023         # Still incomplete, date updated
-- [ ] morning workout | @15-01-2025 (daily) #004 # Recurring, date updated
+- [ ] write chapter 3 #023         # Still incomplete
+- [ ] morning workout (daily) #004 # Recurring task
 ```
 
 ## 📅 Recurring Patterns
@@ -340,24 +337,24 @@ Edit `~/tasks.md` and add recurring tasks to appropriate sections:
 
 ```markdown
 ## HEALTH
-- [ ] morning workout @15-01-2025 (daily) #004
-- [ ] weekly meal prep @15-01-2025 (weekly:sun) #005
-- [ ] monthly health check @15-01-2025 (monthly:1st) #006
+- [ ] morning workout (daily) #004
+- [ ] weekly meal prep (weekly:sun) #005
+- [ ] monthly health check (monthly:1st) #006
 
 ## FINANCE
-- [ ] review budget @15-01-2025 (weekly:sat) #007
-- [ ] pay bills @15-01-2025 (monthly:15th) #008
-- [ ] quarterly tax review @15-01-2025 (recur:3m) #009
+- [ ] review budget (weekly:sat) #007
+- [ ] pay bills (monthly:15th) #008
+- [ ] quarterly tax review (recur:3m) #009
 
 ## LEARNING
-- [ ] read for 30 minutes @15-01-2025 (daily) #010
-- [ ] weekly skill practice @15-01-2025 (weekly:wed) #011
+- [ ] read for 30 minutes (daily) #010
+- [ ] weekly skill practice (weekly:wed) #011
 
 ## WORK
 ### Website Redesign
-- [ ] check analytics @15-01-2025 (weekly:mon) #012
-- [ ] backup database @15-01-2025 (recur:3d) #013
-- [ ] security audit @15-01-2025 (monthly:1st) #014
+- [ ] check analytics (weekly:mon) #012
+- [ ] backup database (recur:3d) #013
+- [ ] security audit (monthly:1st) #014
 ```
 
 ### Step 2: Test Your Setup
@@ -402,8 +399,6 @@ pt sync               # Update main list from daily progress
 
 **Staleness Tracking**
 - Only tracks tasks in MAIN section (ignores DAILY/ARCHIVE)
-- Shows days since last `@date` update
-- Ignores future-snoozed tasks
 - Progress updates (`[~]`) prevent tasks from appearing stale
 
 ### ID System
@@ -412,10 +407,6 @@ pt sync               # Update main list from daily progress
 - **Cross-references**: Daily tasks reference main tasks by same ID
 - **Global scope**: IDs are unique across entire file
 
-### Date System
-- `@date` = last engagement/completion (for staleness tracking)
-- `snooze:date` = hide from stale reports until this date
-- `due:date` = external deadline (optional)
 
 ## ✨ Benefits
 
