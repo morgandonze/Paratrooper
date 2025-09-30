@@ -83,15 +83,11 @@ class DailyOperations:
         if not recur_pattern:
             return False
         
-        try:
-            last_date = datetime.strptime(last_date_str, "%d-%m-%Y")
-        except ValueError:
-            return False
-        
         today = datetime.now()
         
         # Handle different recurrence patterns
         if recur_pattern == "daily":
+            # Daily tasks should always appear, regardless of when they were last completed
             return True
         elif recur_pattern == "weekdays":
             return today.weekday() < 5  # Monday=0, Friday=4
@@ -125,11 +121,31 @@ class DailyOperations:
                 if day_part.endswith('th'):
                     day_num = int(day_part[:-2])
                     return today.day == day_num
+                elif day_part.endswith('st'):
+                    day_num = int(day_part[:-2])
+                    return today.day == day_num
+                elif day_part.endswith('nd'):
+                    day_num = int(day_part[:-2])
+                    return today.day == day_num
+                elif day_part.endswith('rd'):
+                    day_num = int(day_part[:-2])
+                    return today.day == day_num
                 else:
                     day_num = int(day_part)
                     return today.day == day_num
         elif recur_pattern.startswith("recur:"):
             # Custom recurrence: recur:3d, recur:2w, etc.
+            # For custom recurrence, we need to check the last date
+            if not last_date_str:
+                # If no date provided, assume it should recur
+                return True
+            
+            try:
+                last_date = datetime.strptime(last_date_str, "%d-%m-%Y")
+            except (ValueError, TypeError):
+                # If we can't parse the date, assume it should recur
+                return True
+            
             interval_part = recur_pattern.split(":", 1)[1]
             
             # Parse interval

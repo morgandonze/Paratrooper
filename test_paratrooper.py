@@ -1663,6 +1663,285 @@ class TestDisplayOperationsFix(unittest.TestCase):
             sys.stdout = old_stdout
 
 
+class TestRecurringTaskBugFix(unittest.TestCase):
+    """Test the recurring task bug fix - ensures daily tasks appear every day regardless of completion"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_should_recur_today_daily_always_true(self):
+        """Test that should_recur_today returns True for daily tasks regardless of last date"""
+        from daily_operations import DailyOperations
+        from file_operations import FileOperations
+        
+        file_ops = FileOperations(self.tm.task_file)
+        daily_ops = DailyOperations(file_ops, self.tm.config)
+        
+        # Test daily pattern with various dates
+        test_cases = [
+            "30-09-2025",  # Today
+            "29-09-2025",  # Yesterday
+            "01-01-2025",  # Old date
+            "31-12-2024",  # Very old date
+        ]
+        
+        for last_date in test_cases:
+            with self.subTest(last_date=last_date):
+                result = daily_ops.should_recur_today("daily", last_date)
+                self.assertTrue(result, f"Daily task should recur regardless of last date {last_date}")
+    
+    def test_should_recur_today_weekly_respects_schedule(self):
+        """Test that weekly tasks only recur on their scheduled days"""
+        from daily_operations import DailyOperations
+        from file_operations import FileOperations
+        from datetime import datetime
+        
+        file_ops = FileOperations(self.tm.task_file)
+        daily_ops = DailyOperations(file_ops, self.tm.config)
+        
+        # Get today's weekday (0=Monday, 6=Sunday)
+        today_weekday = datetime.now().weekday()
+        
+        # Test weekly patterns
+        test_cases = [
+            ("weekly:mon", 0),      # Monday only
+            ("weekly:tue", 1),      # Tuesday only
+            ("weekly:wed", 2),      # Wednesday only
+            ("weekly:thu", 3),      # Thursday only
+            ("weekly:fri", 4),      # Friday only
+            ("weekly:sat", 5),      # Saturday only
+            ("weekly:sun", 6),      # Sunday only
+            ("weekly:mon,wed,fri", 0),  # Multiple days
+            ("weekly:mon,wed,fri", 2),  # Multiple days
+            ("weekly:mon,wed,fri", 4),  # Multiple days
+        ]
+        
+        for pattern, target_weekday in test_cases:
+            with self.subTest(pattern=pattern, target_weekday=target_weekday):
+                result = daily_ops.should_recur_today(pattern, "29-09-2025")
+                expected = today_weekday == target_weekday
+                self.assertEqual(result, expected, 
+                    f"Weekly pattern {pattern} should recur on weekday {target_weekday}, today is {today_weekday}")
+    
+    def test_should_recur_today_custom_recurrence_respects_intervals(self):
+        """Test that custom recurrence patterns respect time intervals"""
+        from daily_operations import DailyOperations
+        from file_operations import FileOperations
+        from datetime import datetime, timedelta
+        
+        file_ops = FileOperations(self.tm.task_file)
+        daily_ops = DailyOperations(file_ops, self.tm.config)
+        
+        today = datetime.now()
+        
+        # Test custom recurrence patterns
+        test_cases = [
+            # (pattern, days_ago, expected_result)
+            ("recur:1d", 0, False),  # Same day, needs 1 day
+            ("recur:1d", 1, True),   # Yesterday, should recur
+            ("recur:1d", 2, True),   # Day before yesterday, should recur
+            ("recur:3d", 2, False),  # 2 days ago, needs 3
+            ("recur:3d", 3, True),   # 3 days ago, should recur
+            ("recur:3d", 4, True),   # 4 days ago, should recur
+            ("recur:1w", 6, False),  # 6 days ago, needs 7
+            ("recur:1w", 7, True),   # 7 days ago, should recur
+            ("recur:1w", 8, True),   # 8 days ago, should recur
+        ]
+        
+        for pattern, days_ago, expected in test_cases:
+            with self.subTest(pattern=pattern, days_ago=days_ago):
+                last_date = (today - timedelta(days=days_ago)).strftime("%d-%m-%Y")
+                result = daily_ops.should_recur_today(pattern, last_date)
+                self.assertEqual(result, expected,
+                    f"Pattern {pattern} with last date {days_ago} days ago should return {expected}")
+    
+    def test_daily_task_appears_after_completion_and_sync(self):
+        """Test the specific bug: daily task should appear tomorrow even if completed today"""
+        # Add a daily recurring task
+        self.tm.add_task_to_main("Take out trash (daily)", "DOMESTIC")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "Take out trash" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Verify task appears in daily section
+        content = self.tm.read_file()
+        self.assertIn("Take out trash", content)
+        
+        # Complete the task in daily section
+        self.tm.complete_task(task_id)
+        
+        # Sync to update main list
+        self.tm.sync_daily_sections()
+        
+        # Verify main task date was updated (but still incomplete)
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        # Should still be incomplete (recurring task)
+        self.assertIn("- [ ] #001 | Take out trash", main_section)
+        
+        # Should have today's date
+        from datetime import datetime
+        today = datetime.now().strftime("%d-%m-%Y")
+        self.assertIn(today, main_section)
+        
+        # Now test the critical part: create a new daily section
+        # This simulates running 'daily' command tomorrow
+        self.tm.add_daily_section()
+        
+        # Verify the daily task appears again (this was the bug)
+        content = self.tm.read_file()
+        daily_section_start = content.find("# DAILY")
+        main_section_start = content.find("# MAIN")
+        daily_section = content[daily_section_start:main_section_start]
+        
+        # The task should appear in today's daily section again
+        self.assertIn("Take out trash", daily_section)
+        self.assertIn(f"#{task_id}", daily_section)
+    
+    def test_multiple_recurring_patterns_work_correctly(self):
+        """Test that different recurring patterns work correctly together"""
+        # Add tasks with different recurring patterns
+        self.tm.add_task_to_main("Daily workout (daily)", "HEALTH")
+        self.tm.add_task_to_main("Weekly review (weekly:mon)", "WORK")
+        self.tm.add_task_to_main("Monthly budget (monthly:1st)", "FINANCE")
+        
+        # Create daily section
+        self.tm.add_daily_section()
+        
+        # Verify all recurring tasks appear (or don't) based on their patterns
+        content = self.tm.read_file()
+        daily_section_start = content.find("# DAILY")
+        main_section_start = content.find("# MAIN")
+        daily_section = content[daily_section_start:main_section_start]
+        
+        # Daily task should always appear
+        self.assertIn("Daily workout", daily_section)
+        
+        # Weekly and monthly tasks depend on today's date
+        from datetime import datetime
+        today = datetime.now()
+        
+        if today.weekday() == 0:  # Monday
+            self.assertIn("Weekly review", daily_section)
+        else:
+            self.assertNotIn("Weekly review", daily_section)
+        
+        if today.day == 1:  # First of month
+            self.assertIn("Monthly budget", daily_section)
+        else:
+            self.assertNotIn("Monthly budget", daily_section)
+    
+    def test_recurring_task_duplication_prevention(self):
+        """Test that recurring tasks don't get duplicated when carried over from previous day"""
+        from datetime import datetime, timedelta
+        
+        # Create dates for testing
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        # Add a daily recurring task
+        self.tm.add_task_to_main("Morning workout (daily)", "HEALTH")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "Morning workout" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Create yesterday's daily section with the task as incomplete
+        yesterday_content = f"""# DAILY
+
+## {yesterday}
+- [ ] Morning workout from HEALTH | @{today} (daily) #{task_id}
+
+# MAIN
+
+## HEALTH
+- [ ] Morning workout (daily) | @{today} #{task_id}
+
+# ARCHIVE
+"""
+        
+        # Write the test content
+        self.tm.task_file.write_text(yesterday_content)
+        
+        # Run daily command to create today's section
+        self.tm.add_daily_section()
+        
+        # Verify the task appears exactly once (not duplicated)
+        content = self.tm.read_file()
+        
+        # Get today's daily section content
+        daily_section_start = content.find(f"## {today}")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        # Count occurrences of the task in today's daily section
+        task_occurrences = daily_section.count("Morning workout")
+        
+        # Should appear exactly once (not duplicated)
+        self.assertEqual(task_occurrences, 1, 
+            f"Task 'Morning workout' appears {task_occurrences} times in daily section, should appear exactly once")
+    
+    def test_recurring_task_with_invalid_date_handling(self):
+        """Test that recurring tasks handle invalid dates gracefully"""
+        from daily_operations import DailyOperations
+        from file_operations import FileOperations
+        
+        file_ops = FileOperations(self.tm.task_file)
+        daily_ops = DailyOperations(file_ops, self.tm.config)
+        
+        # Test with invalid date formats
+        invalid_dates = [
+            "invalid-date",
+            "32-13-2025",  # Invalid day/month
+            "not-a-date",
+            "",
+            None
+        ]
+        
+        for invalid_date in invalid_dates:
+            with self.subTest(invalid_date=invalid_date):
+                # Daily tasks should still recur even with invalid dates
+                result = daily_ops.should_recur_today("daily", invalid_date)
+                self.assertTrue(result, f"Daily task should recur even with invalid date: {invalid_date}")
+                
+                # Custom recurrence should handle invalid dates gracefully
+                result = daily_ops.should_recur_today("recur:3d", invalid_date)
+                self.assertTrue(result, f"Custom recurrence should handle invalid date gracefully: {invalid_date}")
+
+
 class TestCLICommands(unittest.TestCase):
     """Test CLI command functionality"""
     
@@ -1908,6 +2187,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestSyncCommandFixes))
     suite.addTests(loader.loadTestsFromTestCase(TestDailyTaskDeletionRefactor))
     suite.addTests(loader.loadTestsFromTestCase(TestDisplayOperationsFix))
+    suite.addTests(loader.loadTestsFromTestCase(TestRecurringTaskBugFix))
     suite.addTests(loader.loadTestsFromTestCase(TestCLICommands))
     
     # Run tests
