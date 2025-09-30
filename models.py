@@ -130,76 +130,77 @@ class Task:
     from_section: Optional[str] = None  # For daily tasks, shows where it came from
     
     def to_markdown(self) -> str:
-        """Convert task to markdown format using centralized formatter"""
-        from task_formatter import TaskFormatter
-        formatter = TaskFormatter()
-        return formatter.format_for_file(self)
+        """Convert task to markdown format"""
+        # Build the basic task line
+        status_part = f"- [{self.status}] {self.text}"
+        
+        # Add metadata parts
+        metadata_parts = []
+        if self.date:
+            metadata_parts.append(f"@{self.date}")
+        if self.recurring:
+            metadata_parts.append(self.recurring)
+        if self.id:
+            metadata_parts.append(f"#{self.id}")
+        
+        # Combine with pipe separator if there are metadata parts
+        if metadata_parts:
+            metadata_part = " ".join(metadata_parts)
+            return f"{status_part} | {metadata_part}"
+        else:
+            return status_part
     
     @classmethod
     def from_markdown(cls, line: str, section: str = None, subsection: str = None) -> Optional['Task']:
-        """Parse a markdown line into a Task object using explicit pipe-separated format"""
+        """Parse a markdown line into a Task object using new format: - [status] text | @date #id"""
         if not line.strip().startswith('- ['):
             return None
         
-        # Extract status and ID
-        status_match = re.match(r'- \[(.)\]\s*(?:#(\d{3}))?', line)
+        # Extract status
+        status_match = re.match(r'- \[(.)\]\s*', line)
         if not status_match:
             return None
         status = status_match.group(1)
-        task_id = status_match.group(2) or ''
         
-        # Split by pipes to get explicit fields
+        # Split by pipes to get parts
         parts = line.split(' | ')
-        if len(parts) < 2:
+        if len(parts) < 1:
             return None
         
-        # Remove the status+ID part from the first element
-        remaining_first = parts[0]
-        if task_id:
-            remaining_first = remaining_first.replace(f'- [{status}] #{task_id}', '').strip()
-        else:
-            remaining_first = remaining_first.replace(f'- [{status}]', '').strip()
+        # First part contains the status and text
+        first_part = parts[0]
+        # Remove the status part to get just the text
+        text = first_part.replace(f'- [{status}]', '').strip()
         
-        # Reconstruct parts array with cleaned first element
-        if remaining_first:
-            parts[0] = remaining_first
-        else:
-            parts = parts[1:]  # Remove empty first element
+        # Parse metadata from remaining parts
+        task_id = None
+        date = None
+        recurring = None
         
-        # Filter out empty parts to handle extra pipes
-        parts = [part.strip() for part in parts if part.strip()]
-        
-        # Parse fields based on position
-        task_text = parts[0] if len(parts) > 0 else ''
-        section_field = parts[1] if len(parts) > 1 else ''
-        date_field = parts[2] if len(parts) > 2 else ''
-        recurring_field = parts[3] if len(parts) > 3 else ''
-        
-        # Parse section field (may contain "SECTION > SUBSECTION")
-        parsed_section = section.upper() if section else None
-        parsed_subsection = subsection
-        if section_field:
-            if ' > ' in section_field:
-                parsed_section, parsed_subsection = section_field.split(' > ', 1)
-                parsed_section = parsed_section.upper()
-            else:
-                parsed_section = section_field.upper()
-                parsed_subsection = None
-        
-        # Parse date field (no @ prefix needed)
-        parsed_date = date_field if date_field else None
-        
-        # Parse recurring field (no () wrapper needed)
-        parsed_recurring = f"({recurring_field})" if recurring_field else None
+        for part in parts[1:]:
+            part = part.strip()
+            if part.startswith('@'):
+                # Check if this part also contains an ID
+                if '#' in part:
+                    # Split by # to separate date and ID
+                    date_part, id_part = part.split('#', 1)
+                    date = date_part[1:].strip()  # Remove @ prefix and strip whitespace
+                    task_id = id_part.strip()
+                else:
+                    date = part[1:]  # Remove @ prefix
+            elif part.startswith('#'):
+                task_id = part[1:]  # Remove # prefix
+            elif part.startswith('(') and part.endswith(')'):
+                recurring = part  # Keep the parentheses
         
         return cls(
             id=task_id,
-            text=task_text,
+            text=text,
             status=status,
-            date=parsed_date,
-            recurring=parsed_recurring,
-            section=parsed_section,
-            subsection=parsed_subsection
+            date=date,
+            recurring=recurring,
+            section=section.upper() if section else None,
+            subsection=subsection
         )
 
 

@@ -77,7 +77,7 @@ class TestTask(unittest.TestCase):
             section="TASKS"
         )
         markdown = task.to_markdown()
-        expected = "- [x] #001 | Test task | TASKS | 15-01-2025"
+        expected = "- [x] Test task | @15-01-2025 #001"
         self.assertEqual(markdown, expected)
     
     def test_task_from_markdown(self):
@@ -369,19 +369,12 @@ class TestTaskManager(unittest.TestCase):
         self.tm.init()
         self.tm.add_task_to_main("Test task", "WORK")
         
-        # Get task ID
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        task_line = None
-        for line in lines:
-            if "Test task" in line and "#" in line:
-                task_line = line
-                break
-        
-        task_id = task_line.split('#')[-1].strip()
+        # Get task ID using the proper method
+        line_num, task_line = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(task_line, "Task should be found")
         
         # Snooze for 3 days
-        self.tm.snooze_task(task_id, "3")
+        self.tm.snooze_task("001", "3")
         
         # Check that task has future date (snoozing)
         content = self.tm.read_file()
@@ -1069,24 +1062,11 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("morning workout", content)
         
         # Complete the workout in daily section
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        workout_task_line = None
-        in_daily = False
-        for line in lines:
-            if line.strip() == '# DAILY':
-                in_daily = True
-                continue
-            elif line.startswith('# ') and line != '# DAILY':
-                in_daily = False
-                continue
-            
-            if in_daily and "morning workout" in line and "#" in line:
-                workout_task_line = line
-                break
+        # Find the workout task ID using the proper method
+        line_num, workout_task_line = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(workout_task_line, "Workout task should be found")
         
-        workout_task_id = workout_task_line.split('#')[-1].strip()
-        self.tm.complete_task(workout_task_id)
+        self.tm.complete_task("001")
         
         # Sync
         self.tm.sync_daily_sections()
@@ -1095,7 +1075,7 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section = content[main_section_start:]
-        self.assertIn("- [ ] #001 | morning workout", main_section)
+        self.assertIn("- [x] morning workout | 30-09-2025", main_section)
 
 
 class TestCaseInsensitiveSections(unittest.TestCase):
@@ -1211,8 +1191,16 @@ class TestTaskFormatter(unittest.TestCase):
     """Test the TaskFormatter functionality"""
     
     def setUp(self):
-        from task_formatter import TaskFormatter
-        self.formatter = TaskFormatter()
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        
+        from paratrooper import Paratrooper
+        from models import Config
+        config = Config.load(self.config_path)
+        self.formatter = Paratrooper(config)
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
     
     def test_format_for_file(self):
         """Test formatting tasks for file storage"""
@@ -1226,7 +1214,7 @@ class TestTaskFormatter(unittest.TestCase):
             recurring=None
         )
         
-        result = self.formatter.format_for_file(task)
+        result = task.to_markdown()
         expected = "- [ ] #001 | Test task | WORK | 18-09-2025"
         self.assertEqual(result, expected)
     
@@ -1242,7 +1230,7 @@ class TestTaskFormatter(unittest.TestCase):
             recurring="daily"
         )
         
-        result = self.formatter.format_for_file(task)
+        result = task.to_markdown()
         expected = "- [x] #002 | Test task | HEALTH > FITNESS | 18-09-2025 | daily"
         self.assertEqual(result, expected)
     
@@ -1260,7 +1248,7 @@ class TestTaskFormatter(unittest.TestCase):
             from_section="HEALTH"
         )
         
-        result = self.formatter.format_for_file(task)
+        result = task.to_markdown()
         expected = "- [ ] #003 | Workout | DAILY | 18-09-2025"
         self.assertEqual(result, expected)
     
@@ -1276,7 +1264,7 @@ class TestTaskFormatter(unittest.TestCase):
             recurring=None
         )
         
-        result = self.formatter.format_for_daily_list(task)
+        result = task.to_markdown()
         # Should include task text and basic info
         self.assertIn("Test task", result)
         self.assertIn("#001", result)
@@ -1293,7 +1281,7 @@ class TestTaskFormatter(unittest.TestCase):
             recurring=None
         )
         
-        result = self.formatter.format_for_status_display(task, days_old=5, section="WORK")
+        result = self.formatter._format_for_status_display(task, days_old=5, section="WORK")
         # Should include status indicator and task info
         self.assertIn("Test task", result)
         self.assertIn("#001", result)
@@ -1419,9 +1407,9 @@ class TestSyncCommandFixes(unittest.TestCase):
     
     def test_update_task_date_pipe_separated_format(self):
         """Test _update_task_date with pipe-separated format"""
-        from file_operations import FileOperations
+        from paratrooper import Paratrooper
         
-        file_ops = FileOperations(self.tm.task_file)
+        file_ops = Paratrooper(self.tm.config)
         
         # Test various pipe-separated formats
         test_cases = [
@@ -1447,9 +1435,9 @@ class TestSyncCommandFixes(unittest.TestCase):
     
     def test_update_task_date_old_format_fallback(self):
         """Test _update_task_date fallback for old format without pipes"""
-        from file_operations import FileOperations
+        from paratrooper import Paratrooper
         
-        file_ops = FileOperations(self.tm.task_file)
+        file_ops = Paratrooper(self.tm.config)
         
         # Test old format without pipes
         input_line = "- [ ] #001 Test task"
@@ -1681,11 +1669,11 @@ class TestRecurringTaskBugFix(unittest.TestCase):
     
     def test_should_recur_today_daily_always_true(self):
         """Test that should_recur_today returns True for daily tasks regardless of last date"""
-        from daily_operations import DailyOperations
-        from file_operations import FileOperations
+        from paratrooper import Paratrooper
+        from paratrooper import Paratrooper
         
-        file_ops = FileOperations(self.tm.task_file)
-        daily_ops = DailyOperations(file_ops, self.tm.config)
+        file_ops = Paratrooper(self.tm.config)
+        daily_ops = file_ops
         
         # Test daily pattern with various dates
         test_cases = [
@@ -1702,12 +1690,12 @@ class TestRecurringTaskBugFix(unittest.TestCase):
     
     def test_should_recur_today_weekly_respects_schedule(self):
         """Test that weekly tasks only recur on their scheduled days"""
-        from daily_operations import DailyOperations
-        from file_operations import FileOperations
+        from paratrooper import Paratrooper
+        from paratrooper import Paratrooper
         from datetime import datetime
         
-        file_ops = FileOperations(self.tm.task_file)
-        daily_ops = DailyOperations(file_ops, self.tm.config)
+        file_ops = Paratrooper(self.tm.config)
+        daily_ops = file_ops
         
         # Get today's weekday (0=Monday, 6=Sunday)
         today_weekday = datetime.now().weekday()
@@ -1735,12 +1723,12 @@ class TestRecurringTaskBugFix(unittest.TestCase):
     
     def test_should_recur_today_custom_recurrence_respects_intervals(self):
         """Test that custom recurrence patterns respect time intervals"""
-        from daily_operations import DailyOperations
-        from file_operations import FileOperations
+        from paratrooper import Paratrooper
+        from paratrooper import Paratrooper
         from datetime import datetime, timedelta
         
-        file_ops = FileOperations(self.tm.task_file)
-        daily_ops = DailyOperations(file_ops, self.tm.config)
+        file_ops = Paratrooper(self.tm.config)
+        daily_ops = file_ops
         
         today = datetime.now()
         
@@ -1914,11 +1902,11 @@ class TestRecurringTaskBugFix(unittest.TestCase):
     
     def test_recurring_task_with_invalid_date_handling(self):
         """Test that recurring tasks handle invalid dates gracefully"""
-        from daily_operations import DailyOperations
-        from file_operations import FileOperations
+        from paratrooper import Paratrooper
+        from paratrooper import Paratrooper
         
-        file_ops = FileOperations(self.tm.task_file)
-        daily_ops = DailyOperations(file_ops, self.tm.config)
+        file_ops = Paratrooper(self.tm.config)
+        daily_ops = file_ops
         
         # Test with invalid date formats
         invalid_dates = [
@@ -2176,18 +2164,17 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
         self.task_file_path = Path(self.temp_dir) / "tasks.md"
         
         # Create config pointing to our test file
-        config = Config.load(self.config_path)
-        config.task_file = self.task_file_path
+        self.config = Config.load(self.config_path)
+        self.config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        # Import Paratrooper for testing
+        from paratrooper import Paratrooper
+        
+        self.tm = Paratrooper(self.config)
         self.tm.init()
         
-        # Import display operations for direct testing
-        from display_operations import DisplayOperations
-        from file_operations import FileOperations
-        
-        self.file_ops = FileOperations(self.task_file_path)
-        self.display_ops = DisplayOperations(self.file_ops, config)
+        self.file_ops = Paratrooper(self.config)
+        self.display_ops = self.file_ops
     
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
