@@ -102,7 +102,7 @@ class TestTask(unittest.TestCase):
         self.assertEqual(task.status, " ")
         self.assertEqual(task.date, "15-01-2025")
         self.assertEqual(task.id, "004")
-        self.assertEqual(task.recurring, "(daily)")
+        self.assertEqual(task.recurring, "daily")
     
     def test_snoozed_task_parsing(self):
         """Test parsing tasks with future dates (snoozing)"""
@@ -1172,8 +1172,8 @@ class TestCaseInsensitiveSections(unittest.TestCase):
             ("work", "WORK"),
             ("WORK", "WORK"),
             ("Work", "WORK"),
-            ("health > fitness", "HEALTH > fitness"),
-            ("HEALTH > FITNESS", "HEALTH > FITNESS")
+            ("health:fitness", "HEALTH:FITNESS"),
+            ("HEALTH:FITNESS", "HEALTH:FITNESS")
         ]
         
         for input_section, expected_section in test_cases:
@@ -1182,9 +1182,9 @@ class TestCaseInsensitiveSections(unittest.TestCase):
                 task = Task.from_markdown(task_line)
                 
                 self.assertIsNotNone(task)
-                self.assertEqual(task.section, expected_section.split(' > ')[0])
-                if ' > ' in expected_section:
-                    self.assertEqual(task.subsection, expected_section.split(' > ')[1])
+                self.assertEqual(task.section, expected_section.split(':')[0])
+                if ':' in expected_section:
+                    self.assertEqual(task.subsection, expected_section.split(':')[1])
 
 
 class TestTaskFormatter(unittest.TestCase):
@@ -1231,7 +1231,7 @@ class TestTaskFormatter(unittest.TestCase):
         )
         
         result = task.to_markdown()
-        expected = "- [x] #002 | Test task | HEALTH > FITNESS | 18-09-2025 | daily"
+        expected = "- [x] #002 | Test task | HEALTH:FITNESS | 18-09-2025 | daily"
         self.assertEqual(result, expected)
     
     def test_format_for_file_daily_task(self):

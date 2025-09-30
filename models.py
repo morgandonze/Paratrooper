@@ -137,8 +137,14 @@ class Task:
         # Add task text
         text_part = f" | {self.text}"
         
-        # Add section
-        section_part = f" | {self.section}" if self.section else ""
+        # Add section (with subsection if present)
+        if self.section:
+            if self.subsection:
+                section_part = f" | {self.section}:{self.subsection}"
+            else:
+                section_part = f" | {self.section}"
+        else:
+            section_part = ""
         
         # Add date
         date_part = f" | {self.date}" if self.date else ""
@@ -181,14 +187,19 @@ class Task:
         if len(remaining_parts) >= 1:
             text = remaining_parts[0].strip()  # First remaining part is the text
         if len(remaining_parts) >= 2:
-            parsed_section = remaining_parts[1].strip().upper()
+            section_part = remaining_parts[1].strip().upper()
+            # Handle subsection format: SECTION:SUBSECTION
+            if ':' in section_part:
+                parsed_section, parsed_subsection = section_part.split(':', 1)
+                parsed_section = parsed_section.strip()
+                parsed_subsection = parsed_subsection.strip()
+            else:
+                parsed_section = section_part
+                parsed_subsection = None
         if len(remaining_parts) >= 3:
             parsed_date = remaining_parts[2].strip()
         if len(remaining_parts) >= 4:
             parsed_recurring = remaining_parts[3].strip()
-            # Add parentheses if not present for recurring patterns
-            if parsed_recurring and not parsed_recurring.startswith('('):
-                parsed_recurring = f"({parsed_recurring})"
         
         # Use provided section if no section found in parsing
         if not parsed_section and section:
@@ -201,7 +212,7 @@ class Task:
             date=parsed_date,
             recurring=parsed_recurring,
             section=parsed_section,
-            subsection=subsection
+            subsection=parsed_subsection
         )
 
 
