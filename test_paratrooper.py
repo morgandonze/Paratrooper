@@ -2289,24 +2289,24 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
         self.assertEqual(date_str, "12-08-2025")
     
     def test_get_task_status_info_incomplete_recurring_task(self):
-        """Test status calculation for incomplete recurring task uses normal calculation"""
+        """Test status calculation for incomplete recurring task uses expected next occurrence"""
         # Create an incomplete recurring task
         task_data = {
             'status': ' ',
-            'text': 'Daily workout',
+            'text': 'Monthly budget review',
             'metadata': {
                 'id': '002',
-                'date': '25-09-2025',  # Last activity 5 days ago
-                'recurring': '(daily)'
+                'date': '12-09-2025',  # Last activity on Sept 12
+                'recurring': '(monthly:12th)'
             }
         }
         
         status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
         
-        # Should use normal calculation for incomplete tasks
+        # Should use expected next occurrence calculation for recurring tasks
         self.assertEqual(status_type, "incomplete")
-        self.assertGreater(days_old, 0)  # Should show actual days since last activity
-        self.assertEqual(date_str, "25-09-2025")
+        self.assertEqual(days_old, 0)  # Should show 0 days old since next occurrence is in future
+        self.assertEqual(date_str, "12-09-2025")
     
     def test_get_task_status_info_non_recurring_task(self):
         """Test status calculation for non-recurring task uses normal calculation"""
@@ -2336,17 +2336,17 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
             'text': 'Weekly review',
             'metadata': {
                 'id': '004',
-                'date': '25-09-2025',  # Last activity 5 days ago
+                'date': '29-09-2025',  # Last activity yesterday (Sunday)
                 'recurring': '(weekly:sun)'
             }
         }
         
         status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
         
-        # Should use normal calculation for progress tasks
+        # Should use expected next occurrence calculation for recurring tasks
         self.assertEqual(status_type, "progress")
-        self.assertGreater(days_old, 0)  # Should show actual days since last activity
-        self.assertEqual(date_str, "25-09-2025")
+        self.assertEqual(days_old, 0)  # Should show 0 days old since next occurrence is next Sunday
+        self.assertEqual(date_str, "29-09-2025")
     
     def test_get_incomplete_daily_instance_date_no_daily_section(self):
         """Test that incomplete daily instance check returns None when no daily section exists"""

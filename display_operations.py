@@ -62,13 +62,18 @@ class DisplayOperations:
                 today = datetime.now()
                 
                 # For recurring tasks, calculate days based on expected next occurrence
-                if recurring and status == 'x':  # Completed recurring task
+                if recurring:  # Any recurring task, regardless of status
                     # Check if there's an incomplete instance in daily section
                     incomplete_daily_date = self._get_incomplete_daily_instance_date(task_data.get('metadata', {}).get('id'))
                     
                     if incomplete_daily_date:
                         # Use the incomplete daily instance date
-                        days_old = (today - incomplete_daily_date).days
+                        try:
+                            incomplete_date_obj = datetime.strptime(incomplete_daily_date, "%d-%m-%Y")
+                            days_old = (today - incomplete_date_obj).days
+                        except ValueError:
+                            # Fall back to normal calculation if date parsing fails
+                            days_old = (today - task_date).days
                     else:
                         # Calculate based on expected next occurrence
                         expected_date = self._calculate_next_recurrence_date(recurring.strip('()'), date_str)
@@ -80,7 +85,7 @@ class DisplayOperations:
                         else:
                             days_old = (today - task_date).days
                 else:
-                    # For non-recurring tasks or incomplete recurring tasks, use normal calculation
+                    # For non-recurring tasks, use normal calculation
                     days_old = (today - task_date).days
                 
                 if status == 'x':
