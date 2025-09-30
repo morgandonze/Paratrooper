@@ -374,7 +374,6 @@ FILE STRUCTURE:
         tasks = task_file.daily_sections[self.today]
         
         print(f"=== Daily Tasks for {self.today} ===")
-        print()
         
         if not tasks:
             print("No tasks for today")

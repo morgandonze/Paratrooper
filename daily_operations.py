@@ -447,34 +447,31 @@ class DailyOperations:
     
     def delete_task_from_daily(self, task_id):
         """Remove a task from today's daily section"""
-        content = self.file_ops.read_file()
-        lines = content.split('\n')
+        # Parse the file into model objects
+        task_file = self.file_ops.parse_file()
         
-        in_daily = False
-        current_daily_date = None
+        # Check if today's daily section exists
+        if self.today not in task_file.daily_sections:
+            print(f"No daily section for {self.today}")
+            return
         
-        for i, line in enumerate(lines):
-            line = line.strip()
-            
-            if line == '# DAILY':
-                in_daily = True
-                continue
-            elif line.startswith('# ') and line != '# DAILY':
-                in_daily = False
-                continue
-            
-            if in_daily and line.startswith('## '):
-                current_daily_date = line[3:].strip()
-                continue
-            
-            if in_daily and current_daily_date and f"#{task_id}" in line and self.file_ops._is_task_line(line):
-                # Remove the line
-                lines.pop(i)
-                self.file_ops.write_file('\n'.join(lines))
-                print(f"Removed task #{task_id} from today's daily section")
-                return
+        # Find and remove the task with the given ID
+        tasks = task_file.daily_sections[self.today]
+        task_found = False
         
-        print(f"Task #{task_id} not found in today's daily section")
+        for i, task in enumerate(tasks):
+            if task.id == task_id:
+                tasks.pop(i)
+                task_found = True
+                break
+        
+        if not task_found:
+            print(f"Task #{task_id} not found in today's daily section")
+            return
+        
+        # Regenerate the file from the updated model data
+        self.file_ops.write_file_from_objects(task_file)
+        print(f"Removed task #{task_id} from today's daily section")
     
     def sync_daily_sections(self, days_back=3):
         """Sync daily sections back to main list"""
