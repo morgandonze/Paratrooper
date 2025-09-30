@@ -1859,13 +1859,13 @@ FILE STRUCTURE:
         if ':' in section_name:
             # Subsection
             main_section, subsection = section_name.split(':', 1)
-            self._show_subsection(main_section, subsection, lines)
+            self._show_subsection(main_section.upper(), subsection, lines)
         elif section_name == "*":
             # Wildcard - show all sections
             self.show_all_main()
         else:
-            # Main section
-            self._show_main_section(section_name, lines)
+            # Main section - convert to uppercase for case-insensitive matching
+            self._show_main_section(section_name.upper(), lines)
     
     def _show_main_section(self, section_name, lines):
         """Show tasks in a main section"""
@@ -1929,7 +1929,7 @@ FILE STRUCTURE:
                 continue
             
             if (in_main and current_section == main_section and 
-                current_subsection == subsection and self._is_task_line(line)):
+                current_subsection and current_subsection.lower() == subsection.lower() and self._is_task_line(line)):
                 # Parse the task line to create a Task object for consistent formatting
                 task = Task.from_markdown(line)
                 if task:

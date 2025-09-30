@@ -1183,6 +1183,97 @@ class TestCaseInsensitiveSections(unittest.TestCase):
                 self.assertEqual(task.section, expected_section.split(':')[0])
                 if ':' in expected_section:
                     self.assertEqual(task.subsection, expected_section.split(':')[1])
+    
+    def test_list_command_case_insensitive(self):
+        """Test that list command works with case-insensitive section names"""
+        # Add tasks to different sections
+        self.tm.add_task_to_main("Work task", "work")
+        self.tm.add_task_to_main("Health task", "health")
+        self.tm.add_task_to_main("Project task", "projects")
+        
+        # Test various case combinations for list command
+        test_cases = [
+            ("work", "WORK"),
+            ("WORK", "WORK"),
+            ("Work", "WORK"),
+            ("health", "HEALTH"),
+            ("HEALTH", "HEALTH"),
+            ("Health", "HEALTH"),
+            ("projects", "PROJECTS"),
+            ("PROJECTS", "PROJECTS"),
+            ("Projects", "PROJECTS")
+        ]
+        
+        for input_section, expected_section in test_cases:
+            with self.subTest(input_section=input_section):
+                # Capture output to verify the section is displayed correctly
+                import io
+                import sys
+                captured_output = io.StringIO()
+                old_stdout = sys.stdout
+                sys.stdout = captured_output
+                
+                try:
+                    # Test the show_section method (used by list command)
+                    self.tm.show_section(input_section)
+                    output = captured_output.getvalue()
+                    
+                    # Should display the correct section header
+                    self.assertIn(f"=== {expected_section} ===", output)
+                    
+                    # Should show the appropriate task
+                    if expected_section == "WORK":
+                        self.assertIn("Work task", output)
+                    elif expected_section == "HEALTH":
+                        self.assertIn("Health task", output)
+                    elif expected_section == "PROJECTS":
+                        self.assertIn("Project task", output)
+                        
+                finally:
+                    sys.stdout = old_stdout
+    
+    def test_list_command_subsection_case_insensitive(self):
+        """Test that list command works with case-insensitive subsection names"""
+        # Add tasks to subsections
+        self.tm.add_task_to_main("Office task", "work:office")
+        self.tm.add_task_to_main("Home task", "work:home")
+        
+        # Test various case combinations for subsections
+        test_cases = [
+            ("work:office", "WORK:office"),
+            ("WORK:office", "WORK:office"),
+            ("Work:office", "WORK:office"),
+            ("work:OFFICE", "WORK:OFFICE"),
+            ("WORK:OFFICE", "WORK:OFFICE"),
+            ("Work:Office", "WORK:Office")
+        ]
+        
+        for input_section, expected_section in test_cases:
+            with self.subTest(input_section=input_section):
+                # Capture output to verify the subsection is displayed correctly
+                import io
+                import sys
+                captured_output = io.StringIO()
+                old_stdout = sys.stdout
+                sys.stdout = captured_output
+                
+                try:
+                    # Test the show_section method (used by list command)
+                    self.tm.show_section(input_section)
+                    output = captured_output.getvalue()
+                    
+                    # Should display the correct subsection header
+                    main_section, subsection = expected_section.split(':')
+                    self.assertIn(f"=== {main_section} > {subsection} ===", output)
+                    
+                    # Should show the appropriate task
+                    if subsection.lower() == "office":
+                        self.assertIn("Office task", output)
+                    elif subsection.lower() == "home":
+                        self.assertIn("Home task", output)
+                        
+                finally:
+                    sys.stdout = old_stdout
 
 
 class TestTaskFormatter(unittest.TestCase):
