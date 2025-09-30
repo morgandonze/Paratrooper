@@ -116,6 +116,13 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 - Use `pt init` to create your task file with proper structure
 - No more manual file creation - the paratrooper handles it all!
 
+### 7. **Advanced Task Management**
+- **Task editing**: `pt edit ID "new text"` - Modify task descriptions
+- **Task moving**: `pt move ID SECTION` - Reorganize tasks between sections
+- **Task reopening**: `pt reopen ID` / `pt undone ID` - Mark completed tasks as incomplete
+- **Recurrence modification**: `pt recur ID PATTERN` - Change recurring patterns
+- **File editing**: `pt open` - Open task file with configured editor
+
 ## 🛠️ Commands
 
 ### Configuration
@@ -131,6 +138,8 @@ pt init               # Initialize task file with default structure
 pt daily              # Add today's section with recurring tasks
 pt status             # Show oldest tasks from MAIN section (default: 5 tasks)
 pt status 10          # Show 10 oldest tasks
+pt status WORK        # Show oldest tasks from WORK section
+pt status WORK 3      # Show 3 oldest tasks from WORK section
 pt sync               # Update MAIN from daily progress
 ```
 
@@ -174,18 +183,30 @@ pt add "annual review (recur:1y)" FINANCE
 ### Task Status
 ```bash
 pt done 042          # Mark task #042 as complete
-pt pass 042           # Mark progress [~] on task in daily section
-pt snooze 042 3       # Hide task #042 for 3 days
+pt reopen 042        # Reopen completed task (mark as incomplete)
+pt undone 042        # Alias for reopen
+pt pass 042          # Mark progress [~] on task in daily section
+pt snooze 042 3      # Hide task #042 for 3 days
 pt snooze 042 25-12-2025 # Hide until specific date
+pt recur 042 daily   # Modify task recurrence pattern
 ```
 
 ### Organization
 ```bash
-pt show 042          # Show task details
-pt sections          # List all available sections
-pt delete 042        # Delete from main list only
-pt down 042          # Remove from today's daily section
-pt purge 042         # Delete from everywhere
+pt list              # List all tasks from main sections
+pt list WORK         # List tasks in WORK section
+pt list WORK:OFFICE  # List tasks in WORK:OFFICE subsection
+pt show 042         # Show task details by ID
+pt show WORK        # Show tasks in WORK section
+pt show *:OFFICE    # Show tasks from all sections with OFFICE subsection
+pt sections         # List all available sections
+pt edit 042 "new text" # Edit task text by ID
+pt move 042 WORK    # Move task to new section
+pt open             # Open tasks file with configured editor
+pt open vim          # Open tasks file with specific editor
+pt delete 042       # Delete from main list only
+pt down 042         # Remove from today's daily section
+pt purge 042        # Delete from everywhere
 ```
 
 ## 📝 Task Syntax
@@ -306,6 +327,8 @@ pt sync               # Updates main list from daily progress
 
 # Weekly planning
 pt status             # See what's been neglected
+pt list WORK          # Review all work tasks
+pt show 023           # Check details of specific task
 ```
 
 ## 🏃‍♂️ Setting Up Your Recurring Tasks
@@ -430,6 +453,8 @@ All tests pass, confirming the system works as documented.
 2. Make it executable: `chmod +x paratrooper.py`
 3. Set up alias (add to your `~/.bashrc` or `~/.zshrc`): `alias pt='python3 paratrooper.py'`
 4. Run `pt init` to create your first task file
+
+**Note**: The help text in the code shows `tasks` as the command name, but the README uses `pt` as the alias. Both work - use whichever you prefer!
 
 ---
 
