@@ -496,9 +496,20 @@ class DailyOperations:
         # Process each task in the daily section
         for task in most_recent_tasks:
             if task.status == 'x':  # Completed
-                # Find the corresponding task in main section
+                # Find the corresponding task in main section only
+                task_found = False
+                in_main_section = False
                 for i, line in enumerate(lines):
-                    if f"#{task.id}" in line and self.file_ops._is_task_line(line):
+                    # Check if we're in the main section
+                    if line.strip() == '# MAIN':
+                        in_main_section = True
+                        continue
+                    elif line.strip() == '# DAILY' or line.strip() == '# ARCHIVE':
+                        in_main_section = False
+                        continue
+                    
+                    # Only process tasks in the main section
+                    if in_main_section and f"#{task.id}" in line and self.file_ops._is_task_line(line):
                         # Check if it's a recurring task
                         if task.recurring:
                             # For recurring tasks, just update the date
@@ -510,17 +521,36 @@ class DailyOperations:
                         
                         lines[i] = updated_line
                         completed_count += 1
+                        task_found = True
                         break
+                
+                if not task_found:
+                    print(f"Warning: Could not find task #{task.id} in main sections to sync")
             
             elif task.status == '~':  # Progress
-                # Find the corresponding task in main section
+                # Find the corresponding task in main section only
+                task_found = False
+                in_main_section = False
                 for i, line in enumerate(lines):
-                    if f"#{task.id}" in line and self.file_ops._is_task_line(line):
+                    # Check if we're in the main section
+                    if line.strip() == '# MAIN':
+                        in_main_section = True
+                        continue
+                    elif line.strip() == '# DAILY' or line.strip() == '# ARCHIVE':
+                        in_main_section = False
+                        continue
+                    
+                    # Only process tasks in the main section
+                    if in_main_section and f"#{task.id}" in line and self.file_ops._is_task_line(line):
                         # Update the date to show recent engagement
                         updated_line = self.file_ops._update_task_date(line)
                         lines[i] = updated_line
                         progressed_count += 1
+                        task_found = True
                         break
+                
+                if not task_found:
+                    print(f"Warning: Could not find task #{task.id} in main sections to sync")
         
         # Write back to file
         self.file_ops.write_file('\n'.join(lines))

@@ -282,18 +282,33 @@ class FileOperations:
     def _update_task_date(self, line):
         """Update the date in a task line to today"""
         if ' | ' in line:
+            # Handle pipe-separated format: - [x] | task | section | date | recurring
             parts = line.split(' | ')
-            text_part = parts[0]
-            metadata_part = parts[1]
             
-            # Replace existing date or add new date
-            if '@' in metadata_part:
-                metadata_part = re.sub(r'@\d{2}-\d{2}-\d{4}', f'@{self.today}', metadata_part)
+            # Find the date field (usually at index 3, but could be at 2 if no section)
+            # Look for date patterns with or without @ prefix
+            date_field_index = None
+            for i, part in enumerate(parts):
+                if re.match(r'@?\d{2}-\d{2}-\d{4}', part.strip()):
+                    date_field_index = i
+                    break
+            
+            if date_field_index is not None:
+                # Replace existing date (without @ prefix in new format)
+                parts[date_field_index] = self.today
             else:
-                metadata_part = f"@{self.today} {metadata_part}"
+                # Add date field - determine where to insert it
+                # Format: - [x] | task | section | date | recurring
+                if len(parts) >= 3:
+                    # Insert date after section (index 2)
+                    parts.insert(3, self.today)
+                else:
+                    # Add date at the end
+                    parts.append(self.today)
             
-            return f"{text_part} | {metadata_part}"
+            return ' | '.join(parts)
         else:
+            # Handle old format without pipes
             return f"{line} | @{self.today}"
     
     def _mark_task_complete(self, line):
