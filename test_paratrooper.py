@@ -385,7 +385,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Check that task has future date (snoozing)
         content = self.tm.read_file()
-        self.assertIn("21-09-2025", content)  # 3 days from test date
+        self.assertIn("03-10-2025", content)  # 3 days from test date
     
     def test_archive_old_content(self):
         """Test archiving old content"""
@@ -554,15 +554,15 @@ class TestTaskManager(unittest.TestCase):
         content = f"""# DAILY
 
 ## {yesterday}
-- [x] Old task from WORK #001
+- [x] #001 | Old task | WORK | {yesterday}
 
 ## {today}
-- [ ] New task from WORK #002
+- [ ] #002 | New task | WORK | {today}
 
 # MAIN
 
 ## WORK
-- [ ] New task | @{today} #002
+- [ ] #002 | New task | WORK | {today}
 
 # ARCHIVE
 """
@@ -591,15 +591,15 @@ class TestTaskManager(unittest.TestCase):
         content = f"""# DAILY
 
 ## {yesterday}
-- [x] Old task from WORK #001
+- [x] #001 | Old task | WORK | {yesterday}
 
 ## {today}
-- [ ] New task from WORK #002
+- [ ] #002 | New task | WORK | {today}
 
 # MAIN
 
 ## WORK
-- [ ] New task | @{today} #002
+- [ ] #002 | New task | WORK | {today}
 
 # ARCHIVE
 """
@@ -636,15 +636,15 @@ class TestTaskManager(unittest.TestCase):
         content = f"""# DAILY
 
 ## {yesterday}
-- [x] Old task from WORK #001
+- [x] #001 | Old task | WORK | {yesterday}
 
 ## {today}
-- [ ] New task from WORK #002
+- [ ] #002 | New task | WORK | {today}
 
 # MAIN
 
 ## WORK
-- [ ] New task | @{today} #002
+- [ ] #002 | New task | WORK | {today}
 
 # ARCHIVE
 """
@@ -857,8 +857,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn("## TASKS", final_content)
         
         # Should have the task in the Tasks subsection
-        self.assertIn("- [ ] Test | @", final_content)
-        self.assertIn("#001", final_content)
+        self.assertIn("- [ ] #001 | Test | TASKS |", final_content)
         
         # Verify the structure is correct by checking the order
         lines = final_content.split('\n')

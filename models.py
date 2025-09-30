@@ -307,7 +307,7 @@ class TaskFile:
         lines.append('# ARCHIVE')
         lines.append('')
         
-        # Archive sections - include all non-recent daily sections
+        # Archive sections - show all archived sections and move non-recent daily sections
         if self.archive_sections or (self.daily_sections and len(self.daily_sections) > 1):
             # Add all non-recent daily sections to archive
             if self.daily_sections and len(self.daily_sections) > 1:
