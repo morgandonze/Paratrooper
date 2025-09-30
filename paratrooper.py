@@ -391,7 +391,7 @@ class Paratrooper:
         # Check for recurring pattern in text
         recurring_pattern = self._extract_recurrence_pattern(task_text)
         if recurring_pattern:
-            recurring = f"({recurring_pattern})"
+            recurring = recurring_pattern  # No parentheses in new format
             # Remove the pattern from the task text
             task_text = re.sub(r'\s*\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)', '', task_text).strip()
         else:

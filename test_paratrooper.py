@@ -947,7 +947,7 @@ class TestTaskManager(unittest.TestCase):
 # MAIN
 
 ## WORK
-- [ ] Existing task | @18-09-2025 #001
+- [ ] #001 | Existing task | WORK | 18-09-2025
 
 # ARCHIVE
 """
@@ -1050,11 +1050,21 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("morning workout", content)
         
         # Complete the workout in daily section
-        # Find the workout task ID using the proper method
-        line_num, workout_task_line = self.tm.find_task_by_id("001")
-        self.assertIsNotNone(workout_task_line, "Workout task should be found")
+        # Find the workout task ID in the daily section specifically
+        content = self.tm.read_file()
+        daily_section_start = content.find("# DAILY")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
         
-        self.tm.complete_task("001")
+        lines = daily_section.split('\n')
+        workout_task_id = None
+        for line in lines:
+            if 'morning workout' in line and '#' in line:
+                workout_task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(workout_task_id, "Workout task ID should be found in daily section")
+        self.tm.complete_task(workout_task_id)
         
         # Sync
         self.tm.sync_daily_sections()
@@ -1063,7 +1073,7 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section = content[main_section_start:]
-        self.assertIn("- [x] morning workout | 30-09-2025", main_section)
+        self.assertIn(f"- [ ] #{workout_task_id} | morning workout | HEALTH | 30-09-2025 | daily", main_section)
 
 
 class TestCaseInsensitiveSections(unittest.TestCase):
