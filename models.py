@@ -49,12 +49,17 @@ class Config:
     def load(cls, config_path: Optional[Path] = None) -> 'Config':
         """Load configuration from file or create default"""
         if config_path is None:
-            # Check for local .ptconfig first, then global config
-            local_config = Path('.ptconfig')
-            if local_config.exists():
-                config_path = local_config
+            # Check for global config first, then local .ptconfig as fallback
+            global_config = Path(os.environ.get('PTCONFIG', '~/.ptconfig')).expanduser()
+            if global_config.exists():
+                config_path = global_config
             else:
-                config_path = Path(os.environ.get('PTCONFIG', '~/.ptconfig')).expanduser()
+                # Fall back to local .ptconfig if global doesn't exist
+                local_config = Path('.ptconfig')
+                if local_config.exists():
+                    config_path = local_config
+                else:
+                    config_path = global_config
         
         # Default configuration
         default_config = cls(
