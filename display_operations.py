@@ -43,6 +43,8 @@ class DisplayOperations:
         status = task_data.get('status', ' ')
         text = task_data.get('text', '')
         date_str = task_data.get('metadata', {}).get('date')
+        recurring = task_data.get('metadata', {}).get('recurring')
+        
         # Check if task is snoozed (date is in the future)
         if date_str:
             try:
@@ -58,7 +60,28 @@ class DisplayOperations:
             try:
                 task_date = datetime.strptime(date_str, "%d-%m-%Y")
                 today = datetime.now()
-                days_old = (today - task_date).days
+                
+                # For recurring tasks, calculate days based on expected next occurrence
+                if recurring and status == 'x':  # Completed recurring task
+                    # Check if there's an incomplete instance in daily section
+                    incomplete_daily_date = self._get_incomplete_daily_instance_date(task_data.get('metadata', {}).get('id'))
+                    
+                    if incomplete_daily_date:
+                        # Use the incomplete daily instance date
+                        days_old = (today - incomplete_daily_date).days
+                    else:
+                        # Calculate based on expected next occurrence
+                        expected_date = self._calculate_next_recurrence_date(recurring.strip('()'), date_str)
+                        if expected_date:
+                            days_old = (today - expected_date).days
+                            # If we're before the expected date, don't count as stale
+                            if days_old < 0:
+                                days_old = 0
+                        else:
+                            days_old = (today - task_date).days
+                else:
+                    # For non-recurring tasks or incomplete recurring tasks, use normal calculation
+                    days_old = (today - task_date).days
                 
                 if status == 'x':
                     return "complete", days_old, date_str
@@ -70,6 +93,169 @@ class DisplayOperations:
                 return "invalid_date", 0, date_str
         
         return "no_date", 0, "no_date"
+    
+    def _calculate_next_recurrence_date(self, recur_pattern, last_date):
+        """Calculate the expected next occurrence date for a recurring task"""
+        if not recur_pattern or not last_date:
+            return None
+        
+        try:
+            last_date_obj = datetime.strptime(last_date, "%d-%m-%Y")
+        except ValueError:
+            return None
+        
+        today = datetime.now()
+        
+        # Handle different recurrence patterns
+        if recur_pattern == "daily":
+            # Next occurrence is tomorrow after completion
+            return last_date_obj + timedelta(days=1)
+        elif recur_pattern == "weekdays":
+            # Next occurrence is next weekday after completion
+            next_date = last_date_obj + timedelta(days=1)
+            while next_date.weekday() >= 5:  # Skip weekends
+                next_date += timedelta(days=1)
+            return next_date
+        elif recur_pattern.startswith("weekly"):
+            if recur_pattern == "weekly":
+                # Default to Sunday
+                target_weekday = 6
+            else:
+                # Parse specific days: weekly:mon,wed,fri
+                day_part = recur_pattern.split(":", 1)[1]
+                day_map = {
+                    'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3,
+                    'fri': 4, 'sat': 5, 'sun': 6
+                }
+                
+                if ',' in day_part:
+                    # Multiple days - find next occurrence
+                    days = [day_map.get(day.strip()) for day in day_part.split(',')]
+                    days = [d for d in days if d is not None]
+                    if not days:
+                        return None
+                    # Find the next weekday that matches
+                    next_date = last_date_obj + timedelta(days=1)
+                    while next_date.weekday() not in days:
+                        next_date += timedelta(days=1)
+                    return next_date
+                else:
+                    # Single day
+                    target_weekday = day_map.get(day_part.strip())
+                    if target_weekday is None:
+                        return None
+            
+            # Calculate next occurrence of target weekday
+            days_ahead = target_weekday - last_date_obj.weekday()
+            if days_ahead <= 0:  # Target day already passed this week
+                days_ahead += 7
+            return last_date_obj + timedelta(days=days_ahead)
+            
+        elif recur_pattern.startswith("monthly"):
+            if recur_pattern == "monthly":
+                # Default to 1st of month
+                target_day = 1
+            else:
+                # Parse specific day: monthly:15th
+                day_part = recur_pattern.split(":", 1)[1]
+                if day_part.endswith('th'):
+                    target_day = int(day_part[:-2])
+                elif day_part.endswith('st'):
+                    target_day = int(day_part[:-2])
+                elif day_part.endswith('nd'):
+                    target_day = int(day_part[:-2])
+                elif day_part.endswith('rd'):
+                    target_day = int(day_part[:-2])
+                else:
+                    target_day = int(day_part)
+            
+            # Calculate next occurrence - always move to next month from completion date
+            if last_date_obj.month == 12:
+                next_year = last_date_obj.year + 1
+                next_month = 1
+            else:
+                next_year = last_date_obj.year
+                next_month = last_date_obj.month + 1
+            
+            # Handle month-end edge cases
+            try:
+                return datetime(next_year, next_month, target_day)
+            except ValueError:
+                # Target day doesn't exist in that month (e.g., Feb 30)
+                # Use the last day of the month
+                if next_month == 12:
+                    next_month = 1
+                    next_year += 1
+                else:
+                    next_month += 1
+                return datetime(next_year, next_month, 1) - timedelta(days=1)
+                
+        elif recur_pattern.startswith("recur:"):
+            # Custom recurrence: recur:3d, recur:2w, etc.
+            interval_part = recur_pattern.split(":", 1)[1]
+            
+            # Parse interval
+            if interval_part.endswith('d'):
+                days = int(interval_part[:-1])
+                return last_date_obj + timedelta(days=days)
+            elif interval_part.endswith('w'):
+                weeks = int(interval_part[:-1])
+                return last_date_obj + timedelta(weeks=weeks)
+            elif interval_part.endswith('m'):
+                months = int(interval_part[:-1])
+                # Simple month calculation
+                if last_date_obj.month + months > 12:
+                    next_year = last_date_obj.year + ((last_date_obj.month + months - 1) // 12)
+                    next_month = ((last_date_obj.month + months - 1) % 12) + 1
+                else:
+                    next_year = last_date_obj.year
+                    next_month = last_date_obj.month + months
+                
+                # Handle month-end edge cases
+                try:
+                    return datetime(next_year, next_month, last_date_obj.day)
+                except ValueError:
+                    # Use last day of month
+                    return datetime(next_year, next_month, 1) - timedelta(days=1)
+            elif interval_part.endswith('y'):
+                years = int(interval_part[:-1])
+                return last_date_obj.replace(year=last_date_obj.year + years)
+        
+        return None
+    
+    def _get_incomplete_daily_instance_date(self, task_id):
+        """Check if there's an incomplete instance of a recurring task in daily sections"""
+        if not task_id:
+            return None
+        
+        content = self.file_ops.read_file()
+        lines = content.split('\n')
+        
+        in_daily = False
+        current_daily_date = None
+        
+        for line in lines:
+            line_stripped = line.strip()
+            
+            if line_stripped == '# DAILY':
+                in_daily = True
+                continue
+            elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
+                in_daily = False
+                continue
+            
+            if in_daily and line_stripped.startswith('## '):
+                current_daily_date = line_stripped[3:].strip()
+                continue
+            
+            if (in_daily and current_daily_date and 
+                f"#{task_id}" in line and self.file_ops._is_task_line(line)):
+                # Found the task in daily section, check if it's incomplete
+                task_data = self.file_ops._parse_task_line(line)
+                if task_data and task_data.get('status') in [' ', '~']:  # Incomplete or progress
+                    return current_daily_date
+        
+        return None
     
     def show_status_tasks(self, scope=None, limit=5):
         """Show task status (staleness) with optional scope filtering and limit"""

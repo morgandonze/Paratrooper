@@ -2169,6 +2169,313 @@ class TestCLICommands(unittest.TestCase):
                 self.assertIn(task_text, content)
 
 
+class TestRecurringTaskStatusCalculation(unittest.TestCase):
+    """Test the recurring task status calculation functionality"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = TaskManager(config)
+        self.tm.init()
+        
+        # Import display operations for direct testing
+        from display_operations import DisplayOperations
+        from file_operations import FileOperations
+        
+        self.file_ops = FileOperations(self.task_file_path)
+        self.display_ops = DisplayOperations(self.file_ops, config)
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_calculate_next_recurrence_date_daily(self):
+        """Test next recurrence date calculation for daily tasks"""
+        # Daily tasks should recur the next day
+        last_date = "15-01-2025"
+        expected_date = self.display_ops._calculate_next_recurrence_date("daily", last_date)
+        self.assertIsNotNone(expected_date)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "16-01-2025")
+    
+    def test_calculate_next_recurrence_date_weekly(self):
+        """Test next recurrence date calculation for weekly tasks"""
+        # Weekly task completed on Wednesday should recur next Sunday (default)
+        last_date = "15-01-2025"  # Wednesday
+        expected_date = self.display_ops._calculate_next_recurrence_date("weekly", last_date)
+        self.assertIsNotNone(expected_date)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "19-01-2025")  # Sunday
+    
+    def test_calculate_next_recurrence_date_weekly_specific_day(self):
+        """Test next recurrence date calculation for weekly tasks with specific day"""
+        # Weekly task on Monday, completed on Wednesday
+        last_date = "15-01-2025"  # Wednesday
+        expected_date = self.display_ops._calculate_next_recurrence_date("weekly:mon", last_date)
+        self.assertIsNotNone(expected_date)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "20-01-2025")  # Monday
+    
+    def test_calculate_next_recurrence_date_monthly(self):
+        """Test next recurrence date calculation for monthly tasks"""
+        # Monthly task completed on 12th should recur on 12th of next month
+        last_date = "12-01-2025"
+        expected_date = self.display_ops._calculate_next_recurrence_date("monthly:12th", last_date)
+        self.assertIsNotNone(expected_date)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "12-02-2025")
+    
+    def test_calculate_next_recurrence_date_monthly_edge_case(self):
+        """Test monthly recurrence with month-end edge case"""
+        # Monthly task on 31st, completed on 31st of January
+        last_date = "31-01-2025"
+        expected_date = self.display_ops._calculate_next_recurrence_date("monthly:31st", last_date)
+        self.assertIsNotNone(expected_date)
+        # Should be 28th of February (last day of February)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "28-02-2025")
+    
+    def test_calculate_next_recurrence_date_custom_interval(self):
+        """Test next recurrence date calculation for custom intervals"""
+        # Every 3 days
+        last_date = "15-01-2025"
+        expected_date = self.display_ops._calculate_next_recurrence_date("recur:3d", last_date)
+        self.assertIsNotNone(expected_date)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "18-01-2025")
+        
+        # Every 2 weeks
+        expected_date = self.display_ops._calculate_next_recurrence_date("recur:2w", last_date)
+        self.assertIsNotNone(expected_date)
+        self.assertEqual(expected_date.strftime("%d-%m-%Y"), "29-01-2025")
+    
+    def test_get_task_status_info_completed_recurring_task_future_occurrence(self):
+        """Test status calculation for completed recurring task with next occurrence in future"""
+        # Create a task that was completed recently, with next occurrence in the future
+        task_data = {
+            'status': 'x',
+            'text': 'Monthly budget review',
+            'metadata': {
+                'id': '001',
+                'date': '12-09-2025',  # Completed on Sept 12
+                'recurring': '(monthly:12th)'
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should show 0 days old because next occurrence is in the future
+        self.assertEqual(status_type, "complete")
+        self.assertEqual(days_old, 0)
+        self.assertEqual(date_str, "12-09-2025")
+    
+    def test_get_task_status_info_completed_recurring_task_overdue(self):
+        """Test status calculation for completed recurring task that's overdue"""
+        # Create a task that was completed long ago and is overdue
+        task_data = {
+            'status': 'x',
+            'text': 'Monthly budget review',
+            'metadata': {
+                'id': '001',
+                'date': '12-08-2025',  # Completed on Aug 12
+                'recurring': '(monthly:12th)'
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should show days overdue from expected occurrence (Sept 12)
+        self.assertEqual(status_type, "complete")
+        self.assertGreater(days_old, 0)  # Should be overdue
+        self.assertEqual(date_str, "12-08-2025")
+    
+    def test_get_task_status_info_incomplete_recurring_task(self):
+        """Test status calculation for incomplete recurring task uses normal calculation"""
+        # Create an incomplete recurring task
+        task_data = {
+            'status': ' ',
+            'text': 'Daily workout',
+            'metadata': {
+                'id': '002',
+                'date': '25-09-2025',  # Last activity 5 days ago
+                'recurring': '(daily)'
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should use normal calculation for incomplete tasks
+        self.assertEqual(status_type, "incomplete")
+        self.assertGreater(days_old, 0)  # Should show actual days since last activity
+        self.assertEqual(date_str, "25-09-2025")
+    
+    def test_get_task_status_info_non_recurring_task(self):
+        """Test status calculation for non-recurring task uses normal calculation"""
+        # Create a non-recurring task
+        task_data = {
+            'status': 'x',
+            'text': 'One-time task',
+            'metadata': {
+                'id': '003',
+                'date': '25-09-2025',  # Completed 5 days ago
+                'recurring': None
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should use normal calculation for non-recurring tasks
+        self.assertEqual(status_type, "complete")
+        self.assertGreater(days_old, 0)  # Should show actual days since completion
+        self.assertEqual(date_str, "25-09-2025")
+    
+    def test_get_task_status_info_progress_recurring_task(self):
+        """Test status calculation for recurring task with progress status"""
+        # Create a recurring task with progress status
+        task_data = {
+            'status': '~',
+            'text': 'Weekly review',
+            'metadata': {
+                'id': '004',
+                'date': '25-09-2025',  # Last activity 5 days ago
+                'recurring': '(weekly:sun)'
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should use normal calculation for progress tasks
+        self.assertEqual(status_type, "progress")
+        self.assertGreater(days_old, 0)  # Should show actual days since last activity
+        self.assertEqual(date_str, "25-09-2025")
+    
+    def test_get_incomplete_daily_instance_date_no_daily_section(self):
+        """Test that incomplete daily instance check returns None when no daily section exists"""
+        # Test with no daily section
+        incomplete_date = self.display_ops._get_incomplete_daily_instance_date('001')
+        self.assertIsNone(incomplete_date)
+    
+    def test_get_incomplete_daily_instance_date_with_daily_section(self):
+        """Test incomplete daily instance check with actual daily section"""
+        # Add a task to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_main("Test task", "WORK")
+        self.tm.add_task_to_daily_by_id("001")
+        
+        # Check for incomplete instance
+        incomplete_date = self.display_ops._get_incomplete_daily_instance_date('001')
+        self.assertIsNotNone(incomplete_date)
+        self.assertEqual(incomplete_date, datetime.now().strftime("%d-%m-%Y"))
+    
+    def test_get_incomplete_daily_instance_date_completed_task(self):
+        """Test incomplete daily instance check with completed task in daily section"""
+        # Add a task to daily section and complete it
+        self.tm.add_daily_section()
+        self.tm.add_task_to_main("Test task", "WORK")
+        self.tm.add_task_to_daily_by_id("001")
+        self.tm.complete_task("001")
+        
+        # Check for incomplete instance - should return None since task is completed
+        incomplete_date = self.display_ops._get_incomplete_daily_instance_date('001')
+        self.assertIsNone(incomplete_date)
+    
+    def test_recurring_task_status_integration(self):
+        """Test the complete integration of recurring task status calculation"""
+        # Add a monthly recurring task
+        self.tm.add_task_to_main("Monthly budget review (monthly:12th)", "FINANCE")
+        
+        # Complete the task
+        self.tm.complete_task("001")
+        
+        # Test status calculation through the full system
+        # This tests the integration with the actual task file
+        content = self.file_ops.read_file()
+        self.assertIn("Monthly budget review", content)
+        self.assertIn("monthly:12th", content)
+        
+        # The status should be calculated correctly when showing status
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.show_status_tasks()
+            output = captured_output.getvalue()
+            
+            # Should not crash and should show the task
+            self.assertIn("Monthly budget review", output)
+            
+        finally:
+            sys.stdout = old_stdout
+    
+    def test_multiple_recurring_patterns_status_calculation(self):
+        """Test status calculation with multiple different recurring patterns"""
+        patterns = [
+            ("daily", "Daily workout"),
+            ("weekly:sun", "Weekly review"),
+            ("monthly:15th", "Monthly budget"),
+            ("recur:3d", "Every 3 days task")
+        ]
+        
+        for pattern, task_text in patterns:
+            with self.subTest(pattern=pattern):
+                task_data = {
+                    'status': 'x',
+                    'text': task_text,
+                    'metadata': {
+                        'id': '001',
+                        'date': '25-09-2025',
+                        'recurring': f'({pattern})'
+                    }
+                }
+                
+                status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+                
+                # Should not crash and should return valid results
+                self.assertIn(status_type, ["complete", "incomplete", "progress", "snoozed", "no_date"])
+                self.assertGreaterEqual(days_old, 0)
+                self.assertEqual(date_str, "25-09-2025")
+    
+    def test_edge_case_invalid_recurrence_pattern(self):
+        """Test handling of invalid recurrence patterns"""
+        task_data = {
+            'status': 'x',
+            'text': 'Task with invalid pattern',
+            'metadata': {
+                'id': '001',
+                'date': '25-09-2025',
+                'recurring': '(invalid:pattern)'
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should fall back to normal calculation
+        self.assertEqual(status_type, "complete")
+        self.assertGreater(days_old, 0)
+        self.assertEqual(date_str, "25-09-2025")
+    
+    def test_edge_case_invalid_date_format(self):
+        """Test handling of invalid date formats"""
+        task_data = {
+            'status': 'x',
+            'text': 'Task with invalid date',
+            'metadata': {
+                'id': '001',
+                'date': 'invalid-date',
+                'recurring': '(monthly:12th)'
+            }
+        }
+        
+        status_type, days_old, date_str = self.display_ops._get_task_status_info(task_data)
+        
+        # Should handle gracefully
+        self.assertEqual(status_type, "invalid_date")
+        self.assertEqual(days_old, 0)
+        self.assertEqual(date_str, "invalid-date")
+
+
 def run_tests():
     """Run all tests"""
     # Create test suite
@@ -2189,6 +2496,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestDisplayOperationsFix))
     suite.addTests(loader.loadTestsFromTestCase(TestRecurringTaskBugFix))
     suite.addTests(loader.loadTestsFromTestCase(TestCLICommands))
+    suite.addTests(loader.loadTestsFromTestCase(TestRecurringTaskStatusCalculation))
     
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)

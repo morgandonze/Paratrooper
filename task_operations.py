@@ -334,21 +334,25 @@ class TaskOperations:
             print(f"Task #{task_id} not found")
             return
         
-        # Parse the current task
-        task_data = self.file_ops._parse_task_line(line_content)
-        if not task_data:
+        # Parse the current task using Task.from_markdown to get all fields including section
+        original_task = Task.from_markdown(line_content)
+        if not original_task:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Build new task line with updated recurrence using new format
-        task = Task(
-            id=task_data['metadata'].get('id'),
-            text=task_data['text'],
-            status=task_data['status'],
-            date=task_data['metadata'].get('date'),
-            recurring=f"({new_recurrence})"
+        # Create new task with updated recurrence but preserving all other fields
+        updated_task = Task(
+            id=original_task.id,
+            text=original_task.text,
+            status=original_task.status,
+            date=original_task.date,
+            recurring=f"({new_recurrence})",
+            section=original_task.section,
+            subsection=original_task.subsection,
+            is_daily=original_task.is_daily,
+            from_section=original_task.from_section
         )
-        updated_line = task.to_markdown()
+        updated_line = updated_task.to_markdown()
         
         content = self.file_ops.read_file()
         lines = content.split('\n')
