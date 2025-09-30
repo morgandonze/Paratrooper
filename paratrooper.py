@@ -15,13 +15,11 @@ All functionality is now in a single Paratrooper class for simplicity.
 import re
 import subprocess
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List
 
 from models import (
     Config, Task, Section, TaskFile, TODAY,
-    TASK_STATUS_PATTERN, TASK_INCOMPLETE_PATTERN, TASK_COMPLETE_PATTERN, TASK_PROGRESS_PATTERN,
-    TASK_ID_PATTERN, DATE_PATTERN, RECURRING_PATTERN,
+    TASK_STATUS_PATTERN, TASK_ID_PATTERN, DATE_PATTERN, RECURRING_PATTERN,
     FORBIDDEN_TASK_CHARS
 )
 

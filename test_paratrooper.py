@@ -77,7 +77,7 @@ class TestTask(unittest.TestCase):
             section="TASKS"
         )
         markdown = task.to_markdown()
-        expected = "- [x] Test task | @15-01-2025 #001"
+        expected = "- [x] #001 | Test task | TASKS | 15-01-2025"
         self.assertEqual(markdown, expected)
     
     def test_task_from_markdown(self):

@@ -130,76 +130,77 @@ class Task:
     from_section: Optional[str] = None  # For daily tasks, shows where it came from
     
     def to_markdown(self) -> str:
-        """Convert task to markdown format"""
-        # Build the basic task line
-        status_part = f"- [{self.status}] {self.text}"
+        """Convert task to markdown format: - [status] #id | text | section | date | recurring"""
+        # Build the basic task line with ID first
+        status_part = f"- [{self.status}] #{self.id}"
         
-        # Add metadata parts
-        metadata_parts = []
-        if self.date:
-            metadata_parts.append(f"@{self.date}")
-        if self.recurring:
-            metadata_parts.append(self.recurring)
-        if self.id:
-            metadata_parts.append(f"#{self.id}")
+        # Add task text
+        text_part = f" | {self.text}"
         
-        # Combine with pipe separator if there are metadata parts
-        if metadata_parts:
-            metadata_part = " ".join(metadata_parts)
-            return f"{status_part} | {metadata_part}"
-        else:
-            return status_part
+        # Add section
+        section_part = f" | {self.section}" if self.section else ""
+        
+        # Add date
+        date_part = f" | {self.date}" if self.date else ""
+        
+        # Add recurring info
+        recurring_part = f" | {self.recurring}" if self.recurring else ""
+        
+        return f"{status_part}{text_part}{section_part}{date_part}{recurring_part}"
     
     @classmethod
     def from_markdown(cls, line: str, section: str = None, subsection: str = None) -> Optional['Task']:
-        """Parse a markdown line into a Task object using new format: - [status] text | @date #id"""
+        """Parse a markdown line into a Task object using format: - [status] #id | text | section | date | recurring"""
         if not line.strip().startswith('- ['):
             return None
         
-        # Extract status
-        status_match = re.match(r'- \[(.)\]\s*', line)
+        # Extract status and ID from the beginning
+        status_match = re.match(r'- \[(.)\]\s*#(\d+)', line)
         if not status_match:
             return None
         status = status_match.group(1)
+        task_id = status_match.group(2)
         
-        # Split by pipes to get parts
+        # Split by pipes to get the remaining parts
         parts = line.split(' | ')
-        if len(parts) < 1:
+        if len(parts) < 2:
             return None
         
-        # First part contains the status and text
+        # First part contains status and ID only
         first_part = parts[0]
-        # Remove the status part to get just the text
-        text = first_part.replace(f'- [{status}]', '').strip()
+        # Remove the status and ID part to get just the text (should be empty)
+        text = first_part.replace(f'- [{status}] #{task_id}', '').strip()
         
-        # Parse metadata from remaining parts
-        task_id = None
-        date = None
-        recurring = None
+        # Parse the remaining parts in order: text, section, date, recurring
+        remaining_parts = parts[1:]  # Skip the first part which contains status and ID
         
-        for part in parts[1:]:
-            part = part.strip()
-            if part.startswith('@'):
-                # Check if this part also contains an ID
-                if '#' in part:
-                    # Split by # to separate date and ID
-                    date_part, id_part = part.split('#', 1)
-                    date = date_part[1:].strip()  # Remove @ prefix and strip whitespace
-                    task_id = id_part.strip()
-                else:
-                    date = part[1:]  # Remove @ prefix
-            elif part.startswith('#'):
-                task_id = part[1:]  # Remove # prefix
-            elif part.startswith('(') and part.endswith(')'):
-                recurring = part  # Keep the parentheses
+        parsed_section = section.upper() if section else None
+        parsed_date = None
+        parsed_recurring = None
+        
+        if len(remaining_parts) >= 1:
+            text = remaining_parts[0].strip()  # First remaining part is the text
+        if len(remaining_parts) >= 2:
+            parsed_section = remaining_parts[1].strip().upper()
+        if len(remaining_parts) >= 3:
+            parsed_date = remaining_parts[2].strip()
+        if len(remaining_parts) >= 4:
+            parsed_recurring = remaining_parts[3].strip()
+            # Add parentheses if not present for recurring patterns
+            if parsed_recurring and not parsed_recurring.startswith('('):
+                parsed_recurring = f"({parsed_recurring})"
+        
+        # Use provided section if no section found in parsing
+        if not parsed_section and section:
+            parsed_section = section.upper()
         
         return cls(
             id=task_id,
             text=text,
             status=status,
-            date=date,
-            recurring=recurring,
-            section=section.upper() if section else None,
+            date=parsed_date,
+            recurring=parsed_recurring,
+            section=parsed_section,
             subsection=subsection
         )
 
