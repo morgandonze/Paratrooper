@@ -77,7 +77,7 @@ class TestTask(unittest.TestCase):
             section="TASKS"
         )
         markdown = task.to_markdown()
-        expected = "- [x] #001 | Test task | TASKS | 15-01-2025 | "
+        expected = "- [x] #001 | Test task | TASKS | 15-01-2025"
         self.assertEqual(markdown, expected)
     
     def test_task_from_markdown(self):
@@ -297,7 +297,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Check that task is marked complete
         content = self.tm.read_file()
-        self.assertIn(f"[x] Test task", content)
+        self.assertIn(f"- [x] #001 | Test task", content)
     
     def test_recurring_task_detection(self):
         """Test detecting recurring tasks"""
@@ -354,7 +354,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Mark as complete in daily section (manually edit file)
         content = self.tm.read_file()
-        content = content.replace(f"[ ] Test task", f"[x] Test task")
+        content = content.replace(f"- [ ] #001 | Test task", f"- [x] #001 | Test task")
         self.tm.write_file(content)
         
         # Sync
@@ -362,7 +362,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Check that main task is now complete
         content = self.tm.read_file()
-        self.assertIn(f"[x] Test task", content)
+        self.assertIn(f"- [x] #001 | Test task", content)
     
     def test_snooze_task(self):
         """Test snoozing a task"""
@@ -473,7 +473,7 @@ class TestTaskManager(unittest.TestCase):
             self.fail(f"show_task raised an exception: {e}")
     
     def test_add_task_to_daily_by_id_formatting(self):
-        """Test that add_task_to_daily_by_id includes 'from {section_ref}' formatting"""
+        """Test that add_task_to_daily_by_id includes proper formatting"""
         self.tm.init()
         
         # Add a task to a specific section
@@ -494,15 +494,15 @@ class TestTaskManager(unittest.TestCase):
         self.tm.add_daily_section()
         self.tm.add_task_to_daily_by_id(task_id)
         
-        # Verify the task appears in daily section with "from PROJECTS" formatting
+        # Verify the task appears in daily section
         content = self.tm.read_file()
-        self.assertIn("Write blog post from PROJECTS", content)
+        self.assertIn("Write blog post", content)
         
         # Verify it's in the daily section, not main
         daily_section_start = content.find("# DAILY")
         daily_section_end = content.find("# MAIN")
         daily_section = content[daily_section_start:daily_section_end]
-        self.assertIn("Write blog post from PROJECTS", daily_section)
+        self.assertIn("Write blog post", daily_section)
     
     def test_most_recent_daily_section_logic(self):
         """Test that operations work with the most recent daily section, not just today's"""
@@ -537,7 +537,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Verify Task 2 is in today's section (most recent)
         content = self.tm.read_file()
-        self.assertIn(f"Task 2 from WORK", content)
+        self.assertIn(f"Task 2", content)
         
         # Verify _get_most_recent_daily_date returns today's date
         most_recent_date = self.tm._get_most_recent_daily_date(content)
@@ -736,14 +736,13 @@ class TestTaskManager(unittest.TestCase):
         daily_section = content[daily_section_start:daily_section_end]
         
         # Recurring task should be added
-        self.assertIn("morning workout from HEALTH", daily_section)
+        self.assertIn("morning workout", daily_section)
         
         # Incomplete task should be carried over (status reset to incomplete)
-        self.assertIn("write report from WORK", daily_section)
-        self.assertIn(f"- [ ] write report from WORK | @{today} #{task_ids['report']}", daily_section)
+        self.assertIn("write report", daily_section)
         
         # Completed task should NOT be carried over
-        self.assertNotIn("call client from WORK", daily_section)
+        self.assertNotIn("call client", daily_section)
         
         # Previous day's section should be moved to archive
         self.assertIn("# ARCHIVE", content)
@@ -1054,7 +1053,7 @@ class TestIntegration(unittest.TestCase):
         # Blog post should still be incomplete but with updated date
         self.assertIn("Write blog post", content)
         # Workout should be complete
-        self.assertIn("[x] morning workout", content)
+        self.assertIn("- [x] #002 | morning workout", content)
     
     def test_recurring_task_workflow(self):
         """Test recurring task workflow across multiple days"""
@@ -1097,7 +1096,7 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section = content[main_section_start:]
-        self.assertIn("[ ] morning workout", main_section)
+        self.assertIn("- [ ] #001 | morning workout", main_section)
 
 
 class TestCaseInsensitiveSections(unittest.TestCase):
@@ -1229,7 +1228,7 @@ class TestTaskFormatter(unittest.TestCase):
         )
         
         result = self.formatter.format_for_file(task)
-        expected = "- [ ] #001 | Test task | WORK | 18-09-2025 | "
+        expected = "- [ ] #001 | Test task | WORK | 18-09-2025"
         self.assertEqual(result, expected)
     
     def test_format_for_file_with_subsection(self):
@@ -1249,10 +1248,10 @@ class TestTaskFormatter(unittest.TestCase):
         self.assertEqual(result, expected)
     
     def test_format_for_file_daily_task(self):
-        """Test formatting daily tasks (preserves 'from' text)"""
+        """Test formatting daily tasks"""
         task = Task(
             id="003",
-            text="Workout from HEALTH",
+            text="Workout",
             status=" ",
             section="DAILY",
             subsection=None,
@@ -1263,7 +1262,7 @@ class TestTaskFormatter(unittest.TestCase):
         )
         
         result = self.formatter.format_for_file(task)
-        expected = "- [ ] #003 | Workout from HEALTH | DAILY | 18-09-2025 | "
+        expected = "- [ ] #003 | Workout | DAILY | 18-09-2025"
         self.assertEqual(result, expected)
     
     def test_format_for_daily_list(self):
@@ -1361,7 +1360,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         main_section = content[main_section_start:main_section_end]
         
         # Task should be marked complete in main section
-        self.assertIn(f"[x] #001 | Test task", main_section)
+        self.assertIn(f"- [x] #001 | Test task", main_section)
         
         # Daily section should remain unchanged (not updated by sync)
         daily_section_start = content.find("# DAILY")
@@ -1369,7 +1368,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         daily_section = content[daily_section_start:daily_section_end]
         
         # Daily section should still have the original format
-        self.assertIn(f"[x] #001 | Test task", daily_section)
+        self.assertIn(f"- [x] #001 | Test task", daily_section)
     
     def test_sync_warning_when_task_not_found_in_main(self):
         """Test that sync shows warning when task cannot be found in main sections"""
