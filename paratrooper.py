@@ -900,9 +900,7 @@ class Paratrooper:
         task_file = self.parse_file()
         
         # Check if today's section already exists
-        if self.today in task_file.daily_sections:
-            # Instead of just printing an error, show the daily list
-            return "show_daily_list"
+        section_already_exists = self.today in task_file.daily_sections
         
         # Get recurring tasks for today
         recurring_tasks = self.get_recurring_tasks()
@@ -916,7 +914,45 @@ class Paratrooper:
                 if most_recent_date and most_recent_date != self.today:
                     unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
         
-        # Create today's daily section
+        if section_already_exists:
+            # If section already exists, just add missing recurring tasks
+            existing_tasks = task_file.daily_sections[self.today]
+            existing_task_ids = {task.id for task in existing_tasks}
+            
+            # Get IDs of unfinished tasks to avoid duplication
+            unfinished_task_ids = {task.id for task in unfinished_tasks}
+            
+            # Add recurring tasks that aren't already in the daily section
+            new_recurring_tasks = []
+            for recurring_task in recurring_tasks:
+                if (recurring_task['id'] not in existing_task_ids and 
+                    recurring_task['id'] not in unfinished_task_ids):
+                    task_text = recurring_task['text']
+                    task = Task(
+                        id=recurring_task['id'],
+                        text=task_text,
+                        status=" ",
+                        date=self.today,
+                        recurring=recurring_task['recurring'],
+                        section=recurring_task['section'],
+                        is_daily=True,
+                        from_section=recurring_task['section']
+                    )
+                    # Add to the beginning of the existing tasks
+                    existing_tasks.insert(0, task)
+                    new_recurring_tasks.append(task)
+            
+            # Write back to file
+            self.write_file_from_objects(task_file)
+            
+            if new_recurring_tasks:
+                print(f"Added {len(new_recurring_tasks)} new recurring tasks to today's daily section")
+            else:
+                print("No new recurring tasks to add to today's daily section")
+            
+            return "show_daily_list"
+        
+        # Create today's daily section (original logic for new sections)
         today_tasks = []
         
         # Get IDs of unfinished tasks to avoid duplication

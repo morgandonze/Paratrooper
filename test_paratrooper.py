@@ -2452,6 +2452,67 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
         self.assertEqual(days_old, 0)
         self.assertEqual(date_str, "invalid-date")
 
+    def test_daily_recurring_task_added_to_existing_daily_section(self):
+        """Test regression: daily recurring tasks are added to existing daily section
+        
+        Scenario:
+        1. No daily section existed for today
+        2. User creates a daily recurring task
+        3. User creates a task and uses `up`, which created the daily section
+        4. User runs `daily` and the daily recurring task should be added to today's daily section
+        """
+        self.tm.init()
+        
+        # Step 1: Add a daily recurring task to main section
+        self.tm.add_task_to_main("morning workout (daily)", "HEALTH")
+        
+        # Step 2: Add a regular task to main section
+        self.tm.add_task_to_main("write report", "WORK")
+        
+        # Step 3: Use 'up' command to add the regular task to daily section
+        # This creates today's daily section
+        self.tm.add_task_to_daily_by_id("002")
+        
+        # Verify daily section was created with the regular task
+        content = self.tm.read_file()
+        today = datetime.now().strftime("%d-%m-%Y")
+        self.assertIn(f"## {today}", content)
+        
+        # Check that only the regular task is in daily section (not the recurring task yet)
+        daily_section_start = content.find(f"## {today}")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        self.assertIn("write report", daily_section)
+        self.assertNotIn("morning workout", daily_section)
+        
+        # Step 4: Run 'daily' command - this should add the recurring task to existing daily section
+        result = self.tm.add_daily_section()
+        
+        # Should return "show_daily_list" since section already existed
+        self.assertEqual(result, "show_daily_list")
+        
+        # Verify the recurring task was added to the existing daily section
+        content = self.tm.read_file()
+        daily_section_start = content.find(f"## {today}")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        # Both tasks should now be in the daily section
+        self.assertIn("morning workout", daily_section)
+        self.assertIn("write report", daily_section)
+        
+        # The recurring task should be at the top (inserted at position 0)
+        daily_lines = daily_section.strip().split('\n')
+        task_lines = [line for line in daily_lines if line.strip().startswith('- [')]
+        
+        # First task should be the recurring task
+        self.assertIn("morning workout", task_lines[0])
+        self.assertIn("daily", task_lines[0])
+        
+        # Second task should be the regular task
+        self.assertIn("write report", task_lines[1])
+
 
 def run_tests():
     """Run all tests"""

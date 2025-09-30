@@ -60,23 +60,18 @@ def main():
         pt.progress_task_in_daily(args[1])
     elif command == "sync":
         pt.sync_daily_sections()
-    elif command == "add" and len(args) > 1:
-        # Parse section argument properly
-        # No predefined sections - any section name is valid
+    elif command == "add":
+        if len(args) != 3:
+            print("Error: 'add' command expects exactly 2 arguments: task_text and section")
+            print("Usage: t add \"task text (optional:recurrence)\" SECTION")
+            print("Example: t add \"Email ORG (weekly:fri)\" WORK")
+            return
         
-        # Check if last argument looks like a section (contains : or is uppercase or is a single word)
-        last_arg = args[-1]
+        # Parse arguments: task_text and section
+        task_text = args[1]
+        section = args[2].upper()
         
-        if ":" in last_arg or last_arg.isupper() or (len(last_arg) < 20 and not " " in last_arg and not last_arg.isdigit()):
-            # Last argument is a section/subsection
-            section = last_arg
-            task_text = " ".join(args[1:-1])
-        else:
-            # All arguments are task text
-            task_text = " ".join(args[1:])
-            section = "TASKS"
-        
-        pt.add_task_to_main(task_text, section.upper())
+        pt.add_task_to_main(task_text, section)
     elif command == "up" and len(args) > 1:
         pt.add_task_to_daily_by_id(args[1])
     elif command == "snooze" and len(args) > 2:
