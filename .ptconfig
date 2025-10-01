@@ -3,7 +3,7 @@
 
 [general]
 # Task file location (supports ~ for home directory)
-task_file = ./tasks.md
+task_file = ./sandbox_tasks.md
 
 # Default editor for 'open' command
 editor = nvim
