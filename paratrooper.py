@@ -1181,7 +1181,7 @@ class Paratrooper:
                     break
     
     def create_pass_entry(self, task_id, days_ago):
-        """Create a pass entry n days ago in the archive section to reduce days since activity calculation"""
+        """Create a pass entry M-N days ago in the archive section and update main task date"""
         # Find the task in main section
         line_number, line_content = self.find_task_by_id_in_main(task_id)
         
@@ -1195,15 +1195,19 @@ class Paratrooper:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Calculate the date to reduce staleness by n days
-        # If the task is currently X days old, create pass entry to make it appear (X-n) days old
+        # Calculate task age (M days)
         current_task_date = datetime.strptime(task_data['metadata']['date'], "%d-%m-%Y")
         today = datetime.now()
-        current_days_old = (today - current_task_date).days
+        task_age_days = (today - current_task_date).days
         
-        # Calculate target date to reduce staleness by days_ago
-        target_days_old = max(0, current_days_old - days_ago)  # Don't go negative
-        target_date = today - timedelta(days=target_days_old)
+        # Validate N is between 1 and M
+        if days_ago < 1 or days_ago > task_age_days:
+            print(f"Error: N must be between 1 and {task_age_days} (task age). Got {days_ago}")
+            return
+        
+        # Calculate target date: M-N days ago from today
+        target_days_ago = task_age_days - days_ago
+        target_date = today - timedelta(days=target_days_ago)
         target_date_str = target_date.strftime("%d-%m-%Y")
         
         # Create a pass entry task (marked as progressed)
@@ -1239,15 +1243,15 @@ class Paratrooper:
             task_file.archive_sections[target_date_str].append(pass_task)
             # Write back to file
             self.write_file_from_objects(task_file)
-            print(f"Created pass entry for task #{task_id} on {target_date_str} (reduces days since activity by {days_ago})")
+            print(f"Created pass entry for task #{task_id} on {target_date_str} (M-N={task_age_days}-{days_ago}={target_days_ago} days ago)")
         else:
             print(f"Pass entry for task #{task_id} on {target_date_str} already exists (skipping duplicate)")
         
-        # Always update the main task's date to reflect the pass entry (if it moves forward)
+        # Update the main task's date to the target date
         self._update_main_task_date_from_pass_entry(task_id, target_date_str)
     
     def _update_main_task_date_from_pass_entry(self, task_id, pass_entry_date):
-        """Update the main task's date to reflect the pass entry activity, but only if it moves forward"""
+        """Update the main task's date to the pass entry date"""
         # Find the task in main section
         line_number, line_content = self.find_task_by_id_in_main(task_id)
         
@@ -1261,31 +1265,8 @@ class Paratrooper:
             print(f"Warning: Could not parse task #{task_id} to update date")
             return
         
-        # Check if this pass entry date is more recent than the current main task date
-        # We only want to update the main task date if this pass entry represents more recent activity
-        from datetime import datetime
-        
-        current_date = task_data['metadata'].get('date')
-        
-        # If no current date, always update
-        if not current_date:
-            new_date = pass_entry_date
-        else:
-            # Compare dates - only update if pass entry date is more recent than current main task date
-            try:
-                current_date_obj = datetime.strptime(current_date, "%d-%m-%Y")
-                pass_entry_date_obj = datetime.strptime(pass_entry_date, "%d-%m-%Y")
-                
-                # Only update if the new pass entry date is more recent than current main task date
-                # (i.e., pass entry date is closer to today)
-                if pass_entry_date_obj > current_date_obj:
-                    new_date = pass_entry_date
-                else:
-                    # New pass entry date is older than current main task date, don't update
-                    return
-            except ValueError:
-                # If date parsing fails, use the pass entry date
-                new_date = pass_entry_date
+        # Always update the main task's date to the pass entry date
+        new_date = pass_entry_date
         
         # Create updated task with new date
         updated_task = Task(
