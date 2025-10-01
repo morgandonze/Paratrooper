@@ -1,0 +1,12 @@
+# Paratrooper Configuration File
+# Location: /Users/morgan/.ptconfig
+
+[general]
+# Task file location (supports ~ for home directory)
+task_file = ./tasks.md
+
+# Default editor for 'open' command
+editor = nvim
+
+# Carry over incomplete tasks from previous day (true/false)
+carry_over_enabled = true

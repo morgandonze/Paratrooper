@@ -874,24 +874,32 @@ class Paratrooper:
             
             interval_part = recur_pattern.split(":", 1)[1]
             
-            # Parse interval
-            if interval_part.endswith('d'):
-                days = int(interval_part[:-1])
-                days_since = (today - last_date).days
-                return days_since >= days
-            elif interval_part.endswith('w'):
-                weeks = int(interval_part[:-1])
-                days_since = (today - last_date).days
-                return days_since >= (weeks * 7)
-            elif interval_part.endswith('m'):
-                months = int(interval_part[:-1])
-                # Simple month calculation
-                months_since = (today.year - last_date.year) * 12 + (today.month - last_date.month)
-                return months_since >= months
-            elif interval_part.endswith('y'):
-                years = int(interval_part[:-1])
-                years_since = today.year - last_date.year
-                return years_since >= years
+            # Handle combination patterns (comma-separated intervals)
+            intervals = [interval.strip() for interval in interval_part.split(',')]
+            
+            # Convert all intervals to days and sum them up
+            total_days = 0
+            for interval in intervals:
+                if interval.endswith('d'):
+                    days = int(interval[:-1])
+                    total_days += days
+                elif interval.endswith('w'):
+                    weeks = int(interval[:-1])
+                    total_days += weeks * 7
+                elif interval.endswith('m'):
+                    months = int(interval[:-1])
+                    # Approximate months as 30 days for simplicity
+                    total_days += months * 30
+                elif interval.endswith('y'):
+                    years = int(interval[:-1])
+                    # Approximate years as 365 days for simplicity
+                    total_days += years * 365
+            
+            # Check if the total interval has been met
+            days_since = (today - last_date).days
+            # For new tasks (created today), they should immediately appear
+            # For existing tasks, check if the total interval has passed
+            return days_since >= total_days or days_since == 0
         
         return False
     

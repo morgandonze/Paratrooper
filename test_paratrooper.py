@@ -1833,12 +1833,14 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         # Test custom recurrence patterns
         test_cases = [
             # (pattern, days_ago, expected_result)
-            ("recur:1d", 0, False),  # Same day, needs 1 day
+            ("recur:1d", 0, True),   # Same day, new task should appear immediately
             ("recur:1d", 1, True),   # Yesterday, should recur
             ("recur:1d", 2, True),   # Day before yesterday, should recur
+            ("recur:3d", 0, True),   # Same day, new task should appear immediately
             ("recur:3d", 2, False),  # 2 days ago, needs 3
             ("recur:3d", 3, True),   # 3 days ago, should recur
             ("recur:3d", 4, True),   # 4 days ago, should recur
+            ("recur:1w", 0, True),  # Same day, new task should appear immediately
             ("recur:1w", 6, False),  # 6 days ago, needs 7
             ("recur:1w", 7, True),   # 7 days ago, should recur
             ("recur:1w", 8, True),   # 8 days ago, should recur
@@ -2018,6 +2020,77 @@ class TestRecurringTaskBugFix(unittest.TestCase):
                 # Custom recurrence should handle invalid dates gracefully
                 result = daily_ops.should_recur_today("recur:3d", invalid_date)
                 self.assertTrue(result, f"Custom recurrence should handle invalid date gracefully: {invalid_date}")
+    
+    def test_should_recur_today_combination_patterns(self):
+        """Test that combination recurrence patterns work with additive logic"""
+        from paratrooper import Paratrooper
+        from datetime import datetime, timedelta
+        
+        file_ops = Paratrooper(self.tm.config)
+        daily_ops = file_ops
+        
+        today = datetime.now()
+        
+        # Test combination patterns with additive logic
+        test_cases = [
+            # (pattern, days_ago, expected_result, description)
+            ("recur:1w,2d", 0, True, "New task with 1w,2d (9 days) should appear immediately"),
+            ("recur:1w,2d", 1, False, "1w,2d (9 days) from yesterday - not enough time"),
+            ("recur:1w,2d", 8, False, "1w,2d (9 days) from 8 days ago - not enough time"),
+            ("recur:1w,2d", 9, True, "1w,2d (9 days) from 9 days ago - should recur"),
+            ("recur:1w,2d", 10, True, "1w,2d (9 days) from 10 days ago - should recur"),
+            ("recur:2d,1w", 0, True, "New task with 2d,1w (9 days) should appear immediately"),
+            ("recur:2d,1w", 8, False, "2d,1w (9 days) from 8 days ago - not enough time"),
+            ("recur:2d,1w", 9, True, "2d,1w (9 days) from 9 days ago - should recur"),
+            ("recur:1m,2d", 0, True, "New task with 1m,2d (32 days) should appear immediately"),
+            ("recur:1m,2d", 30, False, "1m,2d (32 days) from 30 days ago - not enough time"),
+            ("recur:1m,2d", 32, True, "1m,2d (32 days) from 32 days ago - should recur"),
+        ]
+        
+        for pattern, days_ago, expected, description in test_cases:
+            with self.subTest(pattern=pattern, days_ago=days_ago):
+                last_date = (today - timedelta(days=days_ago)).strftime("%d-%m-%Y")
+                result = daily_ops.should_recur_today(pattern, last_date)
+                self.assertEqual(result, expected,
+                    f"{description}: Pattern {pattern} with last date {days_ago} days ago should return {expected}")
+    
+    def test_new_recurring_tasks_appear_immediately_in_daily(self):
+        """Test that new recurring tasks with periodic patterns appear immediately in daily section"""
+        from paratrooper import Paratrooper
+        
+        # Add a new recurring task
+        self.tm.add_task_to_main("Test new recurring task (recur:2d)", "TEST")
+        
+        # Get recurring tasks - should include the new task
+        recurring_tasks = self.tm.get_recurring_tasks()
+        
+        # Find our test task
+        test_task = None
+        for task in recurring_tasks:
+            if task['text'] == "Test new recurring task":
+                test_task = task
+                break
+        
+        self.assertIsNotNone(test_task, "New recurring task should be found in recurring tasks")
+        self.assertEqual(test_task['recurring'], 'recur:2d')
+        
+        # Add daily section and check if task appears
+        self.tm.add_daily_section()
+        
+        # Check if task appears in today's daily section
+        task_file = self.tm.parse_file()
+        today = self.tm.today
+        
+        if today in task_file.daily_sections:
+            daily_tasks = task_file.daily_sections[today]
+            task_found = False
+            for task in daily_tasks:
+                if task.text == "Test new recurring task":
+                    task_found = True
+                    self.assertEqual(task.recurring, 'recur:2d')
+                    break
+            
+            self.assertTrue(task_found, "New recurring task should appear in today's daily section")
 
 
 class TestCLICommands(unittest.TestCase):
