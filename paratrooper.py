@@ -1195,8 +1195,15 @@ class Paratrooper:
             print(f"Could not parse task #{task_id}")
             return
         
-        # Calculate the date n days ago
-        target_date = datetime.now() - timedelta(days=days_ago)
+        # Calculate the date to reduce staleness by n days
+        # If the task is currently X days old, create pass entry to make it appear (X-n) days old
+        current_task_date = datetime.strptime(task_data['metadata']['date'], "%d-%m-%Y")
+        today = datetime.now()
+        current_days_old = (today - current_task_date).days
+        
+        # Calculate target date to reduce staleness by days_ago
+        target_days_old = max(0, current_days_old - days_ago)  # Don't go negative
+        target_date = today - timedelta(days=target_days_old)
         target_date_str = target_date.strftime("%d-%m-%Y")
         
         # Create a pass entry task (marked as progressed)
@@ -1477,8 +1484,19 @@ class Paratrooper:
                         else:
                             days_old = (today - task_date).days
                 else:
-                    # For non-recurring tasks, use normal calculation
-                    days_old = (today - task_date).days
+                    # For non-recurring tasks, check for pass entries first
+                    pass_entry_date = self._get_incomplete_daily_instance_date(task_data.get('metadata', {}).get('id'))
+                    if pass_entry_date:
+                        # Use the pass entry date (it represents the most recent activity)
+                        try:
+                            pass_date_obj = datetime.strptime(pass_entry_date, "%d-%m-%Y")
+                            days_old = (today - pass_date_obj).days
+                        except ValueError:
+                            # Fall back to normal calculation if date parsing fails
+                            days_old = (today - task_date).days
+                    else:
+                        # For non-recurring tasks, use normal calculation
+                        days_old = (today - task_date).days
                 
                 if status == 'x':
                     return "complete", days_old, date_str
@@ -1621,7 +1639,7 @@ class Paratrooper:
         return None
     
     def _get_incomplete_daily_instance_date(self, task_id):
-        """Check if there's an incomplete instance of a recurring task in daily sections"""
+        """Check if there's an incomplete instance of a recurring task in daily sections or pass entries in archive"""
         if not task_id:
             return None
         
@@ -1629,30 +1647,51 @@ class Paratrooper:
         lines = content.split('\n')
         
         in_daily = False
+        in_archive = False
         current_daily_date = None
+        current_archive_date = None
+        
+        # Track the most recent activity date from both daily and archive sections
+        most_recent_activity_date = None
         
         for line in lines:
             line_stripped = line.strip()
             
             if line_stripped == '# DAILY':
                 in_daily = True
+                in_archive = False
                 continue
-            elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
+            elif line_stripped == '# ARCHIVE':
                 in_daily = False
+                in_archive = True
+                continue
+            elif line_stripped.startswith('# ') and line_stripped not in ['# DAILY', '# ARCHIVE']:
+                in_daily = False
+                in_archive = False
                 continue
             
             if in_daily and line_stripped.startswith('## '):
                 current_daily_date = line_stripped[3:].strip()
                 continue
+            elif in_archive and line_stripped.startswith('## '):
+                current_archive_date = line_stripped[3:].strip()
+                continue
             
+            # Check daily section for incomplete tasks
             if (in_daily and current_daily_date and 
                 f"#{task_id}" in line and self._is_task_line(line)):
-                # Found the task in daily section, check if it's incomplete
                 task_data = self._parse_task_line(line)
                 if task_data and task_data.get('status') in [' ', '~']:  # Incomplete or progress
-                    return current_daily_date
+                    most_recent_activity_date = current_daily_date
+            
+            # Check archive section for pass entries (progress status)
+            elif (in_archive and current_archive_date and 
+                  f"#{task_id}" in line and self._is_task_line(line)):
+                task_data = self._parse_task_line(line)
+                if task_data and task_data.get('status') == '~':  # Pass entries are marked as progress
+                    most_recent_activity_date = current_archive_date
         
-        return None
+        return most_recent_activity_date
     
     def show_status_tasks(self, scope=None, limit=5):
         """Show task status (staleness) with optional scope filtering and limit"""
