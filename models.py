@@ -21,7 +21,7 @@ TASK_STATUS_PATTERN = r'- \[.\] '
 TASK_INCOMPLETE_PATTERN = r'- \[ \] '
 TASK_COMPLETE_PATTERN = r'- \[x\] '
 TASK_PROGRESS_PATTERN = r'- \[~\] '
-TASK_ID_PATTERN = r'#(\d{3})'
+TASK_ID_PATTERN = r'#(\d+)'
 DATE_PATTERN = r'@(\d{2}-\d{2}-\d{4})'
 # SNOOZE_PATTERN removed - snoozing now handled by future dates
 RECURRING_PATTERN = r'\([^)]*(?:daily|weekly|monthly|recur:)[^)]*\)'

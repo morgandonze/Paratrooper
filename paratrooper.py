@@ -373,7 +373,12 @@ class Paratrooper:
         # Find the highest ID and increment
         max_id = max(int(id) for id in id_matches)
         next_id = max_id + 1
-        return f"{next_id:03d}"
+        
+        # Format with appropriate padding: 3 digits for 1-999, no padding for 1000+
+        if next_id <= 999:
+            return f"{next_id:03d}"
+        else:
+            return str(next_id)
     
     def add_task_to_main(self, task_text, section=None):
         """Add a task to the main list"""
