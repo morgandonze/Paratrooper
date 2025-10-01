@@ -2787,6 +2787,39 @@ class TestPassEntryFeature(unittest.TestCase):
         pass_entries = task_file.archive_sections[target_date_str]
         self.assertEqual(len(pass_entries), 1, "Should have exactly one pass entry")
     
+    def test_pass_entry_updates_main_task_date(self):
+        """Test that pass entry creation updates the main task's date"""
+        # Add a test task
+        self.tm.add_task_to_main("Test task for date update", "TEST")
+        
+        # Get the task ID
+        content = self.tm.read_file()
+        import re
+        id_matches = re.findall(r'#(\d{3})', content)
+        test_id = max(id_matches)
+        
+        # Get original task date
+        line_number, original_line = self.tm.find_task_by_id_in_main(test_id)
+        original_task_data = self.tm._parse_task_line(original_line)
+        original_date = original_task_data['metadata'].get('date')
+        
+        # Create pass entry 3 days ago
+        self.tm.create_pass_entry(test_id, 3)
+        
+        # Check that main task date was updated
+        line_number, updated_line = self.tm.find_task_by_id_in_main(test_id)
+        updated_task_data = self.tm._parse_task_line(updated_line)
+        updated_date = updated_task_data['metadata'].get('date')
+        
+        # The updated date should be different from original and should be 3 days ago
+        self.assertNotEqual(original_date, updated_date, "Main task date should have been updated")
+        
+        # Verify the date is 3 days ago
+        from datetime import datetime, timedelta
+        expected_date = datetime.now() - timedelta(days=3)
+        expected_date_str = expected_date.strftime('%d-%m-%Y')
+        self.assertEqual(updated_date, expected_date_str, "Main task date should be 3 days ago")
+    
     def test_pass_entry_cli_integration(self):
         """Test that the CLI correctly routes pass entry commands"""
         # This test verifies the CLI parsing logic works correctly

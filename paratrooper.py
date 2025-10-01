@@ -1226,7 +1226,41 @@ class Paratrooper:
         # Write back to file
         self.write_file_from_objects(task_file)
         
+        # Update the main task's date to reflect the pass entry
+        self._update_main_task_date_from_pass_entry(task_id, target_date_str)
+        
         print(f"Created pass entry for task #{task_id} on {target_date_str} (reduces days since activity by {days_ago})")
+    
+    def _update_main_task_date_from_pass_entry(self, task_id, pass_entry_date):
+        """Update the main task's date to reflect the pass entry activity"""
+        # Find the task in main section
+        line_number, line_content = self.find_task_by_id_in_main(task_id)
+        
+        if not line_content:
+            print(f"Warning: Could not find task #{task_id} in main section to update date")
+            return
+        
+        # Parse the current task
+        task_data = self._parse_task_line(line_content)
+        if not task_data:
+            print(f"Warning: Could not parse task #{task_id} to update date")
+            return
+        
+        # Create updated task with new date
+        updated_task = Task(
+            id=task_id,
+            text=task_data['text'],
+            status=task_data['status'],
+            date=pass_entry_date,  # Use the pass entry date
+            recurring=task_data['metadata'].get('recurring'),
+            section=task_data.get('section', 'MAIN')
+        )
+        
+        # Update the file
+        content = self.read_file()
+        lines = content.split('\n')
+        lines[line_number - 1] = updated_task.to_markdown()
+        self.write_file('\n'.join(lines))
     
     def delete_task_from_daily(self, task_id):
         """Remove a task from today's daily section"""
