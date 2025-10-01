@@ -1175,6 +1175,59 @@ class Paratrooper:
                     print(f"Marked progress on task #{task_id} in today's daily section")
                     break
     
+    def create_pass_entry(self, task_id, days_ago):
+        """Create a pass entry n days ago in the archive section to reduce days since activity calculation"""
+        # Find the task in main section
+        line_number, line_content = self.find_task_by_id_in_main(task_id)
+        
+        if not line_content:
+            print(f"Task #{task_id} not found in main section")
+            return
+        
+        # Parse the task
+        task_data = self._parse_task_line(line_content)
+        if not task_data:
+            print(f"Could not parse task #{task_id}")
+            return
+        
+        # Calculate the date n days ago
+        target_date = datetime.now() - timedelta(days=days_ago)
+        target_date_str = target_date.strftime("%d-%m-%Y")
+        
+        # Create a pass entry task (marked as progressed)
+        pass_task = Task(
+            id=task_id,
+            text=task_data['text'],
+            status="~",  # Progress status
+            date=target_date_str,
+            recurring=task_data['metadata'].get('recurring'),
+            section='ARCHIVE',  # Pass entries go to archive
+            is_daily=True,
+            from_section=task_data.get('section', 'ARCHIVE')
+        )
+        
+        # Parse the file to get current structure
+        task_file = self.parse_file()
+        
+        # Add the pass entry to the archive section for the target date
+        if target_date_str not in task_file.archive_sections:
+            task_file.archive_sections[target_date_str] = []
+        
+        # Check if a pass entry already exists for this task on this date
+        existing_entries = task_file.archive_sections[target_date_str]
+        for existing_entry in existing_entries:
+            if existing_entry.id == task_id:
+                print(f"Pass entry for task #{task_id} on {target_date_str} already exists (skipping duplicate)")
+                return
+        
+        # Add the pass entry to the archive
+        task_file.archive_sections[target_date_str].append(pass_task)
+        
+        # Write back to file
+        self.write_file_from_objects(task_file)
+        
+        print(f"Created pass entry for task #{task_id} on {target_date_str} (reduces days since activity by {days_ago})")
+    
     def delete_task_from_daily(self, task_id):
         """Remove a task from today's daily section"""
         # Parse the file into model objects
@@ -1708,6 +1761,7 @@ COMMANDS:
   reopen ID              Reopen completed task (mark as incomplete)
   undone ID              Alias for reopen
   pass ID                Mark task as progressed [~] in today's daily section
+  pass ID N              Create pass entry N days ago in archive section (reduces days since activity)
   sync                   Update main list from completed daily items
                          [x] in daily = complete main task  
                          [~] in daily = update date but keep incomplete
@@ -1748,7 +1802,8 @@ EXAMPLES:
   tasks list                               # List all tasks from main sections
   tasks list PROJECTS:CLIENT               # List tasks in PROJECTS > CLIENT subsection                                                                           
   tasks show 001                           # Show details of task #001
-  tasks pass 042                           # Mark progress on task in daily section                                                                             
+  tasks pass 042                           # Mark progress on task in daily section
+  tasks pass 001 4                         # Create pass entry 4 days ago (reduces urgency)                                                                             
   tasks snooze 023 7                       # Hide task for a week
   tasks recur 042 daily                    # Set task to recur daily
   tasks status                             # See what needs attention (shows 5 tasks)

@@ -186,8 +186,38 @@ pt done 042          # Mark task #042 as complete
 pt reopen 042        # Reopen completed task (mark as incomplete)
 pt undone 042        # Alias for reopen
 pt pass 042          # Mark progress [~] on task in daily section
+pt pass 042 4        # Create pass entry 4 days ago (reduces urgency)
 pt recur 042 daily   # Modify task recurrence pattern
 ```
+
+#### Strategic Task Management with Pass Entries
+
+The `pass` command has two modes that serve different purposes:
+
+1. **`pt pass ID`** - The original behavior: marks a task as progressed [~] in today's daily section
+2. **`pt pass ID N`** - **NEW**: Creates a "pass entry" N days ago in the archive section
+
+**Flexible Usage**: The `pass` command can be used in two ways depending on your preference:
+
+**Option 1: Strategic Urgency Management**
+- Use `pt pass ID N` to **artificially reduce urgency** without necessarily having worked on the task
+- This is about **capacity management** - adjusting task priority to match your actual capacity
+- Example: `pt pass 042 4` makes a 10-day-old task appear only 6 days stale, reflecting your strategic decision about task priority
+
+**Option 2: Actual Activity Recording**
+- Use `pt pass ID N` to **record genuine past activity** that you forgot to log
+- This is about **honest tracking** - documenting work you actually did but didn't record at the time
+- Example: You worked on task 042 four days ago but forgot to mark it, so you use `pt pass 042 4` to record that actual activity
+
+**Why use pass entries?** Both approaches help you:
+
+- **Reduce urgency**: By creating a pass entry N days ago, the task appears less stale in `pt status`
+- **Honest tracking**: Acknowledge work done without claiming completion
+- **Capacity control**: Adjust task urgency to match your actual capacity and attention patterns
+
+**Duplicate Prevention**: The system prevents duplicate pass entries for the same task on the same date - if you try to create multiple pass entries for the same task on the same date, only the first one will be created.
+
+This flexibility makes the feature useful for both strategic capacity management and honest activity tracking, depending on your workflow preferences.
 
 ### Organization
 ```bash

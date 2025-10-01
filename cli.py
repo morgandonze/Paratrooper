@@ -57,7 +57,17 @@ def main():
     elif command == "undone" and len(args) > 1:
         pt.reopen_task(args[1])
     elif command == "pass" and len(args) > 1:
-        pt.progress_task_in_daily(args[1])
+        if len(args) == 2:
+            # Original behavior: pt pass <ID>
+            pt.progress_task_in_daily(args[1])
+        elif len(args) == 3 and args[2].isdigit():
+            # New behavior: pt pass <ID> <n>
+            pt.create_pass_entry(args[1], int(args[2]))
+        else:
+            print("Error: 'pass' command expects either 1 or 2 arguments")
+            print("Usage: pt pass <ID> [n]")
+            print("  pt pass <ID>     - Mark task as progressed in today's daily section")
+            print("  pt pass <ID> <n>  - Create pass entry n days ago in archive section")
     elif command == "sync":
         pt.sync_daily_sections()
     elif command == "add":
