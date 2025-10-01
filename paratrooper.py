@@ -328,6 +328,36 @@ class Paratrooper:
             # Handle old format without pipes
             return f"{line} | @{self.today}"
     
+    def _update_task_date_to_specific_date(self, line, target_date):
+        """Update the date in a task line to a specific date"""
+        if ' | ' in line:
+            # Handle pipe-separated format: - [x] | task | section | date | recurring
+            parts = line.split(' | ')
+            
+            # Find the date field (usually at index 3, but could be at 2 if no section)
+            date_field_index = None
+            for i, part in enumerate(parts):
+                if re.match(r'@?\d{2}-\d{2}-\d{4}', part.strip()):
+                    date_field_index = i
+                    break
+            
+            if date_field_index is not None:
+                # Replace existing date (without @ prefix in new format)
+                parts[date_field_index] = target_date
+            else:
+                # Add date field - determine where to insert it
+                if len(parts) >= 3:
+                    # Insert date after section (index 2)
+                    parts.insert(3, target_date)
+                else:
+                    # Fallback: add at end
+                    parts.append(target_date)
+            
+            return ' | '.join(parts)
+        else:
+            # Handle old format without pipes
+            return f"{line} | @{target_date}"
+    
     def _mark_task_complete(self, line):
         """Mark a task as complete"""
         return re.sub(r'- \[.\]', '- [x]', line)
@@ -1364,8 +1394,8 @@ class Paratrooper:
                     if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
                         # Check if it's a recurring task
                         if task.recurring:
-                            # For recurring tasks, just update the date
-                            updated_line = self._update_task_date(line)
+                            # For recurring tasks, update the date to when it was completed (daily section date)
+                            updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
                         else:
                             # For non-recurring tasks, mark as complete
                             updated_line = self._mark_task_complete(line)
@@ -1394,8 +1424,8 @@ class Paratrooper:
                     
                     # Only process tasks in the main section
                     if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
-                        # Update the date to show recent engagement
-                        updated_line = self._update_task_date(line)
+                        # Update the date to show recent engagement (use daily section date)
+                        updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
                         lines[i] = updated_line
                         progressed_count += 1
                         task_found = True

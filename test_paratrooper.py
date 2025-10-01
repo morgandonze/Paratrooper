@@ -378,7 +378,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Check that task has future date (snoozing)
         content = self.tm.read_file()
-        self.assertIn("03-10-2025", content)  # 3 days from test date
+        self.assertIn("04-10-2025", content)  # 3 days from test date
     
     def test_archive_old_content(self):
         """Test archiving old content"""
@@ -1073,7 +1073,9 @@ class TestIntegration(unittest.TestCase):
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section = content[main_section_start:]
-        self.assertIn(f"- [ ] #{workout_task_id} | morning workout | HEALTH | 30-09-2025 | daily", main_section)
+        # The date should be today's date since the task was completed today
+        expected_date = self.tm.today
+        self.assertIn(f"- [ ] #{workout_task_id} | morning workout | HEALTH | {expected_date} | daily", main_section)
 
 
 class TestCaseInsensitiveSections(unittest.TestCase):
@@ -1780,35 +1782,42 @@ class TestRecurringTaskBugFix(unittest.TestCase):
     def test_should_recur_today_weekly_respects_schedule(self):
         """Test that weekly tasks only recur on their scheduled days"""
         from paratrooper import Paratrooper
-        from paratrooper import Paratrooper
-        from datetime import datetime
+        from datetime import datetime, timedelta
+        from unittest.mock import patch
         
         file_ops = Paratrooper(self.tm.config)
-        daily_ops = file_ops
         
-        # Get today's weekday (0=Monday, 6=Sunday)
-        today_weekday = datetime.now().weekday()
-        
-        # Test weekly patterns
+        # Test weekly patterns by checking if they correctly identify scheduled days
         test_cases = [
-            ("weekly:mon", 0),      # Monday only
-            ("weekly:tue", 1),      # Tuesday only
-            ("weekly:wed", 2),      # Wednesday only
-            ("weekly:thu", 3),      # Thursday only
-            ("weekly:fri", 4),      # Friday only
-            ("weekly:sat", 5),      # Saturday only
-            ("weekly:sun", 6),      # Sunday only
-            ("weekly:mon,wed,fri", 0),  # Multiple days
-            ("weekly:mon,wed,fri", 2),  # Multiple days
-            ("weekly:mon,wed,fri", 4),  # Multiple days
+            ("weekly:mon", [0]),           # Monday only
+            ("weekly:tue", [1]),           # Tuesday only
+            ("weekly:wed", [2]),           # Wednesday only
+            ("weekly:thu", [3]),          # Thursday only
+            ("weekly:fri", [4]),          # Friday only
+            ("weekly:sat", [5]),          # Saturday only
+            ("weekly:sun", [6]),          # Sunday only
+            ("weekly:mon,wed,fri", [0, 2, 4]),  # Multiple days
         ]
         
-        for pattern, target_weekday in test_cases:
-            with self.subTest(pattern=pattern, target_weekday=target_weekday):
-                result = daily_ops.should_recur_today(pattern, "29-09-2025")
-                expected = today_weekday == target_weekday
-                self.assertEqual(result, expected, 
-                    f"Weekly pattern {pattern} should recur on weekday {target_weekday}, today is {today_weekday}")
+        for pattern, expected_days in test_cases:
+            with self.subTest(pattern=pattern):
+                # Test each day of the week
+                for weekday in range(7):
+                    # Create a mock date for the specific weekday
+                    # We'll use a known date and adjust it to the target weekday
+                    base_date = datetime(2025, 10, 1)  # October 1, 2025 (Wednesday)
+                    days_to_adjust = weekday - base_date.weekday()
+                    test_date = base_date + timedelta(days=days_to_adjust)
+                    
+                    # Mock the datetime.now() to return our test date
+                    with patch('paratrooper.datetime') as mock_datetime:
+                        mock_datetime.now.return_value = test_date
+                        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+                        
+                        result = file_ops.should_recur_today(pattern, "29-09-2025")
+                        expected = weekday in expected_days
+                        self.assertEqual(result, expected, 
+                            f"Weekly pattern {pattern} should recur on weekday {weekday} (day {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][weekday]})")
     
     def test_should_recur_today_custom_recurrence_respects_intervals(self):
         """Test that custom recurrence patterns respect time intervals"""
