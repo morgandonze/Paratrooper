@@ -1202,7 +1202,7 @@ class Paratrooper:
         
         # Validate N is between 1 and M
         if days_ago < 1 or days_ago > task_age_days:
-            print(f"Error: N must be between 1 and {task_age_days} (task age). Got {days_ago}")
+            print(f"Error: N must be between 1 and {task_age_days} for this task")
             return
         
         # Calculate target date: M-N days ago from today
@@ -1243,7 +1243,7 @@ class Paratrooper:
             task_file.archive_sections[target_date_str].append(pass_task)
             # Write back to file
             self.write_file_from_objects(task_file)
-            print(f"Created pass entry for task #{task_id} on {target_date_str} (M-N={task_age_days}-{days_ago}={target_days_ago} days ago)")
+            print(f"Created pass entry for task #{task_id} on {target_date_str}")
         else:
             print(f"Pass entry for task #{task_id} on {target_date_str} already exists (skipping duplicate)")
         
