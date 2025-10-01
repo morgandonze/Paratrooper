@@ -1215,24 +1215,27 @@ class Paratrooper:
         
         # Check if a pass entry already exists for this task on this date
         existing_entries = task_file.archive_sections[target_date_str]
+        duplicate_exists = False
         for existing_entry in existing_entries:
             if existing_entry.id == task_id:
+                duplicate_exists = True
                 print(f"Pass entry for task #{task_id} on {target_date_str} already exists (skipping duplicate)")
-                return
+                break
         
-        # Add the pass entry to the archive
-        task_file.archive_sections[target_date_str].append(pass_task)
+        # Add the pass entry to the archive only if it's not a duplicate
+        if not duplicate_exists:
+            task_file.archive_sections[target_date_str].append(pass_task)
+            # Write back to file
+            self.write_file_from_objects(task_file)
+            print(f"Created pass entry for task #{task_id} on {target_date_str} (reduces days since activity by {days_ago})")
+        else:
+            print(f"Pass entry for task #{task_id} on {target_date_str} already exists (skipping duplicate)")
         
-        # Write back to file
-        self.write_file_from_objects(task_file)
-        
-        # Update the main task's date to reflect the pass entry
+        # Always update the main task's date to reflect the pass entry (if it moves forward)
         self._update_main_task_date_from_pass_entry(task_id, target_date_str)
-        
-        print(f"Created pass entry for task #{task_id} on {target_date_str} (reduces days since activity by {days_ago})")
     
     def _update_main_task_date_from_pass_entry(self, task_id, pass_entry_date):
-        """Update the main task's date to reflect the pass entry activity"""
+        """Update the main task's date to reflect the pass entry activity, but only if it moves forward"""
         # Find the task in main section
         line_number, line_content = self.find_task_by_id_in_main(task_id)
         
@@ -1246,12 +1249,38 @@ class Paratrooper:
             print(f"Warning: Could not parse task #{task_id} to update date")
             return
         
+        # Check if this pass entry date is more recent than the current main task date
+        # We only want to update the main task date if this pass entry represents more recent activity
+        from datetime import datetime
+        
+        current_date = task_data['metadata'].get('date')
+        
+        # If no current date, always update
+        if not current_date:
+            new_date = pass_entry_date
+        else:
+            # Compare dates - only update if pass entry date is more recent than current main task date
+            try:
+                current_date_obj = datetime.strptime(current_date, "%d-%m-%Y")
+                pass_entry_date_obj = datetime.strptime(pass_entry_date, "%d-%m-%Y")
+                
+                # Only update if the new pass entry date is more recent than current main task date
+                # (i.e., pass entry date is closer to today)
+                if pass_entry_date_obj > current_date_obj:
+                    new_date = pass_entry_date
+                else:
+                    # New pass entry date is older than current main task date, don't update
+                    return
+            except ValueError:
+                # If date parsing fails, use the pass entry date
+                new_date = pass_entry_date
+        
         # Create updated task with new date
         updated_task = Task(
             id=task_id,
             text=task_data['text'],
             status=task_data['status'],
-            date=pass_entry_date,  # Use the pass entry date
+            date=new_date,
             recurring=task_data['metadata'].get('recurring'),
             section=task_data.get('section', 'MAIN')
         )

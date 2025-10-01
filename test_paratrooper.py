@@ -2788,7 +2788,7 @@ class TestPassEntryFeature(unittest.TestCase):
         self.assertEqual(len(pass_entries), 1, "Should have exactly one pass entry")
     
     def test_pass_entry_updates_main_task_date(self):
-        """Test that pass entry creation updates the main task's date"""
+        """Test that pass entry creation updates the main task's date only when moving forward"""
         # Add a test task
         self.tm.add_task_to_main("Test task for date update", "TEST")
         
@@ -2798,27 +2798,62 @@ class TestPassEntryFeature(unittest.TestCase):
         id_matches = re.findall(r'#(\d{3})', content)
         test_id = max(id_matches)
         
-        # Get original task date
-        line_number, original_line = self.tm.find_task_by_id_in_main(test_id)
-        original_task_data = self.tm._parse_task_line(original_line)
-        original_date = original_task_data['metadata'].get('date')
+        # First, manually set the main task date to 3 days ago to test forward-only logic
+        from datetime import datetime, timedelta
+        three_days_ago = (datetime.now() - timedelta(days=3)).strftime('%d-%m-%Y')
         
-        # Create pass entry 3 days ago
-        self.tm.create_pass_entry(test_id, 3)
+        # Update the main task date manually
+        line_number, line_content = self.tm.find_task_by_id_in_main(test_id)
+        task_data = self.tm._parse_task_line(line_content)
+        from models import Task
+        updated_task = Task(
+            id=test_id,
+            text=task_data['text'],
+            status=task_data['status'],
+            date=three_days_ago,
+            recurring=task_data['metadata'].get('recurring'),
+            section=task_data.get('section', 'MAIN')
+        )
         
-        # Check that main task date was updated
+        # Update the file
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        lines[line_number - 1] = updated_task.to_markdown()
+        self.tm.write_file('\n'.join(lines))
+        
+        # Get the updated task date
         line_number, updated_line = self.tm.find_task_by_id_in_main(test_id)
         updated_task_data = self.tm._parse_task_line(updated_line)
-        updated_date = updated_task_data['metadata'].get('date')
-        
-        # The updated date should be different from original and should be 3 days ago
-        self.assertNotEqual(original_date, updated_date, "Main task date should have been updated")
+        current_date = updated_task_data['metadata'].get('date')
         
         # Verify the date is 3 days ago
-        from datetime import datetime, timedelta
-        expected_date = datetime.now() - timedelta(days=3)
-        expected_date_str = expected_date.strftime('%d-%m-%Y')
-        self.assertEqual(updated_date, expected_date_str, "Main task date should be 3 days ago")
+        self.assertEqual(current_date, three_days_ago, f"Main task date should be {three_days_ago}")
+        
+        # Create pass entry 2 days ago (should UPDATE - more recent than 3 days ago)
+        self.tm.create_pass_entry(test_id, 2)
+        
+        # Check that main task date was updated
+        line_number, final_line = self.tm.find_task_by_id_in_main(test_id)
+        final_task_data = self.tm._parse_task_line(final_line)
+        final_date = final_task_data['metadata'].get('date')
+        
+        # The updated date should be different from the 3-day-ago date
+        self.assertNotEqual(current_date, final_date, "Main task date should have been updated")
+        
+        # Verify the date is 2 days ago
+        two_days_ago = (datetime.now() - timedelta(days=2)).strftime('%d-%m-%Y')
+        self.assertEqual(final_date, two_days_ago, f"Main task date should be {two_days_ago}")
+        
+        # Now test that creating a pass entry 4 days ago (older) does NOT update
+        self.tm.create_pass_entry(test_id, 4)
+        
+        # Check that main task date was NOT updated
+        line_number, unchanged_line = self.tm.find_task_by_id_in_main(test_id)
+        unchanged_task_data = self.tm._parse_task_line(unchanged_line)
+        unchanged_date = unchanged_task_data['metadata'].get('date')
+        
+        # The date should still be 2 days ago
+        self.assertEqual(unchanged_date, two_days_ago, "Main task date should not have been updated to older date")
     
     def test_pass_entry_cli_integration(self):
         """Test that the CLI correctly routes pass entry commands"""
