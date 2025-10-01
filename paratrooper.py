@@ -217,6 +217,15 @@ class Paratrooper:
         """Check if a line is a task line"""
         return bool(re.match(TASK_STATUS_PATTERN, line))
     
+    def _normalize_task_id(self, task_id):
+        """Normalize task ID by removing leading zeros"""
+        return str(int(task_id)) if task_id.isdigit() else task_id
+    
+    def _task_id_matches_line(self, task_id, line):
+        """Check if a task ID matches a line, handling both normalized and padded formats"""
+        normalized_id = self._normalize_task_id(task_id)
+        return (f"#{normalized_id}" in line or f"#{normalized_id.zfill(3)}" in line)
+    
     def _extract_task_id(self, line):
         """Extract task ID from a line"""
         match = re.search(TASK_ID_PATTERN, line)
@@ -333,7 +342,7 @@ class Paratrooper:
         lines = content.split('\n')
         
         for i, line in enumerate(lines):
-            if f"#{task_id}" in line and self._is_task_line(line):
+            if self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                 return i + 1, line
         
         return None, None
@@ -354,7 +363,7 @@ class Paratrooper:
                 in_main = False
                 continue
             
-            if in_main and f"#{task_id}" in line and self._is_task_line(line):
+            if in_main and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                 return i + 1, line
         
         return None, None
@@ -459,7 +468,7 @@ class Paratrooper:
                 current_daily_date = line_stripped[3:].strip()
                 continue
             
-            if in_daily and current_daily_date and f"#{task_id}" in line and self._is_task_line(line):
+            if in_daily and current_daily_date and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                 # Task found in daily section - mark as complete
                 updated_line = self._mark_task_complete(line)
                 lines[i] = updated_line
@@ -499,7 +508,7 @@ class Paratrooper:
                     current_daily_date = line_stripped[3:].strip()
                     continue
                 
-                if in_daily and current_daily_date and f"#{task_id}" in line and self._is_task_line(line):
+                if in_daily and current_daily_date and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                     # Mark as complete
                     updated_line = self._mark_task_complete(line)
                     lines[i] = updated_line
@@ -698,7 +707,7 @@ class Paratrooper:
         # Remove all instances of the task
         updated_lines = []
         for line in lines:
-            if f"#{task_id}" not in line or not self._is_task_line(line):
+            if not self._task_id_matches_line(task_id, line) or not self._is_task_line(line):
                 updated_lines.append(line)
         
         self.write_file('\n'.join(updated_lines))
@@ -760,7 +769,7 @@ class Paratrooper:
                 in_daily = False
                 continue
             
-            if in_daily and f"#{task_id}" in line and self._is_task_line(line):
+            if in_daily and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                 return True
         
         return False
@@ -1071,7 +1080,7 @@ class Paratrooper:
                 current_section = line[3:].strip()
                 continue
             
-            if in_main and f"#{task_id}" in line and self._is_task_line(line):
+            if in_main and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                 task_line = line
                 task_section = current_section.upper() if current_section else None
                 break
@@ -1138,7 +1147,7 @@ class Paratrooper:
                 current_daily_date = line_stripped[3:].strip()
                 continue
             
-            if in_daily and current_daily_date and f"#{task_id}" in line and self._is_task_line(line):
+            if in_daily and current_daily_date and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                 # Mark as progressed
                 updated_line = self._mark_task_progress(line)
                 lines[i] = updated_line
@@ -1172,7 +1181,7 @@ class Paratrooper:
                     current_daily_date = line_stripped[3:].strip()
                     continue
                 
-                if in_daily and current_daily_date and f"#{task_id}" in line and self._is_task_line(line):
+                if in_daily and current_daily_date and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
                     # Mark as progressed
                     updated_line = self._mark_task_progress(line)
                     lines[i] = updated_line
@@ -1660,14 +1669,14 @@ class Paratrooper:
             
             # Check daily section for incomplete tasks
             if (in_daily and current_daily_date and 
-                f"#{task_id}" in line and self._is_task_line(line)):
+                self._task_id_matches_line(task_id, line) and self._is_task_line(line)):
                 task_data = self._parse_task_line(line)
                 if task_data and task_data.get('status') in [' ', '~']:  # Incomplete or progress
                     most_recent_activity_date = current_daily_date
             
             # Check archive section for pass entries (progress status)
             elif (in_archive and current_archive_date and 
-                  f"#{task_id}" in line and self._is_task_line(line)):
+                  self._task_id_matches_line(task_id, line) and self._is_task_line(line)):
                 task_data = self._parse_task_line(line)
                 if task_data and task_data.get('status') == '~':  # Pass entries are marked as progress
                     most_recent_activity_date = current_archive_date

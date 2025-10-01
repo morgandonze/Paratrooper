@@ -17,7 +17,7 @@ import sys
 # Add the current directory to the path so we can import paratrooper
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from paratrooper import Config, Task, Section, TaskFile, TaskManager
+from paratrooper import Config, Task, Section, TaskFile, Paratrooper
 
 
 class TestConfig(unittest.TestCase):
@@ -204,7 +204,7 @@ class TestTaskManager(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
     
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
@@ -981,7 +981,7 @@ class TestIntegration(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
     
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
@@ -1088,7 +1088,7 @@ class TestCaseInsensitiveSections(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
         self.tm.init()
     
     def tearDown(self):
@@ -1389,7 +1389,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
         self.tm.init()
     
     def tearDown(self):
@@ -1597,7 +1597,7 @@ class TestDailyTaskDeletionRefactor(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
         self.tm.init()
     
     def tearDown(self):
@@ -1695,7 +1695,7 @@ class TestDisplayOperationsFix(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
         self.tm.init()
     
     def tearDown(self):
@@ -1750,7 +1750,7 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
         self.tm.init()
     
     def tearDown(self):
@@ -2023,7 +2023,7 @@ class TestCLICommands(unittest.TestCase):
         config = Config.load(self.config_path)
         config.task_file = self.task_file_path
         
-        self.tm = TaskManager(config)
+        self.tm = Paratrooper(config)
         self.tm.init()
     
     def tearDown(self):
@@ -2880,6 +2880,188 @@ class TestPassEntryFeature(unittest.TestCase):
                     self.assertTrue(args[2].isdigit(), f"Third arg {args[2]} should be digit")
 
 
+class TestLeadingZerosTaskIDParsing(unittest.TestCase):
+    """Test that task IDs with leading zeros are handled correctly"""
+    
+    def setUp(self):
+        """Set up test environment"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_file = Path(self.temp_dir) / "test_config"
+        self.task_file = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config
+        self.config = Config(task_file=self.task_file, editor="vim")
+        Config.create_default_config(self.config_file, self.config)
+        
+        # Create task manager
+        self.tm = Paratrooper(self.config)
+        self.tm.init()
+    
+    def tearDown(self):
+        """Clean up test environment"""
+        shutil.rmtree(self.temp_dir)
+    
+    def test_task_id_normalization_helper(self):
+        """Test the _normalize_task_id helper function"""
+        # Test various input formats
+        self.assertEqual(self.tm._normalize_task_id("11"), "11")
+        self.assertEqual(self.tm._normalize_task_id("011"), "11")
+        self.assertEqual(self.tm._normalize_task_id("001"), "1")
+        self.assertEqual(self.tm._normalize_task_id("123"), "123")
+        self.assertEqual(self.tm._normalize_task_id("0123"), "123")
+        
+        # Test non-digit input (should return as-is)
+        self.assertEqual(self.tm._normalize_task_id("abc"), "abc")
+        self.assertEqual(self.tm._normalize_task_id(""), "")
+    
+    def test_task_id_matching_helper(self):
+        """Test the _task_id_matches_line helper function"""
+        test_line = "- [ ] #011 | Test task | WORK | 15-01-2025"
+        
+        # Test that both normalized and padded formats match
+        self.assertTrue(self.tm._task_id_matches_line("11", test_line))
+        self.assertTrue(self.tm._task_id_matches_line("011", test_line))
+        
+        # Test that wrong IDs don't match
+        self.assertFalse(self.tm._task_id_matches_line("12", test_line))
+        self.assertFalse(self.tm._task_id_matches_line("001", test_line))
+        
+        # Test with different task ID formats
+        test_line_001 = "- [ ] #001 | Another task | HEALTH | 15-01-2025"
+        self.assertTrue(self.tm._task_id_matches_line("1", test_line_001))
+        self.assertTrue(self.tm._task_id_matches_line("001", test_line_001))
+        self.assertFalse(self.tm._task_id_matches_line("11", test_line_001))
+    
+    def test_find_task_by_id_with_leading_zeros(self):
+        """Test that find_task_by_id works with both normalized and padded IDs"""
+        # Add a task with leading zeros
+        self.tm.add_task_to_main("Test task with leading zeros", "WORK")
+        
+        # The task should be stored with ID #001
+        # Test finding it with normalized ID
+        line_num, line_content = self.tm.find_task_by_id("1")
+        self.assertIsNotNone(line_content)
+        self.assertIn("#001", line_content)
+        
+        # Test finding it with padded ID
+        line_num, line_content = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(line_content)
+        self.assertIn("#001", line_content)
+    
+    def test_find_task_by_id_in_main_with_leading_zeros(self):
+        """Test that find_task_by_id_in_main works with both normalized and padded IDs"""
+        # Add a task with leading zeros
+        self.tm.add_task_to_main("Test task in main", "WORK")
+        
+        # Test finding it with normalized ID
+        line_num, line_content = self.tm.find_task_by_id_in_main("1")
+        self.assertIsNotNone(line_content)
+        self.assertIn("#001", line_content)
+        
+        # Test finding it with padded ID
+        line_num, line_content = self.tm.find_task_by_id_in_main("001")
+        self.assertIsNotNone(line_content)
+        self.assertIn("#001", line_content)
+    
+    def test_cli_show_command_with_leading_zeros(self):
+        """Test that CLI show command works with normalized task IDs"""
+        # Add a task
+        self.tm.add_task_to_main("Test task for CLI", "WORK")
+        
+        # Test that show command works with normalized ID
+        # We'll simulate the CLI parsing logic
+        test_args = ["show", "1"]  # Normalized ID
+        
+        if test_args[1].isdigit():
+            normalized_id = str(int(test_args[1]))
+            line_num, line_content = self.tm.find_task_by_id_in_main(normalized_id)
+            self.assertIsNotNone(line_content)
+            self.assertIn("#001", line_content)
+    
+    def test_multiple_task_ids_with_leading_zeros(self):
+        """Test handling multiple tasks with different leading zero patterns"""
+        # Add multiple tasks
+        self.tm.add_task_to_main("First task", "WORK")
+        self.tm.add_task_to_main("Second task", "WORK")
+        self.tm.add_task_to_main("Third task", "WORK")
+        
+        # Test finding each task with normalized IDs
+        line_num, line_content = self.tm.find_task_by_id("1")
+        self.assertIsNotNone(line_content)
+        self.assertIn("First task", line_content)
+        
+        line_num, line_content = self.tm.find_task_by_id("2")
+        self.assertIsNotNone(line_content)
+        self.assertIn("Second task", line_content)
+        
+        line_num, line_content = self.tm.find_task_by_id("3")
+        self.assertIsNotNone(line_content)
+        self.assertIn("Third task", line_content)
+        
+        # Test finding with padded IDs
+        line_num, line_content = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(line_content)
+        self.assertIn("First task", line_content)
+        
+        line_num, line_content = self.tm.find_task_by_id("002")
+        self.assertIsNotNone(line_content)
+        self.assertIn("Second task", line_content)
+        
+        line_num, line_content = self.tm.find_task_by_id("003")
+        self.assertIsNotNone(line_content)
+        self.assertIn("Third task", line_content)
+    
+    def test_task_operations_with_leading_zeros(self):
+        """Test that task operations work with normalized IDs"""
+        # Add a task
+        self.tm.add_task_to_main("Task to test operations", "WORK")
+        
+        # Test completing task with normalized ID
+        self.tm.complete_task("1")
+        
+        # Verify task was completed
+        line_num, line_content = self.tm.find_task_by_id("1")
+        self.assertIsNotNone(line_content)
+        self.assertIn("- [x]", line_content)
+        
+        # Test editing task with normalized ID
+        self.tm.edit_task("1", "Updated task text")
+        
+        # Verify task was edited
+        line_num, line_content = self.tm.find_task_by_id("1")
+        self.assertIsNotNone(line_content)
+        self.assertIn("Updated task text", line_content)
+    
+    def test_large_task_ids_without_leading_zeros(self):
+        """Test that large task IDs (1000+) work correctly without padding"""
+        # This test ensures that IDs >= 1000 don't get padded
+        # We'll simulate having a task with ID 1000+
+        
+        # Create a task file with a large ID
+        content = f"""# DAILY
+
+# MAIN
+
+## WORK
+- [ ] #1001 | Large ID task | WORK | {self.tm.today}
+
+# ARCHIVE
+"""
+        self.task_file.write_text(content)
+        
+        # Test finding the task
+        line_num, line_content = self.tm.find_task_by_id("1001")
+        self.assertIsNotNone(line_content)
+        self.assertIn("#1001", line_content)
+        
+        # Test that normalization doesn't break large IDs
+        normalized_id = self.tm._normalize_task_id("1001")
+        self.assertEqual(normalized_id, "1001")
+        
+        # Test matching
+        self.assertTrue(self.tm._task_id_matches_line("1001", line_content))
+
+
 def run_tests():
     """Run all tests"""
     # Create test suite
@@ -2902,6 +3084,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestCLICommands))
     suite.addTests(loader.loadTestsFromTestCase(TestRecurringTaskStatusCalculation))
     suite.addTests(loader.loadTestsFromTestCase(TestPassEntryFeature))
+    suite.addTests(loader.loadTestsFromTestCase(TestLeadingZerosTaskIDParsing))
     
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)

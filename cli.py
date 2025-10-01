@@ -51,18 +51,28 @@ def main():
             limit = 5
         pt.show_status_tasks(scope, limit)
     elif command == "done" and len(args) > 1:
-        pt.complete_task(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.complete_task(normalized_id)
     elif command == "reopen" and len(args) > 1:
-        pt.reopen_task(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.reopen_task(normalized_id)
     elif command == "undone" and len(args) > 1:
-        pt.reopen_task(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.reopen_task(normalized_id)
     elif command == "pass" and len(args) > 1:
         if len(args) == 2:
             # Original behavior: pt pass <ID>
-            pt.progress_task_in_daily(args[1])
+            # Normalize task ID by removing leading zeros
+            normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+            pt.progress_task_in_daily(normalized_id)
         elif len(args) == 3 and args[2].isdigit():
             # New behavior: pt pass <ID> <n>
-            pt.create_pass_entry(args[1], int(args[2]))
+            # Normalize task ID by removing leading zeros
+            normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+            pt.create_pass_entry(normalized_id, int(args[2]))
         else:
             print("Error: 'pass' command expects either 1 or 2 arguments")
             print("Usage: pt pass <ID> [n]")
@@ -83,22 +93,33 @@ def main():
         
         pt.add_task_to_main(task_text, section)
     elif command == "up" and len(args) > 1:
-        pt.add_task_to_daily_by_id(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.add_task_to_daily_by_id(normalized_id)
     elif command == "snooze" and len(args) > 2:
-        pt.snooze_task(args[1], args[2])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.snooze_task(normalized_id, args[2])
     elif command == "recur" and len(args) > 2:
-        task_id = args[1]
+        # Normalize task ID by removing leading zeros
+        task_id = str(int(args[1])) if args[1].isdigit() else args[1]
         new_recurrence = " ".join(args[2:])
         pt.modify_task_recurrence(task_id, new_recurrence)
 
     elif command == "sections":
         pt.list_sections()
     elif command == "delete" and len(args) > 1:
-        pt.delete_task_from_main(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.delete_task_from_main(normalized_id)
     elif command == "down" and len(args) > 1:
-        pt.delete_task_from_daily(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.delete_task_from_daily(normalized_id)
     elif command == "purge" and len(args) > 1:
-        pt.purge_task(args[1])
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        pt.purge_task(normalized_id)
     elif command == "list":
         if len(args) > 1:
             # Check if it's a section:subsection format or a known section name
@@ -119,16 +140,20 @@ def main():
             pt.show_section(args[1])
         elif args[1].isdigit():
             # Show details of a specific task by ID from main section
-            pt.show_task_from_main(args[1])
+            # Normalize task ID by removing leading zeros
+            normalized_id = str(int(args[1]))
+            pt.show_task_from_main(normalized_id)
         else:
             # Try as section name if it's not a number
             pt.show_section(args[1])
     elif command == "edit" and len(args) > 2:
-        task_id = args[1]
+        # Normalize task ID by removing leading zeros
+        task_id = str(int(args[1])) if args[1].isdigit() else args[1]
         new_text = " ".join(args[2:])
         pt.edit_task(task_id, new_text)
     elif command == "move" and len(args) > 2:
-        task_id = args[1]
+        # Normalize task ID by removing leading zeros
+        task_id = str(int(args[1])) if args[1].isdigit() else args[1]
         new_section = args[2].upper()
         pt.move_task(task_id, new_section)
     elif command == "open":
