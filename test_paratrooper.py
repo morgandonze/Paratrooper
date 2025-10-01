@@ -2640,6 +2640,29 @@ class TestPassEntryFeature(unittest.TestCase):
         self.assertTrue(id_matches, "Should have at least one task ID")
         test_id = max(id_matches)
         
+        # First, manually set the main task date to 5 days ago to allow pass entry creation
+        from datetime import datetime, timedelta
+        five_days_ago = (datetime.now() - timedelta(days=5)).strftime('%d-%m-%Y')
+        
+        # Update the main task date manually
+        line_number, line_content = self.tm.find_task_by_id_in_main(test_id)
+        task_data = self.tm._parse_task_line(line_content)
+        from models import Task
+        updated_task = Task(
+            id=test_id,
+            text=task_data['text'],
+            status=task_data['status'],
+            date=five_days_ago,
+            recurring=task_data['metadata'].get('recurring'),
+            section=task_data.get('section', 'MAIN')
+        )
+        
+        # Update the file
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        lines[line_number - 1] = updated_task.to_markdown()
+        self.tm.write_file('\n'.join(lines))
+        
         # Create pass entry 3 days ago
         self.tm.create_pass_entry(test_id, 3)
         
@@ -2665,41 +2688,72 @@ class TestPassEntryFeature(unittest.TestCase):
     
     def test_create_pass_entry_multiple_days(self):
         """Test pass entry creation with different day values"""
-        # Add a test task
-        self.tm.add_task_to_main("Test task for multiple pass entries", "TEST")
-        
-        # Get the task ID
-        content = self.tm.read_file()
-        import re
-        id_matches = re.findall(r'#(\d{3})', content)
-        test_id = max(id_matches)
-        
-        # Create pass entries for different days
+        # Create separate tasks for each pass entry to avoid date conflicts
         days_to_test = [1, 5, 10, 30]
+        task_ids = []
         
-        for days_ago in days_to_test:
+        for i, days_ago in enumerate(days_to_test):
+            # Add a test task for each day
+            self.tm.add_task_to_main(f"Test task for {days_ago} days ago", "TEST")
+            
+            # Get the task ID
+            content = self.tm.read_file()
+            import re
+            id_matches = re.findall(r'#(\d{3})', content)
+            test_id = max(id_matches)
+            task_ids.append(test_id)
+            
+            # Set the main task date to allow pass entry creation
+            from datetime import datetime, timedelta
+            task_age = days_ago + 5  # Make sure task is old enough
+            task_date = (datetime.now() - timedelta(days=task_age)).strftime('%d-%m-%Y')
+            
+            # Update the main task date manually
+            line_number, line_content = self.tm.find_task_by_id_in_main(test_id)
+            task_data = self.tm._parse_task_line(line_content)
+            from models import Task
+            updated_task = Task(
+                id=test_id,
+                text=task_data['text'],
+                status=task_data['status'],
+                date=task_date,
+                recurring=task_data['metadata'].get('recurring'),
+                section=task_data.get('section', 'MAIN')
+            )
+            
+            # Update the file
+            content = self.tm.read_file()
+            lines = content.split('\n')
+            lines[line_number - 1] = updated_task.to_markdown()
+            self.tm.write_file('\n'.join(lines))
+            
+            # Create pass entry
             self.tm.create_pass_entry(test_id, days_ago)
         
         # Verify all pass entries were created
         task_file = self.tm.parse_file()
         from datetime import datetime, timedelta
         
-        for days_ago in days_to_test:
+        for i, days_ago in enumerate(days_to_test):
             target_date = datetime.now() - timedelta(days=days_ago)
             target_date_str = target_date.strftime('%d-%m-%Y')
             
-            self.assertIn(target_date_str, task_file.archive_sections,
+            self.assertIn(target_date_str, task_file.archive_sections, 
                          f"Archive section for {target_date_str} should exist")
             
+            # Check that the pass entry has the correct properties
             pass_entries = task_file.archive_sections[target_date_str]
-            self.assertEqual(len(pass_entries), 1, 
-                           f"Should have exactly one pass entry for {target_date_str}")
+            # Find the pass entry for this specific task
+            task_pass_entry = None
+            for entry in pass_entries:
+                if entry.id == task_ids[i]:
+                    task_pass_entry = entry
+                    break
             
-            pass_entry = pass_entries[0]
-            self.assertEqual(pass_entry.id, test_id, 
-                           f"Pass entry for {target_date_str} should have correct task ID")
-            self.assertEqual(pass_entry.status, "~", 
-                           f"Pass entry for {target_date_str} should be marked as progress")
+            self.assertIsNotNone(task_pass_entry, f"Pass entry for task {task_ids[i]} should exist")
+            self.assertEqual(task_pass_entry.id, task_ids[i], f"Pass entry should have correct task ID")
+            self.assertEqual(task_pass_entry.status, "~", f"Pass entry should be marked as progress")
+            self.assertEqual(task_pass_entry.date, target_date_str, f"Pass entry should have correct date")
     
     def test_create_pass_entry_nonexistent_task(self):
         """Test pass entry creation with non-existent task ID"""
@@ -2732,6 +2786,29 @@ class TestPassEntryFeature(unittest.TestCase):
         id_matches = re.findall(r'#(\d{3})', content)
         test_id = max(id_matches)
         
+        # First, manually set the main task date to 5 days ago to allow pass entry creation
+        from datetime import datetime, timedelta
+        five_days_ago = (datetime.now() - timedelta(days=5)).strftime('%d-%m-%Y')
+        
+        # Update the main task date manually
+        line_number, line_content = self.tm.find_task_by_id_in_main(test_id)
+        task_data = self.tm._parse_task_line(line_content)
+        from models import Task
+        updated_task = Task(
+            id=test_id,
+            text=task_data['text'],
+            status=task_data['status'],
+            date=five_days_ago,
+            recurring=task_data['metadata'].get('recurring'),
+            section=task_data.get('section', 'MAIN')
+        )
+        
+        # Update the file
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        lines[line_number - 1] = updated_task.to_markdown()
+        self.tm.write_file('\n'.join(lines))
+        
         # Create pass entry
         self.tm.create_pass_entry(test_id, 2)
         
@@ -2757,6 +2834,29 @@ class TestPassEntryFeature(unittest.TestCase):
         import re
         id_matches = re.findall(r'#(\d{3})', content)
         test_id = max(id_matches)
+        
+        # First, manually set the main task date to 5 days ago to allow pass entry creation
+        from datetime import datetime, timedelta
+        five_days_ago = (datetime.now() - timedelta(days=5)).strftime('%d-%m-%Y')
+        
+        # Update the main task date manually
+        line_number, line_content = self.tm.find_task_by_id_in_main(test_id)
+        task_data = self.tm._parse_task_line(line_content)
+        from models import Task
+        updated_task = Task(
+            id=test_id,
+            text=task_data['text'],
+            status=task_data['status'],
+            date=five_days_ago,
+            recurring=task_data['metadata'].get('recurring'),
+            section=task_data.get('section', 'MAIN')
+        )
+        
+        # Update the file
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        lines[line_number - 1] = updated_task.to_markdown()
+        self.tm.write_file('\n'.join(lines))
         
         # Create first pass entry
         self.tm.create_pass_entry(test_id, 2)

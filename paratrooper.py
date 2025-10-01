@@ -1214,9 +1214,8 @@ class Paratrooper:
             print(f"Error: N must be between 1 and {task_age_days} for this task")
             return
         
-        # Calculate target date: M-N days ago from today
-        target_days_ago = task_age_days - days_ago
-        target_date = today - timedelta(days=target_days_ago)
+        # Calculate target date: N days ago from today
+        target_date = today - timedelta(days=days_ago)
         target_date_str = target_date.strftime("%d-%m-%Y")
         
         # Create a pass entry task (marked as progressed)
@@ -1260,7 +1259,7 @@ class Paratrooper:
         self._update_main_task_date_from_pass_entry(task_id, target_date_str)
     
     def _update_main_task_date_from_pass_entry(self, task_id, pass_entry_date):
-        """Update the main task's date to the pass entry date"""
+        """Update the main task's date to the pass entry date only if moving forward"""
         # Find the task in main section
         line_number, line_content = self.find_task_by_id_in_main(task_id)
         
@@ -1274,24 +1273,29 @@ class Paratrooper:
             print(f"Warning: Could not parse task #{task_id} to update date")
             return
         
-        # Always update the main task's date to the pass entry date
-        new_date = pass_entry_date
+        # Get current task date
+        current_task_date = datetime.strptime(task_data['metadata']['date'], "%d-%m-%Y")
+        pass_entry_datetime = datetime.strptime(pass_entry_date, "%d-%m-%Y")
         
-        # Create updated task with new date
-        updated_task = Task(
-            id=task_id,
-            text=task_data['text'],
-            status=task_data['status'],
-            date=new_date,
-            recurring=task_data['metadata'].get('recurring'),
-            section=task_data.get('section', 'MAIN')
-        )
-        
-        # Update the file
-        content = self.read_file()
-        lines = content.split('\n')
-        lines[line_number - 1] = updated_task.to_markdown()
-        self.write_file('\n'.join(lines))
+        # Only update if the pass entry date is more recent (closer to today) than current date
+        if pass_entry_datetime > current_task_date:
+            new_date = pass_entry_date
+            
+            # Create updated task with new date
+            updated_task = Task(
+                id=task_id,
+                text=task_data['text'],
+                status=task_data['status'],
+                date=new_date,
+                recurring=task_data['metadata'].get('recurring'),
+                section=task_data.get('section', 'MAIN')
+            )
+            
+            # Update the file
+            content = self.read_file()
+            lines = content.split('\n')
+            lines[line_number - 1] = updated_task.to_markdown()
+            self.write_file('\n'.join(lines))
     
     def delete_task_from_daily(self, task_id):
         """Remove a task from today's daily section"""
