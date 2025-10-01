@@ -947,8 +947,6 @@ class Paratrooper:
             
             if new_recurring_tasks:
                 print(f"Added {len(new_recurring_tasks)} new recurring tasks to today's daily section")
-            else:
-                print("No new recurring tasks to add to today's daily section")
             
             return "show_daily_list"
         
