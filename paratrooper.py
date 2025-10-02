@@ -954,6 +954,9 @@ class Paratrooper:
         # Check if today's section already exists
         section_already_exists = self.today in task_file.daily_sections
         
+        # Clean up incomplete recurring tasks from old daily sections
+        cleaned_tasks = self._cleanup_incomplete_recurring_tasks(task_file)
+        
         # Get recurring tasks for today
         recurring_tasks = self.get_recurring_tasks()
         
@@ -1057,6 +1060,105 @@ class Paratrooper:
         
         if unfinished_tasks:
             print(f"Carried over {len(unfinished_tasks)} unfinished tasks from previous day")
+        
+        if cleaned_tasks:
+            print(f"Cleaned up {len(cleaned_tasks)} incomplete recurring tasks from previous days")
+    
+    def _cleanup_incomplete_recurring_tasks(self, task_file):
+        """Remove incomplete recurring tasks from old daily sections"""
+        cleaned_tasks = []
+        
+        if not task_file.daily_sections:
+            return cleaned_tasks
+        
+        # Get today's date for comparison
+        today_obj = datetime.strptime(self.today, "%d-%m-%Y")
+        
+        # Find incomplete recurring tasks in old daily sections
+        tasks_to_remove = []
+        for date_str, tasks in task_file.daily_sections.items():
+            if date_str == self.today:
+                continue  # Skip today's section
+            
+            try:
+                section_date = datetime.strptime(date_str, "%d-%m-%Y")
+                if section_date >= today_obj:
+                    continue  # Skip future dates
+            except ValueError:
+                continue  # Skip invalid dates
+            
+            for task in tasks:
+                if (task.recurring and 
+                    task.status in [' ', '~'] and  # Incomplete or progress
+                    task.id not in [t['id'] for t in tasks_to_remove]):  # Avoid duplicates
+                    tasks_to_remove.append({
+                        'id': task.id,
+                        'date': date_str,
+                        'task': task
+                    })
+        
+        # Remove the tasks from their sections
+        for task_info in tasks_to_remove:
+            date_str = task_info['date']
+            task_to_remove = task_info['task']
+            
+            if date_str in task_file.daily_sections:
+                tasks = task_file.daily_sections[date_str]
+                for i, task in enumerate(tasks):
+                    if task.id == task_to_remove.id:
+                        tasks.pop(i)
+                        cleaned_tasks.append(task_info)
+                        break
+        
+        return cleaned_tasks
+    
+    def _get_task_appearance_date(self, task_id):
+        """Get the appearance date for a task from daily sections, with fallback"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        in_daily = False
+        current_daily_date = None
+        appearance_date = None
+        
+        for line in lines:
+            line_stripped = line.strip()
+            
+            if line_stripped == '# DAILY':
+                in_daily = True
+                continue
+            elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
+                in_daily = False
+                continue
+            
+            if in_daily and line_stripped.startswith('## '):
+                current_daily_date = line_stripped[3:].strip()
+                continue
+            
+            # Check if this is the task we're looking for
+            if (in_daily and current_daily_date and 
+                self._task_id_matches_line(task_id, line) and self._is_task_line(line)):
+                appearance_date = current_daily_date
+        
+        # Fallback: if not found in daily sections, get from main task
+        if not appearance_date:
+            appearance_date = self._get_main_task_date(task_id)
+        
+        return appearance_date
+    
+    def _get_main_task_date(self, task_id):
+        """Get the date from a task in the main section"""
+        line_number, line_content = self.find_task_by_id_in_main(task_id)
+        
+        if not line_content:
+            return self.today  # Fallback to today
+        
+        # Parse the task to extract the date
+        task_data = self._parse_task_line(line_content)
+        if task_data and task_data.get('metadata', {}).get('date'):
+            return task_data['metadata']['date']
+        
+        return self.today  # Fallback to today
     
     def add_task_to_daily(self, task_text):
         """Add a task directly to today's daily section"""
@@ -1402,8 +1504,9 @@ class Paratrooper:
                     if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
                         # Check if it's a recurring task
                         if task.recurring:
-                            # For recurring tasks, update the date to when it was completed (daily section date)
-                            updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
+                            # For recurring tasks, update the date to the appearance date (when it first appeared in daily section)
+                            appearance_date = self._get_task_appearance_date(task.id)
+                            updated_line = self._update_task_date_to_specific_date(line, appearance_date)
                         else:
                             # For non-recurring tasks, mark as complete
                             updated_line = self._mark_task_complete(line)
@@ -1432,8 +1535,14 @@ class Paratrooper:
                     
                     # Only process tasks in the main section
                     if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
-                        # Update the date to show recent engagement (use daily section date)
-                        updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
+                        # Check if it's a recurring task
+                        if task.recurring:
+                            # For recurring tasks, update the date to the appearance date
+                            appearance_date = self._get_task_appearance_date(task.id)
+                            updated_line = self._update_task_date_to_specific_date(line, appearance_date)
+                        else:
+                            # For non-recurring tasks, update the date to show recent engagement
+                            updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
                         lines[i] = updated_line
                         progressed_count += 1
                         task_found = True

@@ -3244,6 +3244,347 @@ class TestLeadingZerosTaskIDParsing(unittest.TestCase):
         self.assertTrue(self.tm._task_id_matches_line("1001", line_content))
 
 
+class TestRecurrenceFixImplementation(unittest.TestCase):
+    """Test the new recurrence fix implementation"""
+    
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "test_config"
+        self.task_file_path = Path(self.temp_dir) / "tasks.md"
+        
+        # Create config pointing to our test file
+        config = Config.load(self.config_path)
+        config.task_file = self.task_file_path
+        
+        self.tm = Paratrooper(config)
+        self.tm.init()
+    
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+    
+    def test_cleanup_incomplete_recurring_tasks(self):
+        """Test cleanup of incomplete recurring tasks from old daily sections"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Take out trash (recur:3d)", "DOMESTIC")
+        
+        # Get task ID
+        task_id = self._get_task_id("Take out trash")
+        
+        # Manually add incomplete instances to old sections first
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        day_before = (datetime.now() - timedelta(days=2)).strftime("%d-%m-%Y")
+        
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        
+        # Find the daily section and add old incomplete instances
+        in_daily = False
+        for i, line in enumerate(lines):
+            if line.strip() == '# DAILY':
+                in_daily = True
+                continue
+            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
+                in_daily = False
+                continue
+            
+            if in_daily and line.strip() == f"## {self.tm.today}":
+                # Insert old sections before today's section
+                old_sections = [
+                    f"## {day_before}",
+                    f"- [ ] #{task_id} | Take out trash | DOMESTIC | {day_before} | (recur:3d)",
+                    "",
+                    f"## {yesterday}",
+                    f"- [ ] #{task_id} | Take out trash | DOMESTIC | {yesterday} | (recur:3d)",
+                    "",
+                    f"## {self.tm.today}",
+                ]
+                lines[i:i] = old_sections
+                break
+        
+        self.tm.write_file('\n'.join(lines))
+        
+        # Count occurrences before cleanup (only in daily sections)
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        in_daily = False
+        task_count_before = 0
+        for line in lines:
+            if line.strip() == '# DAILY':
+                in_daily = True
+                continue
+            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
+                in_daily = False
+                continue
+            if in_daily and f"#{task_id}" in line and "Take out trash" in line:
+                task_count_before += 1
+        self.assertEqual(task_count_before, 3, "Should have 3 instances before cleanup")
+        
+        # Run cleanup
+        task_file = self.tm.parse_file()
+        cleaned_tasks = self.tm._cleanup_incomplete_recurring_tasks(task_file)
+        
+        # Verify cleanup worked
+        self.assertEqual(len(cleaned_tasks), 2, "Should have cleaned up 2 old instances")
+        
+        # Count occurrences after cleanup (only in daily sections)
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        in_daily = False
+        task_count_after = 0
+        for line in lines:
+            if line.strip() == '# DAILY':
+                in_daily = True
+                continue
+            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
+                in_daily = False
+                continue
+            if in_daily and f"#{task_id}" in line and "Take out trash" in line:
+                task_count_after += 1
+        self.assertEqual(task_count_after, 1, "Should have only 1 instance after cleanup")
+    
+    def test_get_task_appearance_date(self):
+        """Test getting task appearance date from daily sections"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Morning workout (daily)", "HEALTH")
+        
+        # Get task ID
+        task_id = self._get_task_id("Morning workout")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Test getting appearance date
+        appearance_date = self.tm._get_task_appearance_date(task_id)
+        self.assertEqual(appearance_date, self.tm.today, "Appearance date should be today")
+        
+        # Test fallback when task not in daily section
+        fallback_date = self.tm._get_task_appearance_date("999")
+        self.assertEqual(fallback_date, self.tm.today, "Fallback should return today")
+    
+    def test_get_main_task_date(self):
+        """Test getting date from main task"""
+        # Add a task
+        self.tm.add_task_to_main("Test task", "WORK")
+        
+        # Get task ID
+        task_id = self._get_task_id("Test task")
+        
+        # Test getting main task date
+        main_date = self.tm._get_main_task_date(task_id)
+        self.assertEqual(main_date, self.tm.today, "Main task date should be today")
+        
+        # Test fallback for non-existent task
+        fallback_date = self.tm._get_main_task_date("999")
+        self.assertEqual(fallback_date, self.tm.today, "Fallback should return today")
+    
+    def test_sync_uses_appearance_date_for_recurring_tasks(self):
+        """Test that sync uses appearance date for recurring tasks"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Check email (recur:2d)", "WORK")
+        
+        # Get task ID
+        task_id = self._get_task_id("Check email")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Complete the task
+        self.tm.complete_task(task_id)
+        
+        # Sync to update main list
+        self.tm.sync_daily_sections()
+        
+        # Verify main task date was updated to appearance date (today)
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        today = self.tm.today
+        self.assertIn(today, main_section, f"Main task should have today's date ({today})")
+        
+        # Verify task is still incomplete (recurring)
+        self.assertIn(f"- [ ] #{task_id} | Check email", main_section, "Recurring task should remain incomplete")
+    
+    def test_sync_uses_appearance_date_for_progress_tasks(self):
+        """Test that sync uses appearance date for recurring tasks marked as progress"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Review budget (recur:1w)", "FINANCE")
+        
+        # Get task ID
+        task_id = self._get_task_id("Review budget")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Mark task as progress
+        self.tm.progress_task_in_daily(task_id)
+        
+        # Sync to update main list
+        self.tm.sync_daily_sections()
+        
+        # Verify main task date was updated to appearance date (today)
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        today = self.tm.today
+        self.assertIn(today, main_section, f"Main task should have today's date ({today})")
+        
+        # Verify task is still incomplete
+        self.assertIn(f"- [ ] #{task_id} | Review budget", main_section, "Task should remain incomplete")
+    
+    def test_delayed_completion_scenario(self):
+        """Test the specific scenario where task appears today but is completed tomorrow"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Morning workout (recur:3d)", "HEALTH")
+        
+        # Get task ID
+        task_id = self._get_task_id("Morning workout")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Verify task appears in daily section
+        content = self.tm.read_file()
+        self.assertIn("Morning workout", content, "Task should appear in daily section")
+        
+        # Simulate completing the task tomorrow by manually updating the daily section
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%d-%m-%Y")
+        
+        # Create tomorrow's daily section (this should clean up today's incomplete task)
+        self.tm.add_daily_section()
+        
+        # Manually add the task to tomorrow's section and complete it
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        
+        # Find tomorrow's section and add the task
+        in_daily = False
+        in_tomorrow_section = False
+        for i, line in enumerate(lines):
+            if line.strip() == '# DAILY':
+                in_daily = True
+                continue
+            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
+                in_daily = False
+                continue
+            
+            if in_daily and line.strip() == f"## {tomorrow}":
+                in_tomorrow_section = True
+                continue
+            elif in_daily and line.strip().startswith('## '):
+                in_tomorrow_section = False
+                continue
+            
+            if in_tomorrow_section and line.strip() == '':
+                # Add the task to tomorrow's section
+                lines.insert(i, f"- [x] #{task_id} | Morning workout | HEALTH | {tomorrow} | (recur:3d)")
+                break
+        
+        self.tm.write_file('\n'.join(lines))
+        
+        # Sync to update main list
+        self.tm.sync_daily_sections()
+        
+        # Verify main task date was updated to appearance date (today), not completion date (tomorrow)
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        today = self.tm.today
+        self.assertIn(today, main_section, f"Main task should have today's date ({today}), not tomorrow's")
+        self.assertNotIn(tomorrow, main_section, "Main task should not have tomorrow's date")
+    
+    def test_pass_entries_dont_affect_recurrence(self):
+        """Test that pass entries don't affect recurrence schedule"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Review budget (recur:1w)", "FINANCE")
+        
+        # Get task ID
+        task_id = self._get_task_id("Review budget")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Complete the task
+        self.tm.complete_task(task_id)
+        self.tm.sync_daily_sections()
+        
+        # Create a pass entry (simulating the pass command)
+        self.tm.create_pass_entry(task_id, 2)  # Pass entry 2 days ago
+        
+        # Verify the main task date is still the appearance date, not affected by pass entry
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        today = self.tm.today
+        self.assertIn(today, main_section, f"Main task should still have today's date ({today})")
+    
+    def test_recurrence_schedule_consistency(self):
+        """Test that recurrence schedule remains consistent regardless of completion timing"""
+        # Add a recurring task
+        self.tm.add_task_to_main("Take out trash (recur:3d)", "DOMESTIC")
+        
+        # Get task ID
+        task_id = self._get_task_id("Take out trash")
+        
+        # Create today's daily section
+        self.tm.add_daily_section()
+        
+        # Complete the task
+        self.tm.complete_task(task_id)
+        self.tm.sync_daily_sections()
+        
+        # Verify the task will recur in 3 days from today
+        # This tests the core fix: recurrence should be based on appearance date, not completion date
+        content = self.tm.read_file()
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        
+        today = self.tm.today
+        self.assertIn(today, main_section, f"Main task should have today's date ({today})")
+        
+        # The next occurrence should be 3 days from today
+        # Test that the task should NOT recur tomorrow or day after
+        from datetime import datetime, timedelta
+        today_obj = datetime.strptime(today, "%d-%m-%Y")
+        tomorrow = (today_obj + timedelta(days=1)).strftime("%d-%m-%Y")
+        day_after = (today_obj + timedelta(days=2)).strftime("%d-%m-%Y")
+        day_after_tomorrow = (today_obj + timedelta(days=3)).strftime("%d-%m-%Y")
+        
+        # Test that the task should NOT recur before the interval is complete
+        # Note: should_recur_today checks if it should recur TODAY, not on a specific date
+        # So we test with today's date and different intervals
+        self.assertFalse(self.tm.should_recur_today("recur:3d", tomorrow), "Should not recur tomorrow")
+        self.assertFalse(self.tm.should_recur_today("recur:3d", day_after), "Should not recur day after")
+        
+        # Test that a task with 3-day interval should recur after 3 days
+        # We simulate being 3 days in the future
+        future_date = (today_obj + timedelta(days=3)).strftime("%d-%m-%Y")
+        self.assertTrue(self.tm.should_recur_today("recur:3d", future_date), "Should recur after 3 days")
+    
+    def _get_task_id(self, task_text):
+        """Helper function to get task ID by text"""
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        
+        for line in lines:
+            if task_text in line and '#' in line:
+                # Extract task ID
+                parts = line.split('#')
+                if len(parts) > 1:
+                    task_id = parts[1].split()[0]
+                    return task_id
+        
+        raise ValueError(f"Could not find task ID for: {task_text}")
+
+
 def run_tests():
     """Run all tests"""
     # Create test suite
@@ -3267,6 +3608,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestRecurringTaskStatusCalculation))
     suite.addTests(loader.loadTestsFromTestCase(TestPassEntryFeature))
     suite.addTests(loader.loadTestsFromTestCase(TestLeadingZerosTaskIDParsing))
+    suite.addTests(loader.loadTestsFromTestCase(TestRecurrenceFixImplementation))
     
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
