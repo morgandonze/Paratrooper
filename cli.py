@@ -30,7 +30,7 @@ def main():
         pt.show_config()
     elif command == "init":
         pt.init()
-    elif command == "daily":
+    elif command == "daily" or command == "day":
         # Always check for new recurring tasks and add them
         result = pt.add_daily_section()
         if result == "show_daily_list":
@@ -59,15 +59,6 @@ def main():
             print("Error: 'done' command requires a task ID")
             print("Usage: t done <ID>")
             print("Example: t done 042")
-    elif command == "reopen":
-        if len(args) > 1:
-            # Normalize task ID by removing leading zeros
-            normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
-            pt.reopen_task(normalized_id)
-        else:
-            print("Error: 'reopen' command requires a task ID")
-            print("Usage: t reopen <ID>")
-            print("Example: t reopen 042")
     elif command == "undone":
         if len(args) > 1:
             # Normalize task ID by removing leading zeros

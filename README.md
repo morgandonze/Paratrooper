@@ -119,7 +119,7 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 ### 7. **Advanced Task Management**
 - **Task editing**: `pt edit ID "new text"` - Modify task descriptions
 - **Task moving**: `pt move ID SECTION` - Reorganize tasks between sections
-- **Task reopening**: `pt reopen ID` / `pt undone ID` - Mark completed tasks as incomplete
+- **Task reopening**: `pt undone ID` - Mark completed tasks as incomplete
 - **Recurrence modification**: `pt recur ID PATTERN` - Change recurring patterns
 - **File editing**: `pt open` - Open task file with configured editor
 
@@ -136,6 +136,7 @@ pt init               # Initialize task file with default structure
 ### Daily Workflow
 ```bash
 pt daily              # Add today's section with recurring tasks
+pt day                # Alias for daily
 pt status             # Show oldest tasks from MAIN section (default: 5 tasks)
 pt status 10          # Show 10 oldest tasks
 pt status WORK        # Show oldest tasks from WORK section
@@ -183,8 +184,7 @@ pt add "annual review (recur:1y)" FINANCE
 ### Task Status
 ```bash
 pt done 042          # Mark task #042 as complete
-pt reopen 042        # Reopen completed task (mark as incomplete)
-pt undone 042        # Alias for reopen
+pt undone 042        # Reopen completed task (mark as incomplete)
 pt pass 042          # Mark progress [~] on task in daily section
 pt pass 042 4        # Create pass entry 4 days ago (reduces urgency)
 pt recur 042 daily   # Modify task recurrence pattern

@@ -49,20 +49,20 @@ class Config:
     def load(cls, config_path: Optional[Path] = None) -> 'Config':
         """Load configuration from file or create default"""
         if config_path is None:
-            # Lookup order: PWD -> PTCONFIG env var -> ~/.ptconfig
-            # First check current working directory for .ptconfig
-            local_config = Path('.ptconfig')
-            if local_config.exists():
-                config_path = local_config
+            # Lookup order: PTCONFIG env var -> PWD -> ~/.ptconfig
+            # First check PTCONFIG environment variable (highest priority)
+            ptconfig_env = os.environ.get('PTCONFIG')
+            if ptconfig_env:
+                env_config = Path(ptconfig_env).expanduser()
+                if env_config.exists():
+                    config_path = env_config
+                else:
+                    config_path = env_config  # Use even if doesn't exist (will create default)
             else:
-                # Check PTCONFIG environment variable
-                ptconfig_env = os.environ.get('PTCONFIG')
-                if ptconfig_env:
-                    env_config = Path(ptconfig_env).expanduser()
-                    if env_config.exists():
-                        config_path = env_config
-                    else:
-                        config_path = env_config  # Use even if doesn't exist (will create default)
+                # Check current working directory for .ptconfig
+                local_config = Path('.ptconfig')
+                if local_config.exists():
+                    config_path = local_config
                 else:
                     # Fall back to ~/.ptconfig
                     config_path = Path('~/.ptconfig').expanduser()

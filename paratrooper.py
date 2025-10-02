@@ -2000,14 +2000,14 @@ COMMANDS:
   help                   Show this help message
   config                 Show current configuration
   init                   Initialize the task file with default structure
-  daily                  Add today's daily section with recurring tasks and carry over all incomplete tasks from previous day                                   
+  daily                  Add today's daily section with recurring tasks and carry over all incomplete tasks from previous day
+  day                    Alias for daily
   status [SCOPE] [N]     Show task status (oldest first, ignores snoozed)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
                          N is number of tasks to show (default: 5)                                                     
   
   done ID                Mark task with ID as complete
-  reopen ID              Reopen completed task (mark as incomplete)
-  undone ID              Alias for reopen
+  undone ID              Reopen completed task (mark as incomplete)
   pass ID                Mark task as progressed [~] in today's daily section
   pass ID N              Create pass entry N days ago in archive section (reduces days since activity)
   sync                   Update main list from completed daily items
@@ -2045,8 +2045,7 @@ EXAMPLES:
   tasks up 042                            # Pull task #042 to today's daily section                                                                             
   tasks done 042                           # Mark task done
   tasks show *:justculture                # Show all tasks from subsections named 'justculture'
-  tasks reopen 042                         # Reopen completed task
-  tasks undone 042                         # Alias for reopen
+  tasks undone 042                         # Reopen completed task
   tasks list                               # List all tasks from main sections
   tasks list PROJECTS:CLIENT               # List tasks in PROJECTS > CLIENT subsection                                                                           
   tasks show 001                           # Show details of task #001
