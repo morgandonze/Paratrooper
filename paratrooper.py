@@ -224,7 +224,11 @@ class Paratrooper:
     def _task_id_matches_line(self, task_id, line):
         """Check if a task ID matches a line, handling both normalized and padded formats"""
         normalized_id = self._normalize_task_id(task_id)
-        return (f"#{normalized_id}" in line or f"#{normalized_id.zfill(3)}" in line)
+        # Use word boundary matching to avoid partial matches (e.g., #1 matching #11)
+        import re
+        pattern1 = rf'#{re.escape(normalized_id)}\b'
+        pattern2 = rf'#{re.escape(normalized_id.zfill(3))}\b'
+        return bool(re.search(pattern1, line) or re.search(pattern2, line))
     
     def _extract_task_id(self, line):
         """Extract task ID from a line"""

@@ -3114,6 +3114,32 @@ class TestLeadingZerosTaskIDParsing(unittest.TestCase):
         self.assertTrue(self.tm._task_id_matches_line("001", test_line_001))
         self.assertFalse(self.tm._task_id_matches_line("11", test_line_001))
     
+    def test_task_id_matching_partial_match_bug_fix(self):
+        """Test that ID matching doesn't have partial match bugs (e.g., #1 matching #11)"""
+        # Test the specific bug: ID "1" should NOT match task #11
+        test_line_11 = "- [ ] #11 | Clothes storage | DOMESTIC | 02-10-2025"
+        test_line_1 = "- [ ] #1 | Make doc appt | HEALTH | 02-10-2025"
+        
+        # ID "1" should only match #1, not #11
+        self.assertFalse(self.tm._task_id_matches_line("1", test_line_11))
+        self.assertTrue(self.tm._task_id_matches_line("1", test_line_1))
+        
+        # ID "11" should only match #11, not #1
+        self.assertTrue(self.tm._task_id_matches_line("11", test_line_11))
+        self.assertFalse(self.tm._task_id_matches_line("11", test_line_1))
+        
+        # Test with padded formats
+        test_line_001 = "- [ ] #001 | Test task | WORK | 15-01-2025"
+        test_line_011 = "- [ ] #011 | Another task | HEALTH | 15-01-2025"
+        
+        # ID "1" should match #001 but not #011
+        self.assertTrue(self.tm._task_id_matches_line("1", test_line_001))
+        self.assertFalse(self.tm._task_id_matches_line("1", test_line_011))
+        
+        # ID "11" should match #011 but not #001
+        self.assertTrue(self.tm._task_id_matches_line("11", test_line_011))
+        self.assertFalse(self.tm._task_id_matches_line("11", test_line_001))
+    
     def test_find_task_by_id_with_leading_zeros(self):
         """Test that find_task_by_id works with both normalized and padded IDs"""
         # Add a task with leading zeros
