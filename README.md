@@ -143,6 +143,27 @@ pt init               # Initialize task file with default structure
 
 **Carry-over Behavior**: By default, all incomplete tasks (unfinished and progressed) are automatically carried over from the previous day's daily section. You can disable this behavior by setting `carry_over_enabled = false` in your configuration file (`~/.ptconfig`).
 
+### Multiple Task Files Workflow
+
+You can manage separate task files for different purposes using different configuration files:
+
+```bash
+# Set up aliases for different task files
+alias mr='PTCONFIG=~/.ptconfig-recurring paratrooper'  # Recurring tasks
+alias mt='PTCONFIG=~/.ptconfig-tasks paratrooper'      # Non-recurring tasks
+
+# Use different files
+mr daily              # Work with recurring tasks file
+mt add "project task" WORK  # Add to non-recurring tasks file
+mt status             # Check stale non-recurring tasks
+```
+
+This approach lets you:
+- **Separate concerns**: Keep recurring habits separate from project work
+- **Different workflows**: Use different carry-over settings for each file type
+- **Cleaner organization**: Avoid mixing ongoing habits with finite projects
+- **Focused daily sections**: Each file has its own daily workflow
+
 ### Daily Workflow
 ```bash
 pt daily              # Add today's section with recurring tasks
