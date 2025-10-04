@@ -576,8 +576,8 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn(today, task_file.daily_sections)
         self.assertNotIn(today, task_file.archive_sections)
     
-    def test_daily_section_display_only_most_recent(self):
-        """Test that DAILY section only shows the most recent day in markdown output"""
+    def test_daily_section_display_shows_all_persistent_sections(self):
+        """Test that DAILY section shows all sections that should persist"""
         self.tm.init()
         
         # Create multiple daily sections
@@ -605,21 +605,15 @@ class TestTaskManager(unittest.TestCase):
         task_file = self.tm.parse_file()
         markdown = task_file.to_markdown()
         
-        # Verify only today's section appears in DAILY section
+        # Verify both sections appear in DAILY section (new behavior)
         daily_section_start = markdown.find("# DAILY")
         main_section_start = markdown.find("# MAIN")
         daily_section = markdown[daily_section_start:main_section_start]
         
         self.assertIn(f"## {today}", daily_section)
         self.assertIn("New task", daily_section)
-        self.assertNotIn(f"## {yesterday}", daily_section)
-        self.assertNotIn("Old task", daily_section)
-        
-        # Verify yesterday's section appears in ARCHIVE
-        archive_section_start = markdown.find("# ARCHIVE")
-        archive_section = markdown[archive_section_start:]
-        self.assertIn(f"## {yesterday}", archive_section)
-        self.assertIn("Old task", archive_section)
+        self.assertIn(f"## {yesterday}", daily_section)
+        self.assertIn("Old task", daily_section)
     
     def test_automatic_reorganization_on_daily_operations(self):
         """Test that daily operations automatically reorganize sections"""
@@ -1836,17 +1830,17 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         # Test custom recurrence patterns
         test_cases = [
             # (pattern, days_ago, expected_result)
-            ("recur:1d", 0, True),   # Same day, new task should appear immediately
-            ("recur:1d", 1, True),   # Yesterday, should recur
-            ("recur:1d", 2, True),   # Day before yesterday, should recur
-            ("recur:3d", 0, True),   # Same day, new task should appear immediately
-            ("recur:3d", 2, False),  # 2 days ago, needs 3
-            ("recur:3d", 3, True),   # 3 days ago, should recur
-            ("recur:3d", 4, True),   # 4 days ago, should recur
-            ("recur:1w", 0, True),  # Same day, new task should appear immediately
-            ("recur:1w", 6, False),  # 6 days ago, needs 7
+            ("recur:1d", 0, False),   # Same day, existing task should not recur immediately
+            ("recur:1d", 1, True),    # Yesterday, should recur
+            ("recur:1d", 2, True),    # Day before yesterday, should recur
+            ("recur:3d", 0, False),   # Same day, existing task should not recur immediately
+            ("recur:3d", 2, False),   # 2 days ago, needs 3
+            ("recur:3d", 3, True),    # 3 days ago, should recur
+            ("recur:3d", 4, True),    # 4 days ago, should recur
+            ("recur:1w", 0, False),  # Same day, existing task should not recur immediately
+            ("recur:1w", 6, False),   # 6 days ago, needs 7
             ("recur:1w", 7, True),   # 7 days ago, should recur
-            ("recur:1w", 8, True),   # 8 days ago, should recur
+            ("recur:1w", 8, True),    # 8 days ago, should recur
         ]
         
         for pattern, days_ago, expected in test_cases:
@@ -1923,28 +1917,16 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         # Create daily section
         self.tm.add_daily_section()
         
-        # Verify all recurring tasks appear (or don't) based on their patterns
+        # Verify all recurring tasks appear (new tasks should appear immediately)
         content = self.tm.read_file()
         daily_section_start = content.find("# DAILY")
         main_section_start = content.find("# MAIN")
         daily_section = content[daily_section_start:main_section_start]
         
-        # Daily task should always appear
+        # All new recurring tasks should appear immediately
         self.assertIn("Daily workout", daily_section)
-        
-        # Weekly and monthly tasks depend on today's date
-        from datetime import datetime
-        today = datetime.now()
-        
-        if today.weekday() == 0:  # Monday
-            self.assertIn("Weekly review", daily_section)
-        else:
-            self.assertNotIn("Weekly review", daily_section)
-        
-        if today.day == 1:  # First of month
-            self.assertIn("Monthly budget", daily_section)
-        else:
-            self.assertNotIn("Monthly budget", daily_section)
+        self.assertIn("Weekly review", daily_section)
+        self.assertIn("Monthly budget", daily_section)
     
     def test_recurring_task_duplication_prevention(self):
         """Test that recurring tasks don't get duplicated when carried over from previous day"""
@@ -2037,15 +2019,15 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         # Test combination patterns with additive logic
         test_cases = [
             # (pattern, days_ago, expected_result, description)
-            ("recur:1w,2d", 0, True, "New task with 1w,2d (9 days) should appear immediately"),
+            ("recur:1w,2d", 0, False, "Existing task with 1w,2d (9 days) should not recur immediately"),
             ("recur:1w,2d", 1, False, "1w,2d (9 days) from yesterday - not enough time"),
             ("recur:1w,2d", 8, False, "1w,2d (9 days) from 8 days ago - not enough time"),
             ("recur:1w,2d", 9, True, "1w,2d (9 days) from 9 days ago - should recur"),
             ("recur:1w,2d", 10, True, "1w,2d (9 days) from 10 days ago - should recur"),
-            ("recur:2d,1w", 0, True, "New task with 2d,1w (9 days) should appear immediately"),
+            ("recur:2d,1w", 0, False, "Existing task with 2d,1w (9 days) should not recur immediately"),
             ("recur:2d,1w", 8, False, "2d,1w (9 days) from 8 days ago - not enough time"),
             ("recur:2d,1w", 9, True, "2d,1w (9 days) from 9 days ago - should recur"),
-            ("recur:1m,2d", 0, True, "New task with 1m,2d (32 days) should appear immediately"),
+            ("recur:1m,2d", 0, False, "Existing task with 1m,2d (32 days) should not recur immediately"),
             ("recur:1m,2d", 30, False, "1m,2d (32 days) from 30 days ago - not enough time"),
             ("recur:1m,2d", 32, True, "1m,2d (32 days) from 32 days ago - should recur"),
         ]
@@ -3363,13 +3345,18 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Parse the file to update the task_file structure with manually added tasks
         task_file = self.tm.parse_file()
         
-        # Run cleanup
-        cleaned_tasks = self.tm._cleanup_incomplete_recurring_tasks(task_file)
+        # Get recurring tasks for today to determine which tasks should be cleaned up
+        recurring_tasks = self.tm.get_recurring_tasks()
+        new_recurring_task_ids = {task['id'] for task in recurring_tasks}
+        
+        # Run cleanup with the new logic
+        cleaned_tasks = self.tm._cleanup_incomplete_recurring_tasks(task_file, new_recurring_task_ids)
         
         # Write the changes back to the file
         self.tm.write_file_from_objects(task_file)
         
-        # Verify cleanup worked
+        # Verify cleanup worked - should clean up 2 old instances since task should recur today
+        # (recur:3d task created 2 days ago should recur today)
         self.assertEqual(len(cleaned_tasks), 2, "Should have cleaned up 2 old instances")
         
         # Count occurrences after cleanup (all instances, not just daily)

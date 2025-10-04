@@ -308,14 +308,15 @@ class TaskFile:
         lines.append('# DAILY')
         lines.append('')
         
-        # Daily sections - only show the most recent day
+        # Daily sections - show all sections that should persist
         if self.daily_sections:
-            # Get the most recent date
-            most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
-            lines.append(f'## {most_recent_date}')
-            for task in self.daily_sections[most_recent_date]:
-                lines.append(task.to_markdown())
-            lines.append('')
+            # Show all daily sections (not just the most recent)
+            # The smart reorganization logic will have already moved sections to archive
+            for date in sorted(self.daily_sections.keys(), reverse=True):
+                lines.append(f'## {date}')
+                for task in self.daily_sections[date]:
+                    lines.append(task.to_markdown())
+                lines.append('')
         
         # Always include MAIN section
         lines.append('# MAIN')
@@ -334,18 +335,8 @@ class TaskFile:
         lines.append('# ARCHIVE')
         lines.append('')
         
-        # Archive sections - show all archived sections and move non-recent daily sections
-        if self.archive_sections or (self.daily_sections and len(self.daily_sections) > 1):
-            # Add all non-recent daily sections to archive
-            if self.daily_sections and len(self.daily_sections) > 1:
-                most_recent_date = max(self.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
-                for date in sorted(self.daily_sections.keys(), reverse=True):
-                    if date != most_recent_date:
-                        lines.append(f'## {date}')
-                        for task in self.daily_sections[date]:
-                            lines.append(task.to_markdown())
-                        lines.append('')
-            
+        # Archive sections - show all archived sections
+        if self.archive_sections:
             # Add existing archive sections
             for section_name, tasks in self.archive_sections.items():
                 lines.append(f'## {section_name}')

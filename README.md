@@ -88,12 +88,13 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 - New daily tasks are automatically added to the **top** of daily sections
 - Recurring tasks appear at the **top** when added to daily sections
 - Pulled tasks from main list are added to the **top** of daily sections
-- **All incomplete tasks automatically carry over** from the previous day's daily section
-- **Simple behavior**: All unfinished and progressed tasks carry over by default (configurable)
+- **Smart carry-over**: Only tasks that should recur today are carried over from previous day
+- **Appearance vs Activity dates**: Daily section headers show when tasks appeared, task dates show last activity
+- **Persistent sections**: Recurring tasks stay in their appearance date sections until new recurrence appears
 - This ensures your most recent tasks are always visible first and nothing falls through the cracks
 
 ### 2. **Daily Workflow Integration**
-- **Morning**: `pt daily` - auto-adds recurring tasks and carries over all incomplete tasks from previous day
+- **Morning**: `pt daily` - auto-adds recurring tasks and carries over tasks that should recur today
 - **Work**: Use daily section, mark tasks as you work
 - **Evening**: `pt sync` - updates main list from daily progress
 
@@ -109,14 +110,23 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 - **Custom**: `(recur:3d)`, `(recur:2w)`, `(recur:1y,3m)`
 
 ### 5. **Enhanced Archive System**
-- Archive only contains **daily subsections** (no completed task clutter)
+- Archive contains **daily subsections** that are no longer needed
+- **Smart persistence**: Recurring tasks stay in daily sections until new recurrence appears
 - Clean, organized archive with just the daily sections you've worked on
 
-### 6. **Easy Initialization**
+### 6. **Smart Date Management**
+- **Task dates** = Last activity date (when you last worked on the task)
+- **Daily section headers** = Appearance date (when task first appeared in daily section)
+- **Daily task entries** = Preserve main task's activity date (not updated to today)
+- **Activity updates** = Both daily and main entries get current date when you work on them
+- **Persistent sections** = Recurring tasks stay in appearance date sections until new recurrence
+- **Smart carry-over** = Only tasks that should recur today are carried over from previous day
+
+### 7. **Easy Initialization**
 - Use `pt init` to create your task file with proper structure
 - No more manual file creation - the paratrooper handles it all!
 
-### 7. **Advanced Task Management**
+### 8. **Advanced Task Management**
 - **Task editing**: `pt edit ID "new text"` - Modify task descriptions
 - **Task moving**: `pt move ID SECTION` - Reorganize tasks between sections
 - **Task reopening**: `pt undone ID` - Mark completed tasks as incomplete

@@ -997,20 +997,33 @@ class Paratrooper:
         # Check if today's section already exists
         section_already_exists = self.today in task_file.daily_sections
         
-        # Clean up incomplete recurring tasks from old daily sections
-        cleaned_tasks = self._cleanup_incomplete_recurring_tasks(task_file)
-        
         # Get recurring tasks for today
         recurring_tasks = self.get_recurring_tasks()
         
+        # Clean up incomplete recurring tasks from old daily sections
+        # Only clean up tasks that have new instances being added today
+        new_recurring_task_ids = {task['id'] for task in recurring_tasks}
+        cleaned_tasks = self._cleanup_incomplete_recurring_tasks(task_file, new_recurring_task_ids)
+        
         # Get unfinished tasks from previous day (if carry-over is enabled)
+        # Only carry over tasks that should actually recur today
         unfinished_tasks = []
         if self.config and self.config.carry_over_enabled:
             most_recent_result = self.get_most_recent_daily_section(task_file)
             if most_recent_result:
                 most_recent_date, most_recent_tasks = most_recent_result
                 if most_recent_date and most_recent_date != self.today:
-                    unfinished_tasks = self.get_unfinished_tasks_from_daily(most_recent_tasks)
+                    all_unfinished = self.get_unfinished_tasks_from_daily(most_recent_tasks)
+                    
+                    # Filter to only carry over tasks that should recur today
+                    for task in all_unfinished:
+                        if task.recurring:
+                            # For recurring tasks, only carry over if they should recur today
+                            if self.should_recur_today(task.recurring.strip('()'), task.date or self.today):
+                                unfinished_tasks.append(task)
+                        else:
+                            # For non-recurring tasks, always carry over
+                            unfinished_tasks.append(task)
         
         if section_already_exists:
             # If section already exists, just add missing recurring tasks
@@ -1095,8 +1108,9 @@ class Paratrooper:
         # Write back to file
         self.write_file_from_objects(task_file)
         
-        # Reorganize daily sections (move old ones to archive) AFTER carry-over is complete
-        task_file.reorganize_daily_sections()
+        # Reorganize daily sections (move old ones to archive) AFTER adding today's section
+        # Only move sections that don't contain recurring tasks that should persist
+        self._reorganize_daily_sections_smart(task_file, new_recurring_task_ids)
         self.write_file_from_objects(task_file)
         
         if recurring_tasks:
@@ -1110,8 +1124,8 @@ class Paratrooper:
         if cleaned_tasks:
             print(f"Cleaned up {len(cleaned_tasks)} incomplete recurring tasks from previous days")
     
-    def _cleanup_incomplete_recurring_tasks(self, task_file):
-        """Remove incomplete recurring tasks from old daily sections"""
+    def _cleanup_incomplete_recurring_tasks(self, task_file, new_recurring_task_ids=None):
+        """Remove incomplete recurring tasks from old daily sections only if new instances are being added"""
         cleaned_tasks = []
         
         if not task_file.daily_sections:
@@ -1119,6 +1133,10 @@ class Paratrooper:
         
         # Get today's date for comparison
         today_obj = datetime.strptime(self.today, "%d-%m-%Y")
+        
+        # Only clean up tasks that have new instances being added today
+        if new_recurring_task_ids is None:
+            new_recurring_task_ids = set()
         
         # Find incomplete recurring tasks in old daily sections
         tasks_to_remove = []
@@ -1135,7 +1153,8 @@ class Paratrooper:
             
             for task in tasks:
                 if (task.recurring and 
-                    task.status in [' ', '~']):  # Incomplete or progress
+                    task.status in [' ', '~'] and  # Incomplete or progress
+                    task.id in new_recurring_task_ids):  # Only remove if new instance is being added
                     tasks_to_remove.append({
                         'id': task.id,
                         'date': date_str,
@@ -1157,6 +1176,63 @@ class Paratrooper:
         
         return cleaned_tasks
     
+    def _reorganize_daily_sections_smart(self, task_file, new_recurring_task_ids=None):
+        """Move non-recent daily sections to archive, but preserve recurring tasks that should persist"""
+        if not task_file.daily_sections or len(task_file.daily_sections) <= 1:
+            return
+        
+        # Get the most recent date
+        most_recent_date = max(task_file.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
+        
+        # Only move sections that don't contain recurring tasks that should persist
+        dates_to_move = []
+        for date in task_file.daily_sections.keys():
+            if date == most_recent_date:
+                continue  # Keep the most recent section
+            
+            # Check if this section contains recurring tasks that should persist
+            should_persist = False
+            for task in task_file.daily_sections[date]:
+                if task.recurring and task.id not in (new_recurring_task_ids or set()):
+                    # This is a recurring task that's not getting a new instance today
+                    # Check if it should persist based on its recurrence pattern
+                    if self._should_persist_recurring_task(task, date):
+                        should_persist = True
+                        break  # If any task should persist, keep the entire section
+            
+            if not should_persist:
+                dates_to_move.append(date)
+        
+        # Move non-persistent sections to archive
+        for date in dates_to_move:
+            # Move tasks to archive
+            if date not in task_file.archive_sections:
+                task_file.archive_sections[date] = []
+            task_file.archive_sections[date].extend(task_file.daily_sections[date])
+            # Remove from daily sections
+            del task_file.daily_sections[date]
+    
+    def _should_persist_recurring_task(self, task, section_date):
+        """Check if a recurring task should persist in its appearance date section"""
+        if not task.recurring:
+            return False
+        
+        # For recurring tasks, they should persist until a new instance is created
+        # This means they should persist if they haven't met their recurrence interval yet
+        try:
+            section_date_obj = datetime.strptime(section_date, "%d-%m-%Y")
+            today_obj = datetime.strptime(self.today, "%d-%m-%Y")
+            
+            # Check if this task should recur today based on its pattern
+            # If it should recur today, it will get a new instance, so don't persist the old one
+            # If it shouldn't recur today, persist the old instance
+            should_recur_today = self.should_recur_today(task.recurring.strip('()'), task.date or self.today)
+            
+            # Persist if the task should NOT recur today (meaning it hasn't met its interval yet)
+            return not should_recur_today
+            
+        except ValueError:
+            return False
     
     def add_task_to_daily(self, task_text):
         """Add a task directly to today's daily section"""
