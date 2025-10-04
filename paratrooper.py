@@ -907,6 +907,23 @@ class Paratrooper:
         
         return False
     
+    def _get_main_task_by_id(self, task_id):
+        """Get a main task by its ID"""
+        task_file = self.parse_file()
+        
+        for section_name, section in task_file.main_sections.items():
+            for task in section.tasks:
+                if task.id == task_id:
+                    return task
+            
+            # Check subsections
+            for subsection_name, subsection in section.subsections.items():
+                for task in subsection.tasks:
+                    if task.id == task_id:
+                        return task
+        
+        return None
+    
     def get_recurring_tasks(self):
         """Get all recurring tasks that should appear today"""
         task_file = self.parse_file()
@@ -1041,11 +1058,14 @@ class Paratrooper:
         for recurring_task in recurring_tasks:
             if recurring_task['id'] not in unfinished_task_ids:
                 task_text = recurring_task['text']  # No need for "from" text anymore
+                # Get the main task to preserve its activity date
+                main_task = self._get_main_task_by_id(recurring_task['id'])
+                activity_date = main_task.date if main_task else self.today
                 task = Task(
                     id=recurring_task['id'],
                     text=task_text,
                     status=" ",
-                    date=self.today,
+                    date=activity_date,  # Preserve main task's activity date
                     recurring=recurring_task['recurring'],
                     section=recurring_task['section'],
                     is_daily=True,
@@ -1055,12 +1075,12 @@ class Paratrooper:
         
         # Add unfinished tasks from previous day
         for unfinished_task in unfinished_tasks:
-            # Reset status to incomplete for carry-over
+            # Reset status to incomplete for carry-over, but preserve activity date
             task = Task(
                 id=unfinished_task.id,
                 text=unfinished_task.text,
                 status=" ",
-                date=self.today,
+                date=unfinished_task.date,  # Preserve the activity date
                 recurring=unfinished_task.recurring,
                 section=unfinished_task.section,
                 subsection=unfinished_task.subsection,
@@ -1215,11 +1235,13 @@ class Paratrooper:
         
         # Create task for daily section (no need for "from" text anymore)
         task_text = task_data['text']
+        # Preserve the main task's activity date
+        activity_date = task_data['metadata'].get('date', self.today)
         task = Task(
             id=task_id,
             text=task_text,
             status=" ",
-            date=self.today,
+            date=activity_date,  # Preserve main task's activity date
             recurring=task_data['metadata'].get('recurring'),
             section=task_section,
             is_daily=True,
