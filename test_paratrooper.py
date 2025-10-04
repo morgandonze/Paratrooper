@@ -377,8 +377,11 @@ class TestTaskManager(unittest.TestCase):
         self.tm.snooze_task("001", "3")
         
         # Check that task has future date (snoozing)
+        # Calculate expected snooze date: today + 3 days
+        from datetime import datetime, timedelta
+        expected_snooze_date = (datetime.now() + timedelta(days=3)).strftime("%d-%m-%Y")
         content = self.tm.read_file()
-        self.assertIn("04-10-2025", content)  # 3 days from test date
+        self.assertIn(expected_snooze_date, content)
     
     def test_archive_old_content(self):
         """Test archiving old content"""
@@ -3305,6 +3308,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         
         # Find the daily section and add old incomplete instances
         in_daily = False
+        daily_section_found = False
         for i, line in enumerate(lines):
             if line.strip() == '# DAILY':
                 in_daily = True
@@ -3313,58 +3317,67 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
                 in_daily = False
                 continue
             
-            if in_daily and line.strip() == f"## {self.tm.today}":
-                # Insert old sections before today's section
+            if in_daily and line.strip().startswith('## '):
+                # Found a daily section, insert old sections before it
                 old_sections = [
                     f"## {day_before}",
-                    f"- [ ] #{task_id} | Take out trash | DOMESTIC | {day_before} | (recur:3d)",
+                    f"- [ ] #{task_id} | Take out trash | DOMESTIC | {day_before} | recur:3d",
                     "",
                     f"## {yesterday}",
-                    f"- [ ] #{task_id} | Take out trash | DOMESTIC | {yesterday} | (recur:3d)",
+                    f"- [ ] #{task_id} | Take out trash | DOMESTIC | {yesterday} | recur:3d",
                     "",
-                    f"## {self.tm.today}",
                 ]
                 lines[i:i] = old_sections
+                daily_section_found = True
                 break
+        
+        # If no daily section found, add one with old sections
+        if not daily_section_found:
+            # Find the # DAILY line and add sections after it
+            for i, line in enumerate(lines):
+                if line.strip() == '# DAILY':
+                    old_sections = [
+                        "",
+                        f"## {day_before}",
+                        f"- [ ] #{task_id} | Take out trash | DOMESTIC | {day_before} | recur:3d",
+                        "",
+                        f"## {yesterday}",
+                        f"- [ ] #{task_id} | Take out trash | DOMESTIC | {yesterday} | recur:3d",
+                        "",
+                        f"## {self.tm.today}",
+                    ]
+                    lines[i+1:i+1] = old_sections
+                    break
         
         self.tm.write_file('\n'.join(lines))
         
-        # Count occurrences before cleanup (only in daily sections)
+        # Count occurrences before cleanup (all instances, not just daily)
         content = self.tm.read_file()
         lines = content.split('\n')
-        in_daily = False
         task_count_before = 0
         for line in lines:
-            if line.strip() == '# DAILY':
-                in_daily = True
-                continue
-            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
-                in_daily = False
-                continue
-            if in_daily and f"#{task_id}" in line and "Take out trash" in line:
+            if f"#{task_id}" in line and "Take out trash" in line:
                 task_count_before += 1
         self.assertEqual(task_count_before, 3, "Should have 3 instances before cleanup")
         
-        # Run cleanup
+        # Parse the file to update the task_file structure with manually added tasks
         task_file = self.tm.parse_file()
+        
+        # Run cleanup
         cleaned_tasks = self.tm._cleanup_incomplete_recurring_tasks(task_file)
+        
+        # Write the changes back to the file
+        self.tm.write_file_from_objects(task_file)
         
         # Verify cleanup worked
         self.assertEqual(len(cleaned_tasks), 2, "Should have cleaned up 2 old instances")
         
-        # Count occurrences after cleanup (only in daily sections)
+        # Count occurrences after cleanup (all instances, not just daily)
         content = self.tm.read_file()
         lines = content.split('\n')
-        in_daily = False
         task_count_after = 0
         for line in lines:
-            if line.strip() == '# DAILY':
-                in_daily = True
-                continue
-            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
-                in_daily = False
-                continue
-            if in_daily and f"#{task_id}" in line and "Take out trash" in line:
+            if f"#{task_id}" in line and "Take out trash" in line:
                 task_count_after += 1
         self.assertEqual(task_count_after, 1, "Should have only 1 instance after cleanup")
     
@@ -3576,15 +3589,14 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         day_after_tomorrow = (today_obj + timedelta(days=3)).strftime("%d-%m-%Y")
         
         # Test that the task should NOT recur before the interval is complete
-        # Note: should_recur_today checks if it should recur TODAY, not on a specific date
-        # So we test with today's date and different intervals
-        self.assertFalse(self.tm.should_recur_today("recur:3d", tomorrow), "Should not recur tomorrow")
-        self.assertFalse(self.tm.should_recur_today("recur:3d", day_after), "Should not recur day after")
+        # The task was completed today, so it should not recur today (only 0 days have passed)
+        # Note: This tests that completed tasks don't immediately recur
+        self.assertFalse(self.tm.should_recur_today("recur:3d", today), "Should not recur today (only 0 days passed)")
         
         # Test that a task with 3-day interval should recur after 3 days
-        # We simulate being 3 days in the future
-        future_date = (today_obj + timedelta(days=3)).strftime("%d-%m-%Y")
-        self.assertTrue(self.tm.should_recur_today("recur:3d", future_date), "Should recur after 3 days")
+        # We simulate a task that was completed 3 days ago
+        three_days_ago = (today_obj - timedelta(days=3)).strftime("%d-%m-%Y")
+        self.assertTrue(self.tm.should_recur_today("recur:3d", three_days_ago), "Should recur after 3 days")
     
     def _get_task_id(self, task_text):
         """Helper function to get task ID by text"""

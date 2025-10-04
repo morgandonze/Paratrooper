@@ -867,7 +867,7 @@ class Paratrooper:
             # Custom recurrence: recur:3d, recur:2w, etc.
             # For custom recurrence, we need to check the last date
             if not last_date_str:
-                # If no date provided, assume it should recur
+                # If no date provided (new task), assume it should recur immediately
                 return True
             
             try:
@@ -901,9 +901,9 @@ class Paratrooper:
             
             # Check if the total interval has been met
             days_since = (today - last_date).days
-            # For new tasks (created today), they should immediately appear
             # For existing tasks, check if the total interval has passed
-            return days_since >= total_days or days_since == 0
+            # Only allow immediate recurrence for daily tasks
+            return days_since >= total_days
         
         return False
     
@@ -914,24 +914,46 @@ class Paratrooper:
         
         for section_name, section in task_file.main_sections.items():
             for task in section.tasks:
-                if task.recurring and self.should_recur_today(task.recurring.strip('()'), task.date or self.today):
-                    recurring_tasks.append({
-                        'id': task.id,
-                        'text': task.text,
-                        'section': section_name,
-                        'recurring': task.recurring
-                    })
+                if task.recurring:
+                    # For new tasks (created today), allow immediate recurrence
+                    # For existing tasks, check if they should recur based on their last activity date
+                    should_recur = False
+                    if task.date == self.today and task.status in [' ', '~']:
+                        # New task created today - should appear immediately
+                        should_recur = True
+                    else:
+                        # Existing task - check if it should recur based on interval
+                        should_recur = self.should_recur_today(task.recurring.strip('()'), task.date or self.today)
+                    
+                    if should_recur:
+                        recurring_tasks.append({
+                            'id': task.id,
+                            'text': task.text,
+                            'section': section_name,
+                            'recurring': task.recurring
+                        })
             
             # Check subsections
             for subsection_name, subsection in section.subsections.items():
                 for task in subsection.tasks:
-                    if task.recurring and self.should_recur_today(task.recurring.strip('()'), task.date or self.today):
-                        recurring_tasks.append({
-                            'id': task.id,
-                            'text': task.text,
-                            'section': f"{section_name}:{subsection_name}",
-                            'recurring': task.recurring
-                        })
+                    if task.recurring:
+                        # For new tasks (created today), allow immediate recurrence
+                        # For existing tasks, check if they should recur based on their last activity date
+                        should_recur = False
+                        if task.date == self.today and task.status in [' ', '~']:
+                            # New task created today - should appear immediately
+                            should_recur = True
+                        else:
+                            # Existing task - check if it should recur based on interval
+                            should_recur = self.should_recur_today(task.recurring.strip('()'), task.date or self.today)
+                        
+                        if should_recur:
+                            recurring_tasks.append({
+                                'id': task.id,
+                                'text': task.text,
+                                'section': f"{section_name}:{subsection_name}",
+                                'recurring': task.recurring
+                            })
         
         return recurring_tasks
     
@@ -1093,8 +1115,7 @@ class Paratrooper:
             
             for task in tasks:
                 if (task.recurring and 
-                    task.status in [' ', '~'] and  # Incomplete or progress
-                    task.id not in [t['id'] for t in tasks_to_remove]):  # Avoid duplicates
+                    task.status in [' ', '~']):  # Incomplete or progress
                     tasks_to_remove.append({
                         'id': task.id,
                         'date': date_str,
