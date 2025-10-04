@@ -2120,7 +2120,7 @@ class Paratrooper:
             )
             
             # Display with age score instead of raw days
-            print(f"{color} {age_score:.1f} | #{task.id} | {task.text} | {section}")
+            print(f"{color} {age_score:.0f} | #{task.id} | {task.text} | {section}")
     
     def set_task_size(self, task_id: str, size_arg: str):
         """Set the size/scale factor for a task"""
