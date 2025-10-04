@@ -805,11 +805,105 @@ class TestTaskManager(unittest.TestCase):
         # The key test: should appear exactly once (no duplication)
         # This is the main assertion that verifies the fix works
         
-        # Previous day's section should be moved to archive
+        # Previous day's section should be moved to archive, but since the recurring task
+        # was carried over, the section becomes empty and gets removed entirely
+        # This is the correct behavior - no empty sections should remain
         self.assertIn("# ARCHIVE", content)
         archive_section_start = content.find("# ARCHIVE")
         archive_section = content[archive_section_start:]
-        self.assertIn(f"## {yesterday}", archive_section)
+        
+        # The previous day's section should NOT be in archive because it was empty after
+        # the recurring task was carried over (this is the correct behavior)
+        self.assertNotIn(f"## {yesterday}", archive_section)
+
+    def test_non_recurring_task_carryover_removal(self):
+        """Test that non-recurring tasks are properly removed from previous day sections when carried over"""
+        self.tm.init()
+        
+        # Create dates for testing
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        today = datetime.now().strftime("%d-%m-%Y")
+        
+        # Add a non-recurring task to main section
+        self.tm.add_task_to_main("Write documentation", "WORK")
+        
+        # Get task ID using the proper method
+        line_num, task_line = self.tm.find_task_by_id("001")
+        self.assertIsNotNone(task_line, "Task should be found")
+        task_id = "001"
+        
+        # Create yesterday's daily section with the non-recurring task as incomplete
+        yesterday_content = f"""# DAILY
+
+## {yesterday}
+- [ ] #{task_id} | Write documentation | WORK | {today}
+
+# MAIN
+
+## WORK
+- [ ] #{task_id} | Write documentation | WORK | {today}
+
+# ARCHIVE
+"""
+        
+        # Write the test content
+        self.tm.task_file.write_text(yesterday_content)
+        
+        # Run daily command to create today's section
+        self.tm.add_daily_section()
+        
+        # Verify the results
+        content = self.tm.read_file()
+        
+        # Should have today's daily section
+        self.assertIn(f"## {today}", content)
+        
+        # Get today's daily section content
+        daily_section_start = content.find(f"## {today}")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        
+        # Non-recurring task should be carried over to today's section
+        self.assertIn("Write documentation", daily_section)
+        self.assertIn(f"#{task_id}", daily_section)
+        
+        # Count occurrences of the task in today's daily section
+        task_occurrences = daily_section.count("Write documentation")
+        
+        # Should appear exactly once (not duplicated)
+        self.assertEqual(task_occurrences, 1, 
+                        f"Task 'Write documentation' appears {task_occurrences} times in daily section, should appear exactly once")
+        
+        # The key test: previous day's section should NOT contain the carried-over task
+        # Check if yesterday's section still exists in daily sections
+        daily_sections_start = content.find("# DAILY")
+        daily_sections_end = content.find("# MAIN")
+        daily_sections_content = content[daily_sections_start:daily_sections_end]
+        
+        # Count occurrences of the task in yesterday's section (should be 0)
+        yesterday_section_start = daily_sections_content.find(f"## {yesterday}")
+        if yesterday_section_start != -1:
+            # Find the end of yesterday's section
+            next_section_start = daily_sections_content.find("## ", yesterday_section_start + 1)
+            if next_section_start == -1:
+                yesterday_section_content = daily_sections_content[yesterday_section_start:]
+            else:
+                yesterday_section_content = daily_sections_content[yesterday_section_start:next_section_start]
+            
+            yesterday_task_occurrences = yesterday_section_content.count("Write documentation")
+            self.assertEqual(yesterday_task_occurrences, 0, 
+                            f"Task 'Write documentation' appears {yesterday_task_occurrences} times in yesterday's section, should appear 0 times")
+        else:
+            # If yesterday's section doesn't exist, that's also correct (empty sections are removed)
+            pass
+        
+        # Archive section should exist but should NOT contain the carried-over task
+        self.assertIn("# ARCHIVE", content)
+        archive_section_start = content.find("# ARCHIVE")
+        archive_section = content[archive_section_start:]
+        
+        # The task should NOT be in archive because it was carried over, not archived
+        self.assertNotIn("Write documentation", archive_section)
 
     def test_main_section_headers_always_persist(self):
         """Test that all main section headers persist regardless of content"""

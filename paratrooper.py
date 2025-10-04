@@ -1184,6 +1184,11 @@ class Paratrooper:
         # Get the most recent date
         most_recent_date = max(task_file.daily_sections.keys(), key=lambda x: datetime.strptime(x, "%d-%m-%Y"))
         
+        # Get IDs of tasks that are in today's section (carried over or new)
+        today_task_ids = set()
+        if self.today in task_file.daily_sections:
+            today_task_ids = {task.id for task in task_file.daily_sections[self.today]}
+        
         # Only move sections that don't contain recurring tasks that should persist
         dates_to_move = []
         for date in task_file.daily_sections.keys():
@@ -1203,13 +1208,21 @@ class Paratrooper:
             if not should_persist:
                 dates_to_move.append(date)
         
-        # Move non-persistent sections to archive
+        # Move non-persistent sections to archive, but remove tasks that are in today's section
         for date in dates_to_move:
-            # Move tasks to archive
-            if date not in task_file.archive_sections:
-                task_file.archive_sections[date] = []
-            task_file.archive_sections[date].extend(task_file.daily_sections[date])
-            # Remove from daily sections
+            # Filter out tasks that are already in today's section (carried over)
+            tasks_to_archive = []
+            for task in task_file.daily_sections[date]:
+                if task.id not in today_task_ids:
+                    tasks_to_archive.append(task)
+            
+            # Only archive if there are tasks to archive
+            if tasks_to_archive:
+                if date not in task_file.archive_sections:
+                    task_file.archive_sections[date] = []
+                task_file.archive_sections[date].extend(tasks_to_archive)
+            
+            # Remove the entire section from daily sections
             del task_file.daily_sections[date]
     
     def _should_persist_recurring_task(self, task, section_date):
