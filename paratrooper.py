@@ -1116,53 +1116,6 @@ class Paratrooper:
         
         return cleaned_tasks
     
-    def _get_task_appearance_date(self, task_id):
-        """Get the appearance date for a task from daily sections, with fallback"""
-        content = self.read_file()
-        lines = content.split('\n')
-        
-        in_daily = False
-        current_daily_date = None
-        appearance_date = None
-        
-        for line in lines:
-            line_stripped = line.strip()
-            
-            if line_stripped == '# DAILY':
-                in_daily = True
-                continue
-            elif line_stripped.startswith('# ') and line_stripped != '# DAILY':
-                in_daily = False
-                continue
-            
-            if in_daily and line_stripped.startswith('## '):
-                current_daily_date = line_stripped[3:].strip()
-                continue
-            
-            # Check if this is the task we're looking for
-            if (in_daily and current_daily_date and 
-                self._task_id_matches_line(task_id, line) and self._is_task_line(line)):
-                appearance_date = current_daily_date
-        
-        # Fallback: if not found in daily sections, get from main task
-        if not appearance_date:
-            appearance_date = self._get_main_task_date(task_id)
-        
-        return appearance_date
-    
-    def _get_main_task_date(self, task_id):
-        """Get the date from a task in the main section"""
-        line_number, line_content = self.find_task_by_id_in_main(task_id)
-        
-        if not line_content:
-            return self.today  # Fallback to today
-        
-        # Parse the task to extract the date
-        task_data = self._parse_task_line(line_content)
-        if task_data and task_data.get('metadata', {}).get('date'):
-            return task_data['metadata']['date']
-        
-        return self.today  # Fallback to today
     
     def add_task_to_daily(self, task_text):
         """Add a task directly to today's daily section"""
@@ -1421,8 +1374,9 @@ class Paratrooper:
         current_task_date = datetime.strptime(task_data['metadata']['date'], "%d-%m-%Y")
         pass_entry_datetime = datetime.strptime(pass_entry_date, "%d-%m-%Y")
         
-        # Only update if the pass entry date is more recent (closer to today) than current date
-        if pass_entry_datetime > current_task_date:
+        # Only update if the pass entry date is different from current date
+        # Pass entries represent historical activity, so we update regardless of direction
+        if pass_entry_datetime != current_task_date:
             new_date = pass_entry_date
             
             # Create updated task with new date
@@ -1508,9 +1462,8 @@ class Paratrooper:
                     if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
                         # Check if it's a recurring task
                         if task.recurring:
-                            # For recurring tasks, update the date to the appearance date (when it first appeared in daily section)
-                            appearance_date = self._get_task_appearance_date(task.id)
-                            updated_line = self._update_task_date_to_specific_date(line, appearance_date)
+                            # For recurring tasks, update the date to today (activity date) but keep incomplete
+                            updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
                         else:
                             # For non-recurring tasks, mark as complete
                             updated_line = self._mark_task_complete(line)
@@ -1539,14 +1492,8 @@ class Paratrooper:
                     
                     # Only process tasks in the main section
                     if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
-                        # Check if it's a recurring task
-                        if task.recurring:
-                            # For recurring tasks, update the date to the appearance date
-                            appearance_date = self._get_task_appearance_date(task.id)
-                            updated_line = self._update_task_date_to_specific_date(line, appearance_date)
-                        else:
-                            # For non-recurring tasks, update the date to show recent engagement
-                            updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
+                        # Update the date to show recent engagement (use today as activity date)
+                        updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
                         lines[i] = updated_line
                         progressed_count += 1
                         task_found = True

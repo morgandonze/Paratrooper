@@ -3368,43 +3368,9 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
                 task_count_after += 1
         self.assertEqual(task_count_after, 1, "Should have only 1 instance after cleanup")
     
-    def test_get_task_appearance_date(self):
-        """Test getting task appearance date from daily sections"""
-        # Add a recurring task
-        self.tm.add_task_to_main("Morning workout (daily)", "HEALTH")
-        
-        # Get task ID
-        task_id = self._get_task_id("Morning workout")
-        
-        # Create today's daily section
-        self.tm.add_daily_section()
-        
-        # Test getting appearance date
-        appearance_date = self.tm._get_task_appearance_date(task_id)
-        self.assertEqual(appearance_date, self.tm.today, "Appearance date should be today")
-        
-        # Test fallback when task not in daily section
-        fallback_date = self.tm._get_task_appearance_date("999")
-        self.assertEqual(fallback_date, self.tm.today, "Fallback should return today")
     
-    def test_get_main_task_date(self):
-        """Test getting date from main task"""
-        # Add a task
-        self.tm.add_task_to_main("Test task", "WORK")
-        
-        # Get task ID
-        task_id = self._get_task_id("Test task")
-        
-        # Test getting main task date
-        main_date = self.tm._get_main_task_date(task_id)
-        self.assertEqual(main_date, self.tm.today, "Main task date should be today")
-        
-        # Test fallback for non-existent task
-        fallback_date = self.tm._get_main_task_date("999")
-        self.assertEqual(fallback_date, self.tm.today, "Fallback should return today")
-    
-    def test_sync_uses_appearance_date_for_recurring_tasks(self):
-        """Test that sync uses appearance date for recurring tasks"""
+    def test_sync_uses_activity_date_for_recurring_tasks(self):
+        """Test that sync uses activity date for recurring tasks"""
         # Add a recurring task
         self.tm.add_task_to_main("Check email (recur:2d)", "WORK")
         
@@ -3420,7 +3386,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Sync to update main list
         self.tm.sync_daily_sections()
         
-        # Verify main task date was updated to appearance date (today)
+        # Verify main task date was updated to activity date (today)
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section_end = content.find("# ARCHIVE")
@@ -3432,8 +3398,8 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Verify task is still incomplete (recurring)
         self.assertIn(f"- [ ] #{task_id} | Check email", main_section, "Recurring task should remain incomplete")
     
-    def test_sync_uses_appearance_date_for_progress_tasks(self):
-        """Test that sync uses appearance date for recurring tasks marked as progress"""
+    def test_sync_uses_activity_date_for_progress_tasks(self):
+        """Test that sync uses activity date for recurring tasks marked as progress"""
         # Add a recurring task
         self.tm.add_task_to_main("Review budget (recur:1w)", "FINANCE")
         
@@ -3449,7 +3415,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Sync to update main list
         self.tm.sync_daily_sections()
         
-        # Verify main task date was updated to appearance date (today)
+        # Verify main task date was updated to activity date (today)
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section_end = content.find("# ARCHIVE")
@@ -3514,7 +3480,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Sync to update main list
         self.tm.sync_daily_sections()
         
-        # Verify main task date was updated to appearance date (today), not completion date (tomorrow)
+        # Verify main task date was updated to activity date (today), not completion date (tomorrow)
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section_end = content.find("# ARCHIVE")
@@ -3539,17 +3505,42 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         self.tm.complete_task(task_id)
         self.tm.sync_daily_sections()
         
+        # Manually set the main task date to 5 days ago to allow pass entry creation
+        from datetime import datetime, timedelta
+        five_days_ago = (datetime.now() - timedelta(days=5)).strftime("%d-%m-%Y")
+        
+        # Update the main task date manually
+        line_number, line_content = self.tm.find_task_by_id_in_main(task_id)
+        task_data = self.tm._parse_task_line(line_content)
+        from models import Task
+        updated_task = Task(
+            id=task_id,
+            text=task_data['text'],
+            status=task_data['status'],
+            date=five_days_ago,
+            recurring=task_data['metadata'].get('recurring'),
+            section=task_data.get('section', 'MAIN')
+        )
+        
+        # Update the file
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        lines[line_number - 1] = updated_task.to_markdown()
+        self.tm.write_file('\n'.join(lines))
+        
         # Create a pass entry (simulating the pass command)
         self.tm.create_pass_entry(task_id, 2)  # Pass entry 2 days ago
         
-        # Verify the main task date is still the appearance date, not affected by pass entry
+        # Verify the main task date is updated to the pass entry date (activity date)
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section_end = content.find("# ARCHIVE")
         main_section = content[main_section_start:main_section_end]
         
-        today = self.tm.today
-        self.assertIn(today, main_section, f"Main task should still have today's date ({today})")
+        # The pass entry should update the main task date to 2 days ago
+        from datetime import datetime, timedelta
+        two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%d-%m-%Y")
+        self.assertIn(two_days_ago, main_section, f"Main task should have pass entry date ({two_days_ago})")
     
     def test_recurrence_schedule_consistency(self):
         """Test that recurrence schedule remains consistent regardless of completion timing"""
@@ -3567,7 +3558,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         self.tm.sync_daily_sections()
         
         # Verify the task will recur in 3 days from today
-        # This tests the core fix: recurrence should be based on appearance date, not completion date
+        # This tests the core fix: recurrence should be based on activity date, not appearance date
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section_end = content.find("# ARCHIVE")
