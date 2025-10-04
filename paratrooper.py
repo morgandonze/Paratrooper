@@ -933,7 +933,7 @@ class Paratrooper:
             for task in section.tasks:
                 if task.recurring:
                     # For new tasks (created today), allow immediate recurrence
-                    # For existing tasks, check if they should recur based on their last activity date
+                    # For existing tasks, check if they should recur based on their last appearance date
                     should_recur = False
                     if task.date == self.today and task.status in [' ', '~']:
                         # New task created today - should appear immediately
@@ -955,7 +955,7 @@ class Paratrooper:
                 for task in subsection.tasks:
                     if task.recurring:
                         # For new tasks (created today), allow immediate recurrence
-                        # For existing tasks, check if they should recur based on their last activity date
+                        # For existing tasks, check if they should recur based on their last appearance date
                         should_recur = False
                         if task.date == self.today and task.status in [' ', '~']:
                             # New task created today - should appear immediately

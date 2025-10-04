@@ -3464,7 +3464,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
     
     
     def test_sync_uses_activity_date_for_recurring_tasks(self):
-        """Test that sync uses activity date for recurring tasks"""
+        """Test that sync uses appearance date for recurring tasks"""
         # Add a recurring task
         self.tm.add_task_to_main("Check email (recur:2d)", "WORK")
         
@@ -3493,7 +3493,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         self.assertIn(f"- [ ] #{task_id} | Check email", main_section, "Recurring task should remain incomplete")
     
     def test_sync_uses_activity_date_for_progress_tasks(self):
-        """Test that sync uses activity date for recurring tasks marked as progress"""
+        """Test that sync uses appearance date for recurring tasks marked as progress"""
         # Add a recurring task
         self.tm.add_task_to_main("Review budget (recur:1w)", "FINANCE")
         
@@ -3652,7 +3652,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         self.tm.sync_daily_sections()
         
         # Verify the task will recur in 3 days from today
-        # This tests the core fix: recurrence should be based on activity date, not appearance date
+        # This tests the core fix: recurrence should be based on appearance date, not activity date
         content = self.tm.read_file()
         main_section_start = content.find("# MAIN")
         main_section_end = content.find("# ARCHIVE")
