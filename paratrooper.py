@@ -2075,7 +2075,9 @@ class Paratrooper:
                     
                     if days_old is not None:
                         task_id = task_data.get('metadata', {}).get('id')
-                        scale_factor = self._get_task_scale_factor(task_id)
+                        # Normalize task ID for calibration lookup
+                        normalized_task_id = self._normalize_task_id(task_id)
+                        scale_factor = self._get_task_scale_factor(normalized_task_id)
                         age_score = round(days_old * scale_factor)
                         
                         tasks_by_age.append({
@@ -2110,6 +2112,16 @@ class Paratrooper:
             else:
                 color = "🟢"  # Green for low age score
             
+            # Determine preset name from scale factor
+            if scale_factor == 2.0:
+                preset = "quick"
+            elif scale_factor == 1.0:
+                preset = "normal"
+            elif scale_factor == 0.5:
+                preset = "slow"
+            else:
+                preset = f"custom: {scale_factor:.1f}"
+            
             # Create a Task object for consistent formatting
             task = Task(
                 id=task_data['metadata'].get('id', '???'),
@@ -2119,8 +2131,8 @@ class Paratrooper:
                 recurring=task_data['metadata'].get('recurring')
             )
             
-            # Display with age score instead of raw days
-            print(f"{color} {age_score:.0f} | #{task.id} | {task.text} | {section}")
+            # Display with age score and preset instead of raw days
+            print(f"{color} {age_score:.0f} | #{task.id} | {task.text} | {section} | {preset}")
     
     def set_task_size(self, task_id: str, size_arg: str):
         """Set the size/scale factor for a task"""
@@ -2363,7 +2375,12 @@ class Paratrooper:
                     if len(parts) >= 3:
                         existing_id = parts[0]
                         existing_scale = parts[2]
-                        if existing_id == task_id:
+                        # Try multiple ID formats for matching
+                        normalized_task_id = self._normalize_task_id(task_id)
+                        if (existing_id == task_id or 
+                            existing_id == normalized_task_id or
+                            existing_id == task_id.zfill(3) or
+                            existing_id == normalized_task_id.zfill(3)):
                             try:
                                 return float(existing_scale)
                             except ValueError:
