@@ -424,16 +424,27 @@ class TestTaskManager(unittest.TestCase):
         content = self.tm.read_file()
         self.assertNotIn("Test task", content)
     
-    def test_show_status_tasks(self):
-        """Test showing task status (staleness)"""
+    def test_show_stale_tasks(self):
+        """Test showing stale tasks (excluding recurring)"""
         self.tm.init()
         self.tm.add_task_to_main("Test task", "WORK")
         
-        # Show status - should not crash
+        # Show stale tasks - should not crash
         try:
-            self.tm.show_status_tasks()
+            self.tm.show_stale_tasks()
         except Exception as e:
-            self.fail(f"show_status_tasks raised an exception: {e}")
+            self.fail(f"show_stale_tasks raised an exception: {e}")
+    
+    def test_show_age_tasks(self):
+        """Test showing tasks by age (excluding recurring)"""
+        self.tm.init()
+        self.tm.add_task_to_main("Test task", "WORK")
+        
+        # Show age tasks - should not crash
+        try:
+            self.tm.show_age_tasks()
+        except Exception as e:
+            self.fail(f"show_age_tasks raised an exception: {e}")
     
     def test_list_sections(self):
         """Test listing sections"""
@@ -2612,7 +2623,10 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
         # Add a monthly recurring task
         self.tm.add_task_to_main("Monthly budget review (monthly:12th)", "FINANCE")
         
-        # Complete the task
+        # Add a non-recurring task to test stale tasks
+        self.tm.add_task_to_main("Write quarterly report", "WORK")
+        
+        # Complete the recurring task
         self.tm.complete_task("001")
         
         # Test status calculation through the full system
@@ -2620,6 +2634,7 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
         content = self.file_ops.read_file()
         self.assertIn("Monthly budget review", content)
         self.assertIn("monthly:12th", content)
+        self.assertIn("Write quarterly report", content)
         
         # The status should be calculated correctly when showing status
         import io
@@ -2629,11 +2644,13 @@ class TestRecurringTaskStatusCalculation(unittest.TestCase):
         sys.stdout = captured_output
         
         try:
-            self.tm.show_status_tasks()
+            self.tm.show_stale_tasks()
             output = captured_output.getvalue()
             
-            # Should not crash and should show the task
-            self.assertIn("Monthly budget review", output)
+            # Should not crash and should show the non-recurring task (recurring tasks are excluded)
+            self.assertIn("Write quarterly report", output)
+            # Should not show the recurring task
+            self.assertNotIn("Monthly budget review", output)
             
         finally:
             sys.stdout = old_stdout

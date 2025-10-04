@@ -1733,6 +1733,22 @@ class Paratrooper:
         
         return "no_date", 0, "no_date"
     
+    def _calculate_task_age(self, task_data):
+        """Calculate the age of a task in days (from creation/appearance)"""
+        if not task_data:
+            return None
+        
+        date_str = task_data.get('metadata', {}).get('date')
+        if not date_str:
+            return None
+        
+        try:
+            task_date = datetime.strptime(date_str, "%d-%m-%Y")
+            today = datetime.now()
+            return (today - task_date).days
+        except ValueError:
+            return None
+    
     def _calculate_next_recurrence_date(self, recur_pattern, last_date):
         """Calculate the expected next occurrence date for a recurring task"""
         if not recur_pattern or not last_date:
@@ -1917,8 +1933,8 @@ class Paratrooper:
         
         return most_recent_activity_date
     
-    def show_status_tasks(self, scope=None, limit=5):
-        """Show task status (staleness) with optional scope filtering and limit"""
+    def show_stale_tasks(self, scope=None, limit=5):
+        """Show stale tasks (excluding recurring) with optional scope filtering and limit"""
         content = self.read_file()
         lines = content.split('\n')
         
@@ -1958,6 +1974,11 @@ class Paratrooper:
                 
                 task_data = self._parse_task_line(line)
                 if task_data:
+                    # Exclude recurring tasks
+                    recurring = task_data.get('metadata', {}).get('recurring')
+                    if recurring:
+                        continue
+                    
                     status_type, days_old, date_str = self._get_task_status_info(task_data)
                     
                     if status_type not in ['complete', 'snoozed']:
@@ -1976,7 +1997,7 @@ class Paratrooper:
         # Apply limit
         limited_tasks = tasks_by_status[:limit]
         
-        print(f"=== Tasks by status (oldest first, showing {len(limited_tasks)} of {len(tasks_by_status)}) ===")
+        print(f"=== Stale tasks (oldest first, showing {len(limited_tasks)} of {len(tasks_by_status)}) ===")
         
         for task_info in limited_tasks:
             days_old = task_info['days_old']
@@ -1989,6 +2010,95 @@ class Paratrooper:
                 color = "🔴"  # Red for very stale
             elif days_old >= 3:
                 color = "🟡"  # Yellow for stale
+            else:
+                color = "🟢"  # Green for recent
+            
+            # Create a Task object for consistent formatting
+            task = Task(
+                id=task_data['metadata'].get('id', '???'),
+                text=task_data['text'],
+                status=task_data['status'],
+                date=task_data['metadata'].get('date'),
+                recurring=task_data['metadata'].get('recurring')
+            )
+            
+            print(self._format_for_status_display(task, days_old, section))
+    
+    def show_age_tasks(self, scope=None, limit=5):
+        """Show tasks by age (excluding recurring) with optional scope filtering and limit"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        tasks_by_age = []
+        in_main = False
+        current_section = None
+        
+        for line in lines:
+            line = line.strip()
+            
+            if line == '# MAIN':
+                in_main = True
+                continue
+            elif line.startswith('# ') and line != '# MAIN':
+                in_main = False
+                continue
+            
+            if in_main and line.startswith('## '):
+                current_section = line[3:].strip()
+                continue
+            
+            if in_main and self._is_task_line(line):
+                # Apply scope filtering
+                if scope:
+                    if ':' in scope:
+                        # Subsection scope
+                        main_sec, sub_sec = scope.split(':', 1)
+                        if current_section != main_sec:
+                            continue
+                        # Check if this is in the right subsection
+                        # This is a simplified check - in reality we'd need to track subsection
+                        continue
+                    else:
+                        # Section scope
+                        if current_section != scope.upper():
+                            continue
+                
+                task_data = self._parse_task_line(line)
+                if task_data:
+                    # Exclude recurring tasks
+                    recurring = task_data.get('metadata', {}).get('recurring')
+                    if recurring:
+                        continue
+                    
+                    # Calculate age based on task creation/appearance date
+                    days_old = self._calculate_task_age(task_data)
+                    
+                    if days_old is not None:
+                        tasks_by_age.append({
+                            'line': line,
+                            'days_old': days_old,
+                            'section': current_section,
+                            'task_data': task_data
+                        })
+        
+        # Sort by age (oldest first)
+        tasks_by_age.sort(key=lambda x: x['days_old'], reverse=True)
+        
+        # Apply limit
+        limited_tasks = tasks_by_age[:limit]
+        
+        print(f"=== Tasks by age (oldest first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
+        
+        for task_info in limited_tasks:
+            days_old = task_info['days_old']
+            section = task_info['section']
+            task_data = task_info['task_data']
+            
+            # Color coding based on age
+            if days_old >= 30:
+                color = "🔴"  # Red for very old
+            elif days_old >= 14:
+                color = "🟡"  # Yellow for old
             else:
                 color = "🟢"  # Green for recent
             
@@ -2086,9 +2196,13 @@ COMMANDS:
   daily                  Add today's daily section with recurring tasks and carry over all incomplete tasks from previous day
                          Daily entries preserve main task activity dates, section headers show appearance dates
   day                    Alias for daily
-  status [SCOPE] [N]     Show task status (oldest first, ignores snoozed)
+  stale [SCOPE] [N]      Show stale tasks (oldest first, excludes recurring tasks)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
-                         N is number of tasks to show (default: 5)                                                     
+                         N is number of tasks to show (default: 5)
+  age [SCOPE] [N]        Show tasks by age (oldest first, excludes recurring tasks)
+                         SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
+                         N is number of tasks to show (default: 5)
+  status [SCOPE] [N]     Alias for stale (backward compatibility)                                                     
   
   done ID                Mark task with ID as complete
   undone ID              Reopen completed task (mark as incomplete)
@@ -2139,11 +2253,15 @@ EXAMPLES:
   tasks pass 001 4                         # Create pass entry 4 days ago (reduces urgency)                                                                             
   tasks snooze 023 7                       # Hide task for a week
   tasks recur 042 daily                    # Set task to recur daily
-  tasks status                             # See what needs attention (shows 5 tasks)
-  tasks status 10                          # See 10 oldest tasks
-  tasks status projects                    # See task status in PROJECTS section (5 tasks)
-  tasks status projects 3                  # See 3 oldest tasks in PROJECTS section
-  tasks status areas:health                # See task status in AREAS > HEALTH subsection                                                                         
+  tasks stale                             # See what needs attention (shows 5 stale tasks)
+  tasks stale 10                          # See 10 most stale tasks
+  tasks stale projects                    # See stale tasks in PROJECTS section (5 tasks)
+  tasks stale projects 3                   # See 3 most stale tasks in PROJECTS section
+  tasks stale areas:health                # See stale tasks in AREAS > HEALTH subsection
+  tasks age                               # See oldest tasks (shows 5 tasks)
+  tasks age 10                            # See 10 oldest tasks
+  tasks age projects                      # See oldest tasks in PROJECTS section
+  tasks status                            # Alias for stale (backward compatibility)                                                                         
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text
   tasks move 042 PROJECTS:CLIENT           # Move task to subsection
@@ -2159,7 +2277,7 @@ WORKFLOW:
   2. Work:      Check daily section, mark tasks:
                 [x] = completed, [~] = made progress but not done
   3. Evening:   tasks sync (updates main list)
-  4. Planning:  tasks status (see neglected tasks)
+  4. Planning:  tasks stale (see neglected tasks)
 
 TASK SYNTAX:
   - [ ] incomplete task | @15-01-2025 #001

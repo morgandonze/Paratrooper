@@ -147,10 +147,15 @@ pt init               # Initialize task file with default structure
 ```bash
 pt daily              # Add today's section with recurring tasks
 pt day                # Alias for daily
-pt status             # Show oldest tasks from MAIN section (default: 5 tasks)
-pt status 10          # Show 10 oldest tasks
-pt status WORK        # Show oldest tasks from WORK section
-pt status WORK 3      # Show 3 oldest tasks from WORK section
+pt stale              # Show stale tasks (oldest first, excludes recurring tasks)
+pt stale 10           # Show 10 most stale tasks
+pt stale WORK         # Show stale tasks from WORK section
+pt stale WORK 3       # Show 3 stale tasks from WORK section
+pt age                # Show tasks by age (oldest first, excludes recurring tasks)
+pt age 10             # Show 10 oldest tasks
+pt age WORK           # Show oldest tasks from WORK section
+pt age WORK 3         # Show 3 oldest tasks from WORK section
+pt status             # Alias for stale (backward compatibility)
 pt sync               # Update MAIN from daily progress
 ```
 
@@ -440,6 +445,12 @@ pt sync               # Update main list from daily progress
 **Staleness Tracking**
 - Only tracks tasks in MAIN section (ignores DAILY/ARCHIVE)
 - Progress updates (`[~]`) prevent tasks from appearing stale
+
+**Task Analysis Commands**
+- **`pt stale`**: Shows tasks by staleness (days since last activity) - "What haven't I worked on recently?"
+- **`pt age`**: Shows tasks by age (days since creation) - "What tasks have been hanging around forever?"
+- **Both commands exclude recurring tasks** since they're designed to be ongoing forever
+- **`pt status`**: Alias for `pt stale` (backward compatibility)
 
 ### ID System
 - **Simple sequential**: #001, #002, #003, etc.

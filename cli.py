@@ -35,7 +35,7 @@ def main():
         result = pt.add_daily_section()
         if result == "show_daily_list":
             pt.show_daily_list()
-    elif command == "status":
+    elif command == "stale":
         # Parse arguments: first arg could be scope or number, second could be number
         if len(args) > 1:
             # Check if first argument is a number (limit)
@@ -49,7 +49,38 @@ def main():
         else:
             scope = None
             limit = 5
-        pt.show_status_tasks(scope, limit)
+        pt.show_stale_tasks(scope, limit)
+    elif command == "age":
+        # Parse arguments: first arg could be scope or number, second could be number
+        if len(args) > 1:
+            # Check if first argument is a number (limit)
+            if args[1].isdigit():
+                limit = int(args[1])
+                scope = None
+            else:
+                # First argument is scope, check if second is number
+                scope = args[1]
+                limit = int(args[2]) if len(args) > 2 and args[2].isdigit() else 5
+        else:
+            scope = None
+            limit = 5
+        pt.show_age_tasks(scope, limit)
+    elif command == "status":
+        # Keep status as alias to stale for backward compatibility
+        # Parse arguments: first arg could be scope or number, second could be number
+        if len(args) > 1:
+            # Check if first argument is a number (limit)
+            if args[1].isdigit():
+                limit = int(args[1])
+                scope = None
+            else:
+                # First argument is scope, check if second is number
+                scope = args[1]
+                limit = int(args[2]) if len(args) > 2 and args[2].isdigit() else 5
+        else:
+            scope = None
+            limit = 5
+        pt.show_stale_tasks(scope, limit)
     elif command == "done":
         if len(args) > 1:
             # Normalize task ID by removing leading zeros
