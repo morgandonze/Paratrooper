@@ -2076,7 +2076,7 @@ class Paratrooper:
                     if days_old is not None:
                         task_id = task_data.get('metadata', {}).get('id')
                         scale_factor = self._get_task_scale_factor(task_id)
-                        age_score = days_old * scale_factor
+                        age_score = round(days_old * scale_factor)
                         
                         tasks_by_age.append({
                             'line': line,
