@@ -279,6 +279,7 @@ class TaskFile:
     daily_sections: Dict[str, List[Task]] = None  # date -> tasks
     main_sections: Dict[str, Section] = None  # section_name -> Section
     archive_sections: Dict[str, List[Task]] = None  # section_name -> tasks
+    calibration_sections: Dict[str, float] = None  # task_id -> scale_factor
     
     def __post_init__(self):
         if self.daily_sections is None:
@@ -287,6 +288,8 @@ class TaskFile:
             self.main_sections = {}
         if self.archive_sections is None:
             self.archive_sections = {}
+        if self.calibration_sections is None:
+            self.calibration_sections = {}
     
     def get_main_section(self, name: str) -> Section:
         """Get or create a main section"""
@@ -299,6 +302,19 @@ class TaskFile:
         if date not in self.daily_sections:
             self.daily_sections[date] = []
         return self.daily_sections[date]
+    
+    def set_task_scale_factor(self, task_id: str, scale_factor: float):
+        """Set the scale factor for a task"""
+        self.calibration_sections[task_id] = scale_factor
+    
+    def get_task_scale_factor(self, task_id: str) -> float:
+        """Get the scale factor for a task (default 1.0)"""
+        return self.calibration_sections.get(task_id, 1.0)
+    
+    def remove_task_scale_factor(self, task_id: str):
+        """Remove the scale factor for a task (revert to default)"""
+        if task_id in self.calibration_sections:
+            del self.calibration_sections[task_id]
     
     def to_markdown(self) -> str:
         """Convert entire file to markdown format"""
@@ -330,6 +346,26 @@ class TaskFile:
                 # Only add blank line if this is not the last section
                 if i < len(section_list) - 1:
                     lines.append('')
+        
+        # Always include CALIBRATION section
+        lines.append('# CALIBRATION')
+        lines.append('')
+        
+        # Calibration data - show task scale factors
+        if self.calibration_sections:
+            lines.append('# ID | PRESET | SCALE_FACTOR')
+            for task_id, scale_factor in sorted(self.calibration_sections.items()):
+                # Determine preset name based on scale factor
+                if scale_factor == 0.5:
+                    preset = 'quick'
+                elif scale_factor == 1.0:
+                    preset = 'normal'
+                elif scale_factor == 2.0:
+                    preset = 'slow'
+                else:
+                    preset = 'custom'
+                lines.append(f'# {task_id} | {preset} | {scale_factor}')
+            lines.append('')
         
         # Always include ARCHIVE section
         lines.append('# ARCHIVE')

@@ -2070,37 +2070,45 @@ class Paratrooper:
                     if recurring:
                         continue
                     
-                    # Calculate age based on task creation/appearance date
+                    # Calculate age score based on task creation/appearance date and scale factor
                     days_old = self._calculate_task_age(task_data)
                     
                     if days_old is not None:
+                        task_id = task_data.get('metadata', {}).get('id')
+                        scale_factor = self._get_task_scale_factor(task_id)
+                        age_score = days_old * scale_factor
+                        
                         tasks_by_age.append({
                             'line': line,
                             'days_old': days_old,
+                            'age_score': age_score,
+                            'scale_factor': scale_factor,
                             'section': current_section,
                             'task_data': task_data
                         })
         
-        # Sort by age (oldest first)
-        tasks_by_age.sort(key=lambda x: x['days_old'], reverse=True)
+        # Sort by age score (highest first)
+        tasks_by_age.sort(key=lambda x: x['age_score'], reverse=True)
         
         # Apply limit
         limited_tasks = tasks_by_age[:limit]
         
-        print(f"=== Tasks by age (oldest first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
+        print(f"=== Tasks by age (highest age score first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
         
         for task_info in limited_tasks:
             days_old = task_info['days_old']
+            age_score = task_info['age_score']
+            scale_factor = task_info['scale_factor']
             section = task_info['section']
             task_data = task_info['task_data']
             
-            # Color coding based on age
-            if days_old >= 30:
-                color = "🔴"  # Red for very old
-            elif days_old >= 14:
-                color = "🟡"  # Yellow for old
+            # Color coding based on age score
+            if age_score >= 30:
+                color = "🔴"  # Red for very high age score
+            elif age_score >= 14:
+                color = "🟡"  # Yellow for high age score
             else:
-                color = "🟢"  # Green for recent
+                color = "🟢"  # Green for low age score
             
             # Create a Task object for consistent formatting
             task = Task(
@@ -2111,7 +2119,259 @@ class Paratrooper:
                 recurring=task_data['metadata'].get('recurring')
             )
             
-            print(self._format_for_status_display(task, days_old, section))
+            # Display with age score instead of raw days
+            print(f"{color} {age_score:.1f} | #{task.id} | {task.text} | {section}")
+    
+    def set_task_size(self, task_id: str, size_arg: str):
+        """Set the size/scale factor for a task"""
+        # Parse the size argument
+        if size_arg.lower() == 'quick':
+            scale_factor = 0.5
+        elif size_arg.lower() == 'normal':
+            scale_factor = 1.0
+        elif size_arg.lower() == 'slow':
+            scale_factor = 2.0
+        elif size_arg.lower() == 'default':
+            # Remove scaling (revert to default)
+            self._remove_task_scale_factor(task_id)
+            print(f"Removed size scaling for task #{task_id} (reverted to default)")
+            return
+        else:
+            # Try to parse as custom scale factor
+            try:
+                scale_factor = float(size_arg)
+                if scale_factor <= 0:
+                    print(f"Error: Scale factor must be positive, got {scale_factor}")
+                    return
+            except ValueError:
+                print(f"Error: Invalid size '{size_arg}'. Use 'quick', 'normal', 'slow', 'default', or a number")
+                return
+        
+        # Check if task exists
+        line_number, line_content = self.find_task_by_id(task_id)
+        if not line_content:
+            print(f"Task #{task_id} not found")
+            return
+        
+        # Set the scale factor
+        self._set_task_scale_factor(task_id, scale_factor)
+        
+        # Determine preset name for display
+        if scale_factor == 0.5:
+            preset_name = 'quick'
+        elif scale_factor == 1.0:
+            preset_name = 'normal'
+        elif scale_factor == 2.0:
+            preset_name = 'slow'
+        else:
+            preset_name = 'custom'
+        
+        print(f"Set task #{task_id} size to {preset_name} (scale factor: {scale_factor})")
+    
+    def _set_task_scale_factor(self, task_id: str, scale_factor: float):
+        """Set the scale factor for a task by updating the file"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Find the CALIBRATION section
+        calibration_start = -1
+        calibration_end = -1
+        for i, line in enumerate(lines):
+            if line.strip() == '# CALIBRATION':
+                calibration_start = i
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION' and line.strip() != '# ID | PRESET | SCALE_FACTOR':
+                calibration_end = i
+                break
+        
+        # If we found the start but not the end, find the next section
+        if calibration_start != -1 and calibration_end == -1:
+            for i in range(calibration_start + 1, len(lines)):
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                    calibration_end = i
+                    break
+            if calibration_end == -1:
+                calibration_end = len(lines)
+        
+        # If no calibration section exists, create it
+        if calibration_start == -1:
+            # Find where to insert it (before ARCHIVE section)
+            archive_index = -1
+            for i, line in enumerate(lines):
+                if line.strip() == '# ARCHIVE':
+                    archive_index = i
+                    break
+            
+            if archive_index != -1:
+                # Insert calibration section before ARCHIVE
+                lines.insert(archive_index, '')
+                lines.insert(archive_index, '# CALIBRATION')
+                lines.insert(archive_index, '')
+                calibration_start = archive_index
+                calibration_end = archive_index + 3
+            else:
+                # Add at the end
+                lines.append('')
+                lines.append('# CALIBRATION')
+                lines.append('')
+                calibration_start = len(lines) - 3
+                calibration_end = len(lines)
+        
+        # Parse existing calibration data
+        calibration_data = {}
+        if calibration_start != -1 and calibration_end != -1:
+            for i in range(calibration_start + 1, calibration_end):
+                if i < len(lines) and lines[i].strip().startswith('# ') and '|' in lines[i]:
+                    parts = lines[i].strip()[2:].split('|')
+                    if len(parts) >= 3:
+                        existing_id = parts[0].strip()
+                        existing_scale = parts[2].strip()
+                        try:
+                            calibration_data[existing_id] = float(existing_scale)
+                        except ValueError:
+                            pass
+        
+        # Update the calibration data
+        calibration_data[task_id] = scale_factor
+        
+        # Rebuild the calibration section
+        new_calibration_lines = ['# CALIBRATION', '']
+        if calibration_data:
+            new_calibration_lines.append('# ID | PRESET | SCALE_FACTOR')
+            for calib_id, calib_scale in sorted(calibration_data.items()):
+                # Determine preset name
+                if calib_scale == 0.5:
+                    preset = 'quick'
+                elif calib_scale == 1.0:
+                    preset = 'normal'
+                elif calib_scale == 2.0:
+                    preset = 'slow'
+                else:
+                    preset = 'custom'
+                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
+        new_calibration_lines.append('')
+        
+        # Replace the calibration section
+        if calibration_start != -1 and calibration_end != -1:
+            lines[calibration_start:calibration_end] = new_calibration_lines
+        else:
+            lines.extend(new_calibration_lines)
+        
+        # Write back to file
+        self.write_file('\n'.join(lines))
+    
+    def _remove_task_scale_factor(self, task_id: str):
+        """Remove the scale factor for a task by updating the file"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Find the CALIBRATION section
+        calibration_start = -1
+        calibration_end = -1
+        for i, line in enumerate(lines):
+            if line.strip() == '# CALIBRATION':
+                calibration_start = i
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION' and line.strip() != '# ID | PRESET | SCALE_FACTOR':
+                calibration_end = i
+                break
+        
+        # If we found the start but not the end, find the next section
+        if calibration_start != -1 and calibration_end == -1:
+            for i in range(calibration_start + 1, len(lines)):
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                    calibration_end = i
+                    break
+            if calibration_end == -1:
+                calibration_end = len(lines)
+        
+        if calibration_start == -1:
+            return  # No calibration section exists
+        
+        # Parse existing calibration data
+        calibration_data = {}
+        if calibration_start != -1 and calibration_end != -1:
+            for i in range(calibration_start + 1, calibration_end):
+                if i < len(lines) and lines[i].strip().startswith('# ') and '|' in lines[i]:
+                    parts = lines[i].strip()[2:].split('|')
+                    if len(parts) >= 3:
+                        existing_id = parts[0].strip()
+                        existing_scale = parts[2].strip()
+                        try:
+                            calibration_data[existing_id] = float(existing_scale)
+                        except ValueError:
+                            pass
+        
+        # Remove the task from calibration data
+        if task_id in calibration_data:
+            del calibration_data[task_id]
+        
+        # Rebuild the calibration section
+        new_calibration_lines = ['# CALIBRATION', '']
+        if calibration_data:
+            new_calibration_lines.append('# ID | PRESET | SCALE_FACTOR')
+            for calib_id, calib_scale in sorted(calibration_data.items()):
+                # Determine preset name
+                if calib_scale == 0.5:
+                    preset = 'quick'
+                elif calib_scale == 1.0:
+                    preset = 'normal'
+                elif calib_scale == 2.0:
+                    preset = 'slow'
+                else:
+                    preset = 'custom'
+                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
+        new_calibration_lines.append('')
+        
+        # Replace the calibration section
+        if calibration_start != -1 and calibration_end != -1:
+            lines[calibration_start:calibration_end] = new_calibration_lines
+        else:
+            lines.extend(new_calibration_lines)
+        
+        # Write back to file
+        self.write_file('\n'.join(lines))
+    
+    def _get_task_scale_factor(self, task_id: str) -> float:
+        """Get the scale factor for a task from the file (default 1.0)"""
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Find the CALIBRATION section
+        calibration_start = -1
+        calibration_end = -1
+        for i, line in enumerate(lines):
+            if line.strip() == '# CALIBRATION':
+                calibration_start = i
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION' and line.strip() != '# ID | PRESET | SCALE_FACTOR':
+                calibration_end = i
+                break
+        
+        # If we found the start but not the end, find the next section
+        if calibration_start != -1 and calibration_end == -1:
+            for i in range(calibration_start + 1, len(lines)):
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                    calibration_end = i
+                    break
+            if calibration_end == -1:
+                calibration_end = len(lines)
+        
+        if calibration_start == -1:
+            return 1.0  # No calibration section exists
+        
+        # Parse calibration data
+        if calibration_start != -1 and calibration_end != -1:
+            for i in range(calibration_start + 1, calibration_end):
+                if i < len(lines) and lines[i].strip().startswith('# ') and '|' in lines[i]:
+                    parts = lines[i].strip()[2:].split('|')
+                    if len(parts) >= 3:
+                        existing_id = parts[0].strip()
+                        existing_scale = parts[2].strip()
+                        if existing_id == task_id:
+                            try:
+                                return float(existing_scale)
+                            except ValueError:
+                                pass
+        
+        return 1.0  # Default scale factor
     
     def show_task(self, task_id):
         """Show details of a specific task"""
@@ -2199,9 +2459,11 @@ COMMANDS:
   stale [SCOPE] [N]      Show stale tasks (oldest first, excludes recurring tasks)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
                          N is number of tasks to show (default: 5)
-  age [SCOPE] [N]        Show tasks by age (oldest first, excludes recurring tasks)
+  age [SCOPE] [N]        Show tasks by age (highest age score first, excludes recurring tasks)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
                          N is number of tasks to show (default: 5)
+  size ID SIZE           Set task size/scale factor for age calculation
+                         SIZE can be 'quick' (0.5x), 'normal' (1.0x), 'slow' (2.0x), 'default' (remove), or custom number
   status [SCOPE] [N]     Alias for stale (backward compatibility)                                                     
   
   done ID                Mark task with ID as complete
@@ -2261,6 +2523,10 @@ EXAMPLES:
   tasks age                               # See oldest tasks (shows 5 tasks)
   tasks age 10                            # See 10 oldest tasks
   tasks age projects                      # See oldest tasks in PROJECTS section
+  tasks size 042 quick                    # Set task #042 to quick aging (0.5x scale)
+  tasks size 043 slow                     # Set task #043 to slow aging (2.0x scale)
+  tasks size 044 2.5                      # Set task #044 to custom scale factor
+  tasks size 045 default                  # Remove custom scaling from task #045
   tasks status                            # Alias for stale (backward compatibility)                                                                         
   tasks sync                               # Update main list from daily work
   tasks edit 042 "new task text"           # Edit task text

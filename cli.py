@@ -65,6 +65,21 @@ def main():
             scope = None
             limit = 5
         pt.show_age_tasks(scope, limit)
+    elif command == "size":
+        if len(args) < 3:
+            print("Error: 'size' command requires a task ID and size")
+            print("Usage: t size <ID> <SIZE>")
+            print("Example: t size 042 quick")
+            print("Example: t size 042 slow")
+            print("Example: t size 042 2.5")
+            print("Example: t size 042 default")
+            return
+        
+        # Normalize task ID by removing leading zeros
+        normalized_id = str(int(args[1])) if args[1].isdigit() else args[1]
+        size_arg = args[2]
+        
+        pt.set_task_size(normalized_id, size_arg)
     elif command == "status":
         # Keep status as alias to stale for backward compatibility
         # Parse arguments: first arg could be scope or number, second could be number
