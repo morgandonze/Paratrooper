@@ -2126,11 +2126,11 @@ class Paratrooper:
         """Set the size/scale factor for a task"""
         # Parse the size argument
         if size_arg.lower() == 'quick':
-            scale_factor = 0.5
+            scale_factor = 2.0
         elif size_arg.lower() == 'normal':
             scale_factor = 1.0
         elif size_arg.lower() == 'slow':
-            scale_factor = 2.0
+            scale_factor = 0.5
         elif size_arg.lower() == 'default':
             # Remove scaling (revert to default)
             self._remove_task_scale_factor(task_id)
@@ -2157,11 +2157,11 @@ class Paratrooper:
         self._set_task_scale_factor(task_id, scale_factor)
         
         # Determine preset name for display
-        if scale_factor == 0.5:
+        if scale_factor == 2.0:
             preset_name = 'quick'
         elif scale_factor == 1.0:
             preset_name = 'normal'
-        elif scale_factor == 2.0:
+        elif scale_factor == 0.5:
             preset_name = 'slow'
         else:
             preset_name = 'custom'
@@ -2179,14 +2179,14 @@ class Paratrooper:
         for i, line in enumerate(lines):
             if line.strip() == '# CALIBRATION':
                 calibration_start = i
-            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION' and line.strip() != '# ID | PRESET | SCALE_FACTOR':
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION':
                 calibration_end = i
                 break
         
         # If we found the start but not the end, find the next section
         if calibration_start != -1 and calibration_end == -1:
             for i in range(calibration_start + 1, len(lines)):
-                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION']:
                     calibration_end = i
                     break
             if calibration_end == -1:
@@ -2220,11 +2220,11 @@ class Paratrooper:
         calibration_data = {}
         if calibration_start != -1 and calibration_end != -1:
             for i in range(calibration_start + 1, calibration_end):
-                if i < len(lines) and lines[i].strip().startswith('# ') and '|' in lines[i]:
-                    parts = lines[i].strip()[2:].split('|')
+                if i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('#'):
+                    parts = lines[i].strip().split()
                     if len(parts) >= 3:
-                        existing_id = parts[0].strip()
-                        existing_scale = parts[2].strip()
+                        existing_id = parts[0]
+                        existing_scale = parts[2]
                         try:
                             calibration_data[existing_id] = float(existing_scale)
                         except ValueError:
@@ -2236,18 +2236,17 @@ class Paratrooper:
         # Rebuild the calibration section
         new_calibration_lines = ['# CALIBRATION', '']
         if calibration_data:
-            new_calibration_lines.append('# ID | PRESET | SCALE_FACTOR')
             for calib_id, calib_scale in sorted(calibration_data.items()):
                 # Determine preset name
-                if calib_scale == 0.5:
+                if calib_scale == 2.0:
                     preset = 'quick'
                 elif calib_scale == 1.0:
                     preset = 'normal'
-                elif calib_scale == 2.0:
+                elif calib_scale == 0.5:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
+                new_calibration_lines.append(f'{calib_id} {preset} {calib_scale}')
         new_calibration_lines.append('')
         
         # Replace the calibration section
@@ -2270,14 +2269,14 @@ class Paratrooper:
         for i, line in enumerate(lines):
             if line.strip() == '# CALIBRATION':
                 calibration_start = i
-            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION' and line.strip() != '# ID | PRESET | SCALE_FACTOR':
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION':
                 calibration_end = i
                 break
         
         # If we found the start but not the end, find the next section
         if calibration_start != -1 and calibration_end == -1:
             for i in range(calibration_start + 1, len(lines)):
-                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION']:
                     calibration_end = i
                     break
             if calibration_end == -1:
@@ -2290,11 +2289,11 @@ class Paratrooper:
         calibration_data = {}
         if calibration_start != -1 and calibration_end != -1:
             for i in range(calibration_start + 1, calibration_end):
-                if i < len(lines) and lines[i].strip().startswith('# ') and '|' in lines[i]:
-                    parts = lines[i].strip()[2:].split('|')
+                if i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('#'):
+                    parts = lines[i].strip().split()
                     if len(parts) >= 3:
-                        existing_id = parts[0].strip()
-                        existing_scale = parts[2].strip()
+                        existing_id = parts[0]
+                        existing_scale = parts[2]
                         try:
                             calibration_data[existing_id] = float(existing_scale)
                         except ValueError:
@@ -2307,18 +2306,17 @@ class Paratrooper:
         # Rebuild the calibration section
         new_calibration_lines = ['# CALIBRATION', '']
         if calibration_data:
-            new_calibration_lines.append('# ID | PRESET | SCALE_FACTOR')
             for calib_id, calib_scale in sorted(calibration_data.items()):
                 # Determine preset name
-                if calib_scale == 0.5:
+                if calib_scale == 2.0:
                     preset = 'quick'
                 elif calib_scale == 1.0:
                     preset = 'normal'
-                elif calib_scale == 2.0:
+                elif calib_scale == 0.5:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
+                new_calibration_lines.append(f'{calib_id} {preset} {calib_scale}')
         new_calibration_lines.append('')
         
         # Replace the calibration section
@@ -2341,14 +2339,14 @@ class Paratrooper:
         for i, line in enumerate(lines):
             if line.strip() == '# CALIBRATION':
                 calibration_start = i
-            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION' and line.strip() != '# ID | PRESET | SCALE_FACTOR':
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION':
                 calibration_end = i
                 break
         
         # If we found the start but not the end, find the next section
         if calibration_start != -1 and calibration_end == -1:
             for i in range(calibration_start + 1, len(lines)):
-                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION']:
                     calibration_end = i
                     break
             if calibration_end == -1:
@@ -2360,11 +2358,11 @@ class Paratrooper:
         # Parse calibration data
         if calibration_start != -1 and calibration_end != -1:
             for i in range(calibration_start + 1, calibration_end):
-                if i < len(lines) and lines[i].strip().startswith('# ') and '|' in lines[i]:
-                    parts = lines[i].strip()[2:].split('|')
+                if i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('#'):
+                    parts = lines[i].strip().split()
                     if len(parts) >= 3:
-                        existing_id = parts[0].strip()
-                        existing_scale = parts[2].strip()
+                        existing_id = parts[0]
+                        existing_scale = parts[2]
                         if existing_id == task_id:
                             try:
                                 return float(existing_scale)
@@ -2463,7 +2461,7 @@ COMMANDS:
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
                          N is number of tasks to show (default: 5)
   size ID SIZE           Set task size/scale factor for age calculation
-                         SIZE can be 'quick' (0.5x), 'normal' (1.0x), 'slow' (2.0x), 'default' (remove), or custom number
+                         SIZE can be 'quick' (2.0x), 'normal' (1.0x), 'slow' (0.5x), 'default' (remove), or custom number
   status [SCOPE] [N]     Alias for stale (backward compatibility)                                                     
   
   done ID                Mark task with ID as complete
@@ -2523,8 +2521,8 @@ EXAMPLES:
   tasks age                               # See oldest tasks (shows 5 tasks)
   tasks age 10                            # See 10 oldest tasks
   tasks age projects                      # See oldest tasks in PROJECTS section
-  tasks size 042 quick                    # Set task #042 to quick aging (0.5x scale)
-  tasks size 043 slow                     # Set task #043 to slow aging (2.0x scale)
+  tasks size 042 quick                    # Set task #042 to quick aging (2.0x scale)
+  tasks size 043 slow                     # Set task #043 to slow aging (0.5x scale)
   tasks size 044 2.5                      # Set task #044 to custom scale factor
   tasks size 045 default                  # Remove custom scaling from task #045
   tasks status                            # Alias for stale (backward compatibility)                                                                         

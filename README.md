@@ -155,6 +155,10 @@ pt age                # Show tasks by age (oldest first, excludes recurring task
 pt age 10             # Show 10 oldest tasks
 pt age WORK           # Show oldest tasks from WORK section
 pt age WORK 3         # Show 3 oldest tasks from WORK section
+pt size 042 quick      # Set task #042 to quick aging (2.0x scale)
+pt size 043 slow       # Set task #043 to slow aging (0.5x scale)
+pt size 044 2.5        # Set task #044 to custom scale factor
+pt size 045 default    # Remove custom scaling from task #045
 pt status             # Alias for stale (backward compatibility)
 pt sync               # Update MAIN from daily progress
 ```
@@ -448,8 +452,9 @@ pt sync               # Update main list from daily progress
 
 **Task Analysis Commands**
 - **`pt stale`**: Shows tasks by staleness (days since last activity) - "What haven't I worked on recently?"
-- **`pt age`**: Shows tasks by age (days since creation) - "What tasks have been hanging around forever?"
-- **Both commands exclude recurring tasks** since they're designed to be ongoing forever
+- **`pt age`**: Shows tasks by age score (days since creation × scale factor) - "What tasks have been hanging around forever?"
+- **`pt size`**: Set task aging sensitivity - quick tasks (2.0x) age faster, slow tasks (0.5x) age slower
+- **Both stale and age commands exclude recurring tasks** since they're designed to be ongoing forever
 - **`pt status`**: Alias for `pt stale` (backward compatibility)
 
 ### ID System
