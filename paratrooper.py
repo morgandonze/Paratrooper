@@ -1995,6 +1995,7 @@ COMMANDS:
   config                 Show current configuration
   init                   Initialize the task file with default structure
   daily                  Add today's daily section with recurring tasks and carry over all incomplete tasks from previous day
+                         Daily entries preserve main task activity dates, section headers show appearance dates
   day                    Alias for daily
   status [SCOPE] [N]     Show task status (oldest first, ignores snoozed)
                          SCOPE can be section (e.g., 'projects') or section:subsection (e.g., 'areas:work')
@@ -2005,12 +2006,14 @@ COMMANDS:
   pass ID                Mark task as progressed [~] in today's daily section
   pass ID N              Create pass entry N days ago in archive section (reduces days since activity)
   sync                   Update main list from completed daily items
-                         [x] in daily = complete main task  
+                         [x] in daily = complete main task (recurring tasks stay incomplete)
                          [~] in daily = update date but keep incomplete
+                         Both daily and main entries get current date when activity occurs
   
   add TEXT [SEC]         Add task to main list section (default: TASKS)
                          Use SEC:SUBSEC for subsections (e.g., WORK:OFFICE)
   up ID                  Pull task from main list into today's daily section
+                         Preserves main task's activity date in daily entry
   
   snooze ID DAYS         Hide task for N days (e.g., snooze 042 5)
   snooze ID DATE         Hide task until date (e.g., snooze 042 25-12-2025)
@@ -2078,6 +2081,13 @@ TASK SYNTAX:
 DAILY SECTION PROGRESS:
   [x] = Task completed (will mark main task complete when synced)
   [~] = Made progress (will update main task date but keep incomplete)
+
+DATE BEHAVIOR:
+  - Task dates represent last activity date (or creation date if no activity)
+  - Daily section headers show appearance date (when task first appeared)
+  - Daily task entries preserve main task's activity date
+  - When activity occurs (done/pass), both daily and main entries update to current date
+  - Tasks remain in same appearance date section until archived
 
 RECURRING PATTERNS:
   (daily)              Every day
