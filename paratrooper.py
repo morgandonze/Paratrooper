@@ -51,6 +51,7 @@ class Paratrooper:
         in_daily = False
         in_main = False
         in_archive = False
+        in_calibration = False
         
         for line in lines:
             line = line.strip()
@@ -64,16 +65,25 @@ class Paratrooper:
                 in_daily = True
                 in_main = False
                 in_archive = False
+                in_calibration = False
                 continue
             elif line == '# MAIN':
                 in_daily = False
                 in_main = True
                 in_archive = False
+                in_calibration = False
+                continue
+            elif line == '# CALIBRATION':
+                in_daily = False
+                in_main = False
+                in_archive = False
+                in_calibration = True
                 continue
             elif line == '# ARCHIVE':
                 in_daily = False
                 in_main = False
                 in_archive = True
+                in_calibration = False
                 continue
             
             # Daily sections
@@ -122,6 +132,21 @@ class Paratrooper:
                     if current_section not in task_file.archive_sections:
                         task_file.archive_sections[current_section] = []
                     task_file.archive_sections[current_section].append(task)
+                continue
+            
+            # Calibration section
+            elif in_calibration and line.startswith('# ') and line not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                # Parse calibration entries: # ID | PRESET | SCALE_FACTOR
+                parts = line[2:].split(' | ')
+                if len(parts) >= 3:
+                    task_id = parts[0].strip()
+                    scale_factor_str = parts[2].strip()
+                    try:
+                        scale_factor = float(scale_factor_str)
+                        task_file.set_task_scale_factor(task_id, scale_factor)
+                    except ValueError:
+                        # Skip invalid scale factor entries
+                        pass
                 continue
         
         return task_file
@@ -2246,7 +2271,7 @@ class Paratrooper:
         calibration_data[task_id] = scale_factor
         
         # Rebuild the calibration section
-        new_calibration_lines = ['# CALIBRATION', '']
+        new_calibration_lines = ['# CALIBRATION', '', '# ID | PRESET | SCALE_FACTOR', '']
         if calibration_data:
             for calib_id, calib_scale in sorted(calibration_data.items()):
                 # Determine preset name
@@ -2258,7 +2283,7 @@ class Paratrooper:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                new_calibration_lines.append(f'{calib_id} {preset} {calib_scale}')
+                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
         new_calibration_lines.append('')
         
         # Replace the calibration section
@@ -2301,11 +2326,11 @@ class Paratrooper:
         calibration_data = {}
         if calibration_start != -1 and calibration_end != -1:
             for i in range(calibration_start + 1, calibration_end):
-                if i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('#'):
-                    parts = lines[i].strip().split()
+                if i < len(lines) and lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                    parts = lines[i].strip()[2:].split(' | ')
                     if len(parts) >= 3:
-                        existing_id = parts[0]
-                        existing_scale = parts[2]
+                        existing_id = parts[0].strip()
+                        existing_scale = parts[2].strip()
                         try:
                             calibration_data[existing_id] = float(existing_scale)
                         except ValueError:
@@ -2316,7 +2341,7 @@ class Paratrooper:
             del calibration_data[task_id]
         
         # Rebuild the calibration section
-        new_calibration_lines = ['# CALIBRATION', '']
+        new_calibration_lines = ['# CALIBRATION', '', '# ID | PRESET | SCALE_FACTOR', '']
         if calibration_data:
             for calib_id, calib_scale in sorted(calibration_data.items()):
                 # Determine preset name
@@ -2328,7 +2353,7 @@ class Paratrooper:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                new_calibration_lines.append(f'{calib_id} {preset} {calib_scale}')
+                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
         new_calibration_lines.append('')
         
         # Replace the calibration section
@@ -2351,16 +2376,19 @@ class Paratrooper:
         for i, line in enumerate(lines):
             if line.strip() == '# CALIBRATION':
                 calibration_start = i
-            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION':
-                calibration_end = i
-                break
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                # Check if this is the start of a new section (not a calibration entry)
+                if line.strip() in ['# ARCHIVE', '# MAIN', '# DAILY']:
+                    calibration_end = i
+                    break
         
         # If we found the start but not the end, find the next section
         if calibration_start != -1 and calibration_end == -1:
             for i in range(calibration_start + 1, len(lines)):
-                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION']:
-                    calibration_end = i
-                    break
+                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                    if lines[i].strip() in ['# ARCHIVE', '# MAIN', '# DAILY']:
+                        calibration_end = i
+                        break
             if calibration_end == -1:
                 calibration_end = len(lines)
         
@@ -2370,11 +2398,14 @@ class Paratrooper:
         # Parse calibration data
         if calibration_start != -1 and calibration_end != -1:
             for i in range(calibration_start + 1, calibration_end):
-                if i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('#'):
-                    parts = lines[i].strip().split()
+                if i < len(lines) and lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                    # Check if this is the start of a new section (not a calibration entry)
+                    if lines[i].strip() in ['# ARCHIVE', '# MAIN', '# DAILY']:
+                        break
+                    parts = lines[i].strip()[2:].split(' | ')
                     if len(parts) >= 3:
-                        existing_id = parts[0]
-                        existing_scale = parts[2]
+                        existing_id = parts[0].strip()
+                        existing_scale = parts[2].strip()
                         # Try multiple ID formats for matching
                         normalized_task_id = self._normalize_task_id(task_id)
                         if (existing_id == task_id or 
@@ -2655,6 +2686,9 @@ FILE STRUCTURE:
         elif section_name == "*":
             # Wildcard - show all sections
             self.show_all_main()
+        elif section_name.upper() == "CALIBRATION":
+            # Special handling for CALIBRATION section
+            self._show_calibration_section(lines)
         else:
             # Main section - convert to uppercase for case-insensitive matching
             self._show_main_section(section_name.upper(), lines)
@@ -2691,6 +2725,39 @@ FILE STRUCTURE:
         
         if not tasks_found:
             print("No tasks found in this section")
+    
+    def _show_calibration_section(self, lines):
+        """Show calibration data"""
+        in_calibration = False
+        calibration_found = False
+        
+        print("=== CALIBRATION ===")
+        print()
+        
+        for line in lines:
+            line = line.strip()
+            
+            if line == '# CALIBRATION':
+                in_calibration = True
+                continue
+            elif in_calibration and line.startswith('# ') and line not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                # Check if this is the start of a new section (not a calibration entry)
+                if line in ['# ARCHIVE', '# MAIN', '# DAILY']:
+                    in_calibration = False
+                    continue
+            
+            if in_calibration and line.startswith('# ') and line not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                # Parse calibration entry: # ID | PRESET | SCALE_FACTOR
+                parts = line[2:].split(' | ')
+                if len(parts) >= 3:
+                    task_id = parts[0]
+                    preset = parts[1]
+                    scale_factor = parts[2]
+                    print(f"# {task_id} | {preset} | {scale_factor}")
+                    calibration_found = True
+        
+        if not calibration_found:
+            print("No calibration data found")
     
     def _show_subsection(self, main_section, subsection, lines):
         """Show tasks in a subsection"""

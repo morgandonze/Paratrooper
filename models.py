@@ -356,11 +356,11 @@ class TaskFile:
             lines.append('# ID | PRESET | SCALE_FACTOR')
             for task_id, scale_factor in sorted(self.calibration_sections.items()):
                 # Determine preset name based on scale factor
-                if scale_factor == 0.5:
+                if scale_factor == 2.0:
                     preset = 'quick'
                 elif scale_factor == 1.0:
                     preset = 'normal'
-                elif scale_factor == 2.0:
+                elif scale_factor == 0.5:
                     preset = 'slow'
                 else:
                     preset = 'custom'
