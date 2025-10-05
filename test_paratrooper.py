@@ -1828,7 +1828,7 @@ class TestDisplayOperationsFix(unittest.TestCase):
             # Find the header line
             header_index = None
             for i, line in enumerate(lines):
-                if "=== Daily Tasks for" in line and "===" in line:
+                if "=== Daily Tasks ===" in line:
                     header_index = i
                     break
             
