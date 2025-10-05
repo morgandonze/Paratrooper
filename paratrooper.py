@@ -135,9 +135,9 @@ class Paratrooper:
                 continue
             
             # Calibration section
-            elif in_calibration and line.startswith('# ') and line not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
-                # Parse calibration entries: # ID | PRESET | SCALE_FACTOR
-                parts = line[2:].split(' | ')
+            elif in_calibration and line.strip() and not line.startswith('#'):
+                # Parse calibration entries: ID preset scale_factor
+                parts = line.strip().split()
                 if len(parts) >= 3:
                     task_id = parts[0].strip()
                     scale_factor_str = parts[2].strip()
@@ -2271,7 +2271,7 @@ class Paratrooper:
         calibration_data[task_id] = scale_factor
         
         # Rebuild the calibration section
-        new_calibration_lines = ['# CALIBRATION', '', '# ID | PRESET | SCALE_FACTOR', '']
+        new_calibration_lines = ['# CALIBRATION', '']
         if calibration_data:
             for calib_id, calib_scale in sorted(calibration_data.items()):
                 # Determine preset name
@@ -2283,7 +2283,7 @@ class Paratrooper:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
+                new_calibration_lines.append(f'{calib_id} {preset} {calib_scale}')
         new_calibration_lines.append('')
         
         # Replace the calibration section
@@ -2341,7 +2341,7 @@ class Paratrooper:
             del calibration_data[task_id]
         
         # Rebuild the calibration section
-        new_calibration_lines = ['# CALIBRATION', '', '# ID | PRESET | SCALE_FACTOR', '']
+        new_calibration_lines = ['# CALIBRATION', '']
         if calibration_data:
             for calib_id, calib_scale in sorted(calibration_data.items()):
                 # Determine preset name
@@ -2353,7 +2353,7 @@ class Paratrooper:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                new_calibration_lines.append(f'# {calib_id} | {preset} | {calib_scale}')
+                new_calibration_lines.append(f'{calib_id} {preset} {calib_scale}')
         new_calibration_lines.append('')
         
         # Replace the calibration section
@@ -2376,33 +2376,28 @@ class Paratrooper:
         for i, line in enumerate(lines):
             if line.strip() == '# CALIBRATION':
                 calibration_start = i
-            elif calibration_start != -1 and line.startswith('# ') and line.strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
-                # Check if this is the start of a new section (not a calibration entry)
-                if line.strip() in ['# ARCHIVE', '# MAIN', '# DAILY']:
-                    calibration_end = i
-                    break
+            elif calibration_start != -1 and line.startswith('# ') and line.strip() != '# CALIBRATION':
+                calibration_end = i
+                break
         
         # If we found the start but not the end, find the next section
         if calibration_start != -1 and calibration_end == -1:
             for i in range(calibration_start + 1, len(lines)):
-                if lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
-                    if lines[i].strip() in ['# ARCHIVE', '# MAIN', '# DAILY']:
-                        calibration_end = i
-                        break
+                if lines[i].strip().startswith('# ') and lines[i].strip() != '# CALIBRATION':
+                    calibration_end = i
+                    break
             if calibration_end == -1:
                 calibration_end = len(lines)
         
         if calibration_start == -1:
             return 1.0  # No calibration section exists
         
-        # Parse calibration data
+        # Parse calibration data - collect all matches and take the last one
+        matches = []
         if calibration_start != -1 and calibration_end != -1:
             for i in range(calibration_start + 1, calibration_end):
-                if i < len(lines) and lines[i].strip().startswith('# ') and lines[i].strip() not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
-                    # Check if this is the start of a new section (not a calibration entry)
-                    if lines[i].strip() in ['# ARCHIVE', '# MAIN', '# DAILY']:
-                        break
-                    parts = lines[i].strip()[2:].split(' | ')
+                if i < len(lines) and lines[i].strip() and not lines[i].strip().startswith('#'):
+                    parts = lines[i].strip().split()
                     if len(parts) >= 3:
                         existing_id = parts[0].strip()
                         existing_scale = parts[2].strip()
@@ -2413,9 +2408,13 @@ class Paratrooper:
                             existing_id == task_id.zfill(3) or
                             existing_id == normalized_task_id.zfill(3)):
                             try:
-                                return float(existing_scale)
+                                matches.append(float(existing_scale))
                             except ValueError:
                                 pass
+        
+        # Return the last match (most recent entry)
+        if matches:
+            return matches[-1]
         
         return 1.0  # Default scale factor
     
@@ -2651,23 +2650,29 @@ FILE STRUCTURE:
         print(help_text)
     
     def show_daily_list(self):
-        """Show today's daily tasks"""
+        """Show all daily tasks from all daily subsections"""
         task_file = self.parse_file()
         
-        if self.today not in task_file.daily_sections:
-            print(f"No daily section for {self.today}")
+        if not task_file.daily_sections:
+            print("No daily sections found")
             return
         
-        tasks = task_file.daily_sections[self.today]
-        
-        print(f"=== Daily Tasks for {self.today} ===")
-        
-        if not tasks:
-            print("No tasks for today")
-            return
-        
-        for task in tasks:
-            print(task.to_markdown())
+        print("=== Daily Tasks ===")
+        # Show all daily sections, sorted by date (most recent first)
+        for i, date in enumerate(sorted(task_file.daily_sections.keys(), reverse=True)):
+            tasks = task_file.daily_sections[date]
+            
+            # Add newline before date header except for the first one
+            if i > 0:
+                print()
+            print(f"## {date}")
+            
+            if not tasks:
+                print("No tasks for this date")
+                continue
+            
+            for task in tasks:
+                print(task.to_markdown())
     
     def show_section(self, section_name):
         """Show tasks in a specific section"""
@@ -2740,20 +2745,20 @@ FILE STRUCTURE:
             if line == '# CALIBRATION':
                 in_calibration = True
                 continue
-            elif in_calibration and line.startswith('# ') and line not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+            elif in_calibration and line.startswith('# '):
                 # Check if this is the start of a new section (not a calibration entry)
                 if line in ['# ARCHIVE', '# MAIN', '# DAILY']:
                     in_calibration = False
                     continue
             
-            if in_calibration and line.startswith('# ') and line not in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
-                # Parse calibration entry: # ID | PRESET | SCALE_FACTOR
-                parts = line[2:].split(' | ')
+            elif in_calibration and line.strip() and not line.startswith('#'):
+                # Parse calibration entry: ID preset scale_factor
+                parts = line.strip().split()
                 if len(parts) >= 3:
                     task_id = parts[0]
                     preset = parts[1]
                     scale_factor = parts[2]
-                    print(f"# {task_id} | {preset} | {scale_factor}")
+                    print(f"{task_id} {preset} {scale_factor}")
                     calibration_found = True
         
         if not calibration_found:
