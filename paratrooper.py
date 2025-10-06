@@ -2156,11 +2156,12 @@ class Paratrooper:
                 'section': section,
                 'date': task_data['metadata'].get('date'),
                 'recurring': task_data['metadata'].get('recurring'),
-                'preset': preset
+                'preset': preset,
+                'age_score': age_score
             })
         
-        # Calculate normalized widths (including preset)
-        widths = self._calculate_column_widths(task_list, include_preset=True)
+        # Calculate normalized widths (including preset and age score)
+        widths = self._calculate_column_widths(task_list, include_preset=True, include_age_score=True)
         
         for task_info in limited_tasks:
             days_old = task_info['days_old']
@@ -2197,12 +2198,13 @@ class Paratrooper:
             )
             
             # Display with normalized widths
+            age_score_str = f"{age_score:.0f}".ljust(widths['age_score_width'])
             id_str = f"#{task.id}".ljust(widths['id_width'] + 1)  # +1 for the #
             text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
             section_str = section.ljust(widths['section_width'])
             preset_str = preset.ljust(widths['preset_width'])
             
-            print(f"{color} {age_score:.0f} | {id_str} | {text_str} | {section_str} | {preset_str}")
+            print(f"{color} {age_score_str} | {id_str} | {text_str} | {section_str} | {preset_str}")
     
     def set_task_size(self, task_id: str, size_arg: str):
         """Set the size/scale factor for a task"""
@@ -2968,7 +2970,7 @@ FILE STRUCTURE:
     # TASK FORMATTING METHODS
     # ============================================================================
     
-    def _calculate_column_widths(self, tasks, include_preset=False):
+    def _calculate_column_widths(self, tasks, include_preset=False, include_age_score=False):
         """Calculate normalized column widths for task display"""
         if not tasks:
             return {
@@ -2977,7 +2979,8 @@ FILE STRUCTURE:
                 'section_width': 10,
                 'date_width': 10,
                 'recurring_width': 10,
-                'preset_width': 10
+                'preset_width': 10,
+                'age_score_width': 3
             }
         
         # Calculate maximum widths for each component
@@ -2987,6 +2990,7 @@ FILE STRUCTURE:
         max_date_width = max(len(task.get('date', '') or '') for task in tasks)
         max_recurring_width = max(len(task.get('recurring', '') or '') for task in tasks)
         max_preset_width = max(len(task.get('preset', '') or '') for task in tasks) if include_preset else 0
+        max_age_score_width = max(len(str(task.get('age_score', 0))) for task in tasks) if include_age_score else 0
         
         return {
             'id_width': max_id_width,
@@ -2994,7 +2998,8 @@ FILE STRUCTURE:
             'section_width': max_section_width,
             'date_width': max_date_width,
             'recurring_width': max_recurring_width,
-            'preset_width': max_preset_width
+            'preset_width': max_preset_width,
+            'age_score_width': max_age_score_width
         }
     
     def _truncate_text(self, text, max_width):
