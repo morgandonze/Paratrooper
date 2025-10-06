@@ -2026,19 +2026,26 @@ class Paratrooper:
         
         print(f"=== Stale tasks (oldest first, showing {len(limited_tasks)} of {len(tasks_by_status)}) ===")
         
+        # Prepare task data for width calculation
+        task_list = []
+        for task_info in limited_tasks:
+            task_data = task_info['task_data']
+            task_list.append({
+                'id': task_data['metadata'].get('id', '???'),
+                'text': task_data['text'],
+                'section': task_info['section'],
+                'date': task_data['metadata'].get('date'),
+                'recurring': task_data['metadata'].get('recurring')
+            })
+        
+        # Calculate normalized widths
+        widths = self._calculate_column_widths(task_list)
+        
         for task_info in limited_tasks:
             days_old = task_info['days_old']
             status_type = task_info['status_type']
             section = task_info['section']
             task_data = task_info['task_data']
-            
-            # Color coding based on staleness
-            if days_old >= 7:
-                color = "🔴"  # Red for very stale
-            elif days_old >= 3:
-                color = "🟡"  # Yellow for stale
-            else:
-                color = "🟢"  # Green for recent
             
             # Create a Task object for consistent formatting
             task = Task(
@@ -2049,7 +2056,7 @@ class Paratrooper:
                 recurring=task_data['metadata'].get('recurring')
             )
             
-            print(self._format_for_status_display(task, days_old, section))
+            print(self._format_for_status_display(task, days_old, section, widths))
     
     def show_age_tasks(self, scope=None, limit=5):
         """Show tasks by age (excluding recurring) with optional scope filtering and limit"""
@@ -2124,6 +2131,37 @@ class Paratrooper:
         
         print(f"=== Tasks by age score (highest age score first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
         
+        # Prepare task data for width calculation
+        task_list = []
+        for task_info in limited_tasks:
+            days_old = task_info['days_old']
+            age_score = task_info['age_score']
+            scale_factor = task_info['scale_factor']
+            section = task_info['section']
+            task_data = task_info['task_data']
+            
+            # Determine preset name from scale factor
+            if scale_factor == 2.0:
+                preset = "quick"
+            elif scale_factor == 1.0:
+                preset = "normal"
+            elif scale_factor == 0.5:
+                preset = "slow"
+            else:
+                preset = f"custom: {scale_factor:.1f}"
+            
+            task_list.append({
+                'id': task_data['metadata'].get('id', '???'),
+                'text': task_data['text'],
+                'section': section,
+                'date': task_data['metadata'].get('date'),
+                'recurring': task_data['metadata'].get('recurring'),
+                'preset': preset
+            })
+        
+        # Calculate normalized widths (including preset)
+        widths = self._calculate_column_widths(task_list, include_preset=True)
+        
         for task_info in limited_tasks:
             days_old = task_info['days_old']
             age_score = task_info['age_score']
@@ -2158,8 +2196,13 @@ class Paratrooper:
                 recurring=task_data['metadata'].get('recurring')
             )
             
-            # Display with age score and preset instead of raw days
-            print(f"{color} {age_score:.0f} | #{task.id} | {task.text} | {section} | {preset}")
+            # Display with normalized widths
+            id_str = f"#{task.id}".ljust(widths['id_width'] + 1)  # +1 for the #
+            text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
+            section_str = section.ljust(widths['section_width'])
+            preset_str = preset.ljust(widths['preset_width'])
+            
+            print(f"{color} {age_score:.0f} | {id_str} | {text_str} | {section_str} | {preset_str}")
     
     def set_task_size(self, task_id: str, size_arg: str):
         """Set the size/scale factor for a task"""
@@ -2842,8 +2885,43 @@ FILE STRUCTURE:
     # TASK FORMATTING METHODS
     # ============================================================================
     
-    def _format_for_status_display(self, task, days_old, section):
-        """Format task for status/staleness display"""
+    def _calculate_column_widths(self, tasks, include_preset=False):
+        """Calculate normalized column widths for task display"""
+        if not tasks:
+            return {
+                'id_width': 3,
+                'text_width': 20,
+                'section_width': 10,
+                'date_width': 10,
+                'recurring_width': 10,
+                'preset_width': 10
+            }
+        
+        # Calculate maximum widths for each component
+        max_id_width = max(3, max(len(str(task.get('id', '???'))) for task in tasks))
+        max_text_width = min(40, max(len(task.get('text', '')) for task in tasks))
+        max_section_width = max(len(task.get('section', '')) for task in tasks)
+        max_date_width = max(len(task.get('date', '') or '') for task in tasks)
+        max_recurring_width = max(len(task.get('recurring', '') or '') for task in tasks)
+        max_preset_width = max(len(task.get('preset', '') or '') for task in tasks) if include_preset else 0
+        
+        return {
+            'id_width': max_id_width,
+            'text_width': max_text_width,
+            'section_width': max_section_width,
+            'date_width': max_date_width,
+            'recurring_width': max_recurring_width,
+            'preset_width': max_preset_width
+        }
+    
+    def _truncate_text(self, text, max_width):
+        """Truncate text to max_width with ellipsis if needed"""
+        if len(text) <= max_width:
+            return text
+        return text[:max_width-1] + '…'
+    
+    def _format_for_status_display(self, task, days_old, section, widths=None):
+        """Format task for status/staleness display with normalized widths"""
         # Color coding based on staleness
         if days_old >= 7:
             color = "🔴"  # Red for very stale
@@ -2853,7 +2931,19 @@ FILE STRUCTURE:
             color = "🟢"  # Green for recent
         
         task_id = task.id or "???"
-        return f"{color} {days_old:2d} days | #{task_id} | {task.text} | {section}"
+        
+        if widths:
+            # Use normalized widths
+            id_str = f"#{task_id}".ljust(widths['id_width'] + 1)  # +1 for the #
+            text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
+            section_str = section.ljust(widths['section_width'])
+            date_str = (task.date or '').ljust(widths['date_width'])
+            recurring_str = (task.recurring or '').ljust(widths['recurring_width'])
+            
+            return f"{color} {days_old:2d} days | {id_str} | {text_str} | {section_str} | {date_str} | {recurring_str}"
+        else:
+            # Fallback to original format
+            return f"{color} {days_old:2d} days | #{task_id} | {task.text} | {section}"
     
     def _format_for_task_details(self, task, line_number=None):
         """Format task for detailed display (multi-line format)"""
