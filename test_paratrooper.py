@@ -130,7 +130,7 @@ class TestSection(unittest.TestCase):
     def test_add_task(self):
         """Test adding tasks to section"""
         section = Section(name="WORK", level=1)
-        task = Task(id="001", text="Test task", status=" ", date="15-01-2025", section="WORK")
+        task = Task(id="1", text="Test task", status=" ", date="15-01-2025", section="WORK")
         
         section.add_task(task)
         self.assertEqual(len(section.tasks), 1)
@@ -297,7 +297,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Check that task is marked complete
         content = self.tm.read_file()
-        self.assertIn(f"- [x] #001 | Test task", content)
+        self.assertIn(f"- [x] #1 | Test task", content)
     
     def test_recurring_task_detection(self):
         """Test detecting recurring tasks"""
@@ -354,7 +354,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Mark as complete in daily section (manually edit file)
         content = self.tm.read_file()
-        content = content.replace(f"- [ ] #001 | Test task", f"- [x] #001 | Test task")
+        content = content.replace(f"- [ ] #1 | Test task", f"- [x] #1 | Test task")
         self.tm.write_file(content)
         
         # Sync
@@ -362,7 +362,7 @@ class TestTaskManager(unittest.TestCase):
         
         # Check that main task is now complete
         content = self.tm.read_file()
-        self.assertIn(f"- [x] #001 | Test task", content)
+        self.assertIn(f"- [x] #1 | Test task", content)
     
     def test_snooze_task(self):
         """Test snoozing a task"""
@@ -561,15 +561,15 @@ class TestTaskManager(unittest.TestCase):
         content = f"""# DAILY
 
 ## {yesterday}
-- [x] #001 | Old task | WORK | {yesterday}
+- [x] #1 | Old task | WORK | {yesterday}
 
 ## {today}
-- [ ] #002 | New task | WORK | {today}
+- [ ] #2 | New task | WORK | {today}
 
 # MAIN
 
 ## WORK
-- [ ] #002 | New task | WORK | {today}
+- [ ] #2 | New task | WORK | {today}
 
 # ARCHIVE
 """
@@ -598,15 +598,15 @@ class TestTaskManager(unittest.TestCase):
         content = f"""# DAILY
 
 ## {yesterday}
-- [x] #001 | Old task | WORK | {yesterday}
+- [x] #1 | Old task | WORK | {yesterday}
 
 ## {today}
-- [ ] #002 | New task | WORK | {today}
+- [ ] #2 | New task | WORK | {today}
 
 # MAIN
 
 ## WORK
-- [ ] #002 | New task | WORK | {today}
+- [ ] #2 | New task | WORK | {today}
 
 # ARCHIVE
 """
@@ -637,15 +637,15 @@ class TestTaskManager(unittest.TestCase):
         content = f"""# DAILY
 
 ## {yesterday}
-- [x] #001 | Old task | WORK | {yesterday}
+- [x] #1 | Old task | WORK | {yesterday}
 
 ## {today}
-- [ ] #002 | New task | WORK | {today}
+- [ ] #2 | New task | WORK | {today}
 
 # MAIN
 
 ## WORK
-- [ ] #002 | New task | WORK | {today}
+- [ ] #2 | New task | WORK | {today}
 
 # ARCHIVE
 """
@@ -700,17 +700,17 @@ class TestTaskManager(unittest.TestCase):
         yesterday_content = f"""# DAILY
 
 ## {yesterday}
-- [ ] #001 | morning workout | HEALTH | {today} | daily
-- [~] #002 | write report | WORK | {today}
+- [ ] #1 | morning workout | HEALTH | {today} | daily
+- [~] #2 | write report | WORK | {today}
 - [x] #003 | call client | WORK | {today}
 
 # MAIN
 
 ## HEALTH
-- [ ] #001 | morning workout | HEALTH | {today} | daily
+- [ ] #1 | morning workout | HEALTH | {today} | daily
 
 ## WORK
-- [ ] #002 | write report | WORK | {today}
+- [ ] #2 | write report | WORK | {today}
 - [ ] #003 | call client | WORK | {today}
 
 # ARCHIVE
@@ -940,7 +940,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn("## TASKS", final_content)
         
         # Should have the task in the Tasks subsection
-        self.assertIn("- [ ] #001 | Test | TASKS |", final_content)
+        self.assertIn("- [ ] #1 | Test | TASKS |", final_content)
         
         # Verify the structure is correct by checking the order
         lines = final_content.split('\n')
@@ -957,7 +957,7 @@ class TestTaskManager(unittest.TestCase):
         # Verify the task appears between Tasks header and ARCHIVE
         task_line_index = None
         for i, line in enumerate(lines):
-            if "Test" in line and "#001" in line:
+            if "Test" in line and "#1" in line:
                 task_line_index = i
                 break
         
@@ -1049,7 +1049,7 @@ class TestTaskManager(unittest.TestCase):
 # MAIN
 
 ## WORK
-- [ ] #001 | Existing task | WORK | 18-09-2025
+- [ ] #1 | Existing task | WORK | 18-09-2025
 
 # ARCHIVE
 """
@@ -1135,7 +1135,7 @@ class TestIntegration(unittest.TestCase):
         # Blog post should still be incomplete but with updated date
         self.assertIn("Write blog post", content)
         # Workout should be complete
-        self.assertIn("- [x] #002 | morning workout", content)
+        self.assertIn("- [x] #2 | morning workout", content)
     
     def test_recurring_task_workflow(self):
         """Test recurring task workflow across multiple days"""
@@ -1280,7 +1280,7 @@ class TestCaseInsensitiveSections(unittest.TestCase):
         
         for input_section, expected_section in test_cases:
             with self.subTest(input_section=input_section):
-                task_line = f"- [ ] #001 | Test task | {input_section} | 18-09-2025 | "
+                task_line = f"- [ ] #1 | Test task | {input_section} | 18-09-2025 | "
                 task = Task.from_markdown(task_line)
                 
                 self.assertIsNotNone(task)
@@ -1398,7 +1398,7 @@ class TestTaskFormatter(unittest.TestCase):
     def test_format_for_file(self):
         """Test formatting tasks for file storage"""
         task = Task(
-            id="001",
+            id="1",
             text="Test task",
             status=" ",
             section="WORK",
@@ -1408,13 +1408,13 @@ class TestTaskFormatter(unittest.TestCase):
         )
         
         result = task.to_markdown()
-        expected = "- [ ] #001 | Test task | WORK | 18-09-2025"
+        expected = "- [ ] #1 | Test task | WORK | 18-09-2025"
         self.assertEqual(result, expected)
     
     def test_format_for_file_with_subsection(self):
         """Test formatting tasks with subsections"""
         task = Task(
-            id="002",
+            id="2",
             text="Test task",
             status="x",
             section="HEALTH",
@@ -1424,7 +1424,7 @@ class TestTaskFormatter(unittest.TestCase):
         )
         
         result = task.to_markdown()
-        expected = "- [x] #002 | Test task | HEALTH:FITNESS | 18-09-2025 | daily"
+        expected = "- [x] #2 | Test task | HEALTH:FITNESS | 18-09-2025 | daily"
         self.assertEqual(result, expected)
     
     def test_format_for_file_daily_task(self):
@@ -1448,7 +1448,7 @@ class TestTaskFormatter(unittest.TestCase):
     def test_format_for_daily_list(self):
         """Test formatting for daily list display"""
         task = Task(
-            id="001",
+            id="1",
             text="Test task",
             status=" ",
             section="WORK",
@@ -1460,12 +1460,12 @@ class TestTaskFormatter(unittest.TestCase):
         result = task.to_markdown()
         # Should include task text and basic info
         self.assertIn("Test task", result)
-        self.assertIn("#001", result)
+        self.assertIn("#1", result)
     
     def test_format_for_status_display(self):
         """Test formatting for status display"""
         task = Task(
-            id="001",
+            id="1",
             text="Test task",
             status=" ",
             section="WORK",
@@ -1477,7 +1477,7 @@ class TestTaskFormatter(unittest.TestCase):
         result = self.formatter._format_for_status_display(task, days_old=5, section="WORK")
         # Should include status indicator and task info
         self.assertIn("Test task", result)
-        self.assertIn("#001", result)
+        self.assertIn("#1", result)
         self.assertIn("5 days", result)
 
 
@@ -1540,7 +1540,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         main_section = content[main_section_start:main_section_end]
         
         # Task should be marked complete in main section
-        self.assertIn(f"- [x] #001 | Test task", main_section)
+        self.assertIn(f"- [x] #1 | Test task", main_section)
         
         # Daily section should remain unchanged (not updated by sync)
         daily_section_start = content.find("# DAILY")
@@ -1548,7 +1548,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         daily_section = content[daily_section_start:daily_section_end]
         
         # Daily section should still have the original format
-        self.assertIn(f"- [x] #001 | Test task", daily_section)
+        self.assertIn(f"- [x] #1 | Test task", daily_section)
     
     def test_sync_warning_when_task_not_found_in_main(self):
         """Test that sync shows warning when task cannot be found in main sections"""
@@ -1607,8 +1607,8 @@ class TestSyncCommandFixes(unittest.TestCase):
         # Test various pipe-separated formats
         test_cases = [
             # (input_line, expected_pattern)
-            ("- [ ] #001 | Test task | WORK | 15-01-2025 | ", "Test task | WORK | " + file_ops.today + " | "),
-            ("- [x] #002 | Another task | HEALTH | @15-01-2025 | daily", "Another task | HEALTH | " + file_ops.today + " | daily"),
+            ("- [ ] #1 | Test task | WORK | 15-01-2025 | ", "Test task | WORK | " + file_ops.today + " | "),
+            ("- [x] #2 | Another task | HEALTH | @15-01-2025 | daily", "Another task | HEALTH | " + file_ops.today + " | daily"),
             ("- [ ] #003 | Task without date | WORK | ", "Task without date | WORK | " + file_ops.today + " | "),
             ("- [~] #004 | Progress task | PROJECTS | 15-01-2025 | ", "Progress task | PROJECTS | " + file_ops.today + " | "),
         ]
@@ -1633,11 +1633,11 @@ class TestSyncCommandFixes(unittest.TestCase):
         file_ops = Paratrooper(self.tm.config)
         
         # Test old format without pipes
-        input_line = "- [ ] #001 Test task"
+        input_line = "- [ ] #1 Test task"
         result = file_ops._update_task_date(input_line)
         
         # Should add pipe-separated format with @ prefix for old format
-        expected = f"- [ ] #001 Test task | @{file_ops.today}"
+        expected = f"- [ ] #1 Test task | @{file_ops.today}"
         self.assertEqual(result, expected)
     
     def test_sync_recurring_task_date_update(self):
@@ -1686,7 +1686,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         self.assertIn("morning workout", main_section)
         
         # Should still be incomplete (recurring task)
-        self.assertIn("[ ] #001 | morning workout", main_section)
+        self.assertIn("[ ] #1 | morning workout", main_section)
 
 
 class TestDailyTaskDeletionRefactor(unittest.TestCase):
@@ -1991,7 +1991,7 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         main_section = content[main_section_start:main_section_end]
         
         # Should still be incomplete (recurring task)
-        self.assertIn("- [ ] #001 | Take out trash", main_section)
+        self.assertIn("- [ ] #1 | Take out trash", main_section)
         
         # Should have today's date
         from datetime import datetime
@@ -3205,7 +3205,7 @@ class TestTaskIDParsing(unittest.TestCase):
         self.assertFalse(self.tm._task_id_matches_line("001", test_line))
         
         # Test with different task ID formats
-        test_line_001 = "- [ ] #001 | Another task | HEALTH | 15-01-2025"
+        test_line_001 = "- [ ] #1 | Another task | HEALTH | 15-01-2025"
         self.assertTrue(self.tm._task_id_matches_line("1", test_line_001))
         self.assertTrue(self.tm._task_id_matches_line("001", test_line_001))
         self.assertFalse(self.tm._task_id_matches_line("11", test_line_001))
@@ -3225,14 +3225,14 @@ class TestTaskIDParsing(unittest.TestCase):
         self.assertFalse(self.tm._task_id_matches_line("11", test_line_1))
         
         # Test with padded formats
-        test_line_001 = "- [ ] #001 | Test task | WORK | 15-01-2025"
+        test_line_001 = "- [ ] #1 | Test task | WORK | 15-01-2025"
         test_line_011 = "- [ ] #011 | Another task | HEALTH | 15-01-2025"
         
-        # ID "1" should match #001 but not #011
+        # ID "1" should match #1 but not #011
         self.assertTrue(self.tm._task_id_matches_line("1", test_line_001))
         self.assertFalse(self.tm._task_id_matches_line("1", test_line_011))
         
-        # ID "11" should match #011 but not #001
+        # ID "11" should match #011 but not #1
         self.assertTrue(self.tm._task_id_matches_line("11", test_line_011))
         self.assertFalse(self.tm._task_id_matches_line("11", test_line_001))
     
