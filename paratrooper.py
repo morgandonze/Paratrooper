@@ -2703,6 +2703,23 @@ FILE STRUCTURE:
             return
         
         print("=== Daily Tasks ===")
+        
+        # Collect all tasks across all daily sections for width calculation
+        all_tasks = []
+        for date in sorted(task_file.daily_sections.keys(), reverse=True):
+            tasks = task_file.daily_sections[date]
+            for task in tasks:
+                all_tasks.append({
+                    'id': task.id,
+                    'text': task.text,
+                    'section': task.section or '',
+                    'date': task.date or '',
+                    'recurring': task.recurring or ''
+                })
+        
+        # Calculate normalized widths for all daily tasks
+        widths = self._calculate_column_widths(all_tasks)
+        
         # Show all daily sections, sorted by date (most recent first)
         for i, date in enumerate(sorted(task_file.daily_sections.keys(), reverse=True)):
             tasks = task_file.daily_sections[date]
@@ -2717,7 +2734,7 @@ FILE STRUCTURE:
                 continue
             
             for task in tasks:
-                print(task.to_markdown())
+                print(self._format_daily_task(task, widths))
     
     def show_section(self, section_name):
         """Show tasks in a specific section"""
@@ -2748,10 +2765,9 @@ FILE STRUCTURE:
         in_main = False
         current_section = None
         tasks_found = False
+        tasks = []
         
-        print(f"=== {section_name} ===")
-        print()
-        
+        # First pass: collect all tasks in this section
         for line in lines:
             line = line.strip()
             
@@ -2770,11 +2786,32 @@ FILE STRUCTURE:
                 # Parse the task line to create a Task object for consistent formatting
                 task = Task.from_markdown(line)
                 if task:
-                    print(f"  {task.to_markdown()}")
+                    tasks.append(task)
                     tasks_found = True
         
         if not tasks_found:
             print("No tasks found in this section")
+            return
+        
+        # Calculate normalized widths for all tasks in this section
+        task_list = []
+        for task in tasks:
+            task_list.append({
+                'id': task.id,
+                'text': task.text,
+                'section': task.section or '',
+                'date': task.date or '',
+                'recurring': task.recurring or ''
+            })
+        
+        widths = self._calculate_column_widths(task_list)
+        
+        print(f"=== {section_name} ===")
+        print()
+        
+        # Second pass: display tasks with normalized formatting
+        for task in tasks:
+            print(f"  {self._format_daily_task(task, widths)}")
     
     def _show_calibration_section(self, lines):
         """Show calibration data"""
@@ -2855,6 +2892,52 @@ FILE STRUCTURE:
         
         in_main = False
         current_section = None
+        all_tasks = []
+        
+        # First pass: collect all tasks from all main sections
+        for line in lines:
+            line = line.strip()
+            
+            if line == '# MAIN':
+                in_main = True
+                continue
+            elif line.startswith('# ') and line != '# MAIN':
+                in_main = False
+                continue
+            
+            if in_main and line.startswith('## '):
+                current_section = line[3:].strip()
+                continue
+            elif in_main and line.startswith('### '):
+                subsection = line[4:].strip()
+                continue
+            
+            if in_main and self._is_task_line(line):
+                # Parse the task line to create a Task object for consistent formatting
+                task = Task.from_markdown(line)
+                if task:
+                    all_tasks.append(task)
+        
+        if not all_tasks:
+            print("No tasks found in main sections")
+            return
+        
+        # Calculate normalized widths for all main tasks
+        task_list = []
+        for task in all_tasks:
+            task_list.append({
+                'id': task.id,
+                'text': task.text,
+                'section': task.section or '',
+                'date': task.date or '',
+                'recurring': task.recurring or ''
+            })
+        
+        widths = self._calculate_column_widths(task_list)
+        
+        # Second pass: display tasks with normalized formatting
+        in_main = False
+        current_section = None
         
         for line in lines:
             line = line.strip()
@@ -2879,7 +2962,7 @@ FILE STRUCTURE:
                 # Parse the task line to create a Task object for consistent formatting
                 task = Task.from_markdown(line)
                 if task:
-                    print(f"  {task.to_markdown()}")
+                    print(f"  {self._format_daily_task(task, widths)}")
     
     # ============================================================================
     # TASK FORMATTING METHODS
@@ -2919,6 +3002,33 @@ FILE STRUCTURE:
         if len(text) <= max_width:
             return text
         return text[:max_width-1] + '…'
+    
+    def _format_daily_task(self, task, widths):
+        """Format daily task with normalized widths"""
+        # Build the basic task line with status and ID
+        status_part = f"- [{task.status}] #{task.id}"
+        
+        # Format each component with normalized widths
+        id_str = f"#{task.id}".ljust(widths['id_width'] + 1)  # +1 for the #
+        text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
+        
+        # Add section (with subsection if present)
+        if task.section:
+            if task.subsection:
+                section_text = f"{task.section}:{task.subsection}"
+            else:
+                section_text = task.section
+        else:
+            section_text = ""
+        section_str = section_text.ljust(widths['section_width'])
+        
+        # Add date
+        date_str = (task.date or '').ljust(widths['date_width'])
+        
+        # Add recurring info
+        recurring_str = (task.recurring or '').ljust(widths['recurring_width'])
+        
+        return f"{status_part} | {text_str} | {section_str} | {date_str} | {recurring_str}"
     
     def _format_for_status_display(self, task, days_old, section, widths=None):
         """Format task for status/staleness display with normalized widths"""
