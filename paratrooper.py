@@ -2975,7 +2975,7 @@ FILE STRUCTURE:
         if not tasks:
             return {
                 'id_width': 3,
-                'text_width': 20,
+                'text_width': 40,
                 'section_width': 10,
                 'date_width': 10,
                 'recurring_width': 10,
@@ -2985,7 +2985,7 @@ FILE STRUCTURE:
         
         # Calculate maximum widths for each component
         max_id_width = max(3, max(len(str(task.get('id', '???'))) for task in tasks))
-        max_text_width = min(40, max(len(task.get('text', '')) for task in tasks))
+        max_text_width = 40  # Always use 40 characters for description
         max_section_width = max(len(task.get('section', '')) for task in tasks)
         max_date_width = max(len(task.get('date', '') or '') for task in tasks)
         max_recurring_width = max(len(task.get('recurring', '') or '') for task in tasks)
