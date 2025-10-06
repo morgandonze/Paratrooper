@@ -42,22 +42,22 @@ Your tasks are stored in `~/tasks.md` (configurable) with this simplified, flexi
 ```markdown
 # DAILY
 ## 15-01-2025
-- [x] morning workout from HEALTH #004
+- [x] morning workout from HEALTH #4
 - [~] write chapter 3 from WORK #023
 - [ ] review budget from FINANCE #067
 
 # MAIN
 ## TASKS
-- [ ] unsorted tasks #001
+- [ ] unsorted tasks #1
 
 ## WORK
 ### Website Redesign
-- [ ] design homepage #002
+- [ ] design homepage #2
 ### Marketing Campaign
-- [ ] create social media posts #003
+- [ ] create social media posts #3
 
 ## HEALTH
-- [ ] morning workout (daily) #004
+- [ ] morning workout (daily) #4
 
 ## FINANCE
 - [ ] review budget (weekly) #067
@@ -280,10 +280,10 @@ pt purge 042        # Delete from everywhere
 ## 📝 Task Syntax
 
 ```markdown
-- [ ] #001 | incomplete task | WORK | 
-- [x] #002 | completed task | HEALTH | 
-- [~] #003 | progressed task | PROJECTS | 
-- [ ] #004 | recurring task | HEALTH | daily
+- [ ] #1 | incomplete task | WORK | 
+- [x] #2 | completed task | HEALTH | 
+- [~] #3 | progressed task | PROJECTS | 
+- [ ] #4 | recurring task | HEALTH | daily
 - [ ] #005 | task with subsection | HOME:MAINTENANCE | 
 ```
 
@@ -312,19 +312,19 @@ When you run `pt sync`:
 **Before sync (Main List):**
 ```markdown
 - [ ] write chapter 3 #023
-- [ ] morning workout (daily) #004
+- [ ] morning workout (daily) #4
 ```
 
 **After working (Daily Section):**
 ```markdown
 - [~] write chapter 3 from WORK #023    # Made progress
-- [x] morning workout from HEALTH #004      # Completed today
+- [x] morning workout from HEALTH #4      # Completed today
 ```
 
 **After sync (Main List):**
 ```markdown
 - [ ] write chapter 3 #023         # Still incomplete
-- [ ] morning workout (daily) #004 # Recurring task
+- [ ] morning workout (daily) #4 # Recurring task
 ```
 
 ## 📅 Recurring Patterns
@@ -383,14 +383,14 @@ pt up 023             # Pull that important work task
 pt up 067             # Pull that overdue task
 
 # During work - edit daily section manually
-- [x] morning workout from HEALTH #004       # Recurring, completed
+- [x] morning workout from HEALTH #4       # Recurring, completed
 - [~] write blog post from WORK #023             # Pulled task, made progress
 - [x] call client from TASKS #067                    # Pulled task, completed
 - [ ] review budget from FINANCE #089                  # Recurring, didn't get to it
 
 # Evening - sync progress back to main list
 pt sync               # Updates main list from daily progress
-# Result: #004 date updates, #023 stays incomplete but date updates, #067 marked complete
+# Result: #4 date updates, #023 stays incomplete but date updates, #067 marked complete
 
 # Weekly planning
 pt status             # See what's been neglected
@@ -407,7 +407,7 @@ Edit `~/tasks.md` and add recurring tasks to appropriate sections:
 
 ```markdown
 ## HEALTH
-- [ ] morning workout (daily) #004
+- [ ] morning workout (daily) #4
 - [ ] weekly meal prep (weekly:sun) #005
 - [ ] monthly health check (monthly:1st) #006
 
@@ -479,7 +479,7 @@ pt sync               # Update main list from daily progress
 - **`pt status`**: Alias for `pt stale` (backward compatibility)
 
 ### ID System
-- **Simple sequential**: #001, #002, #003, etc.
+- **Simple sequential**: #1, #2, #3, etc.
 - **Auto-generated**: Finds highest existing ID and increments
 - **Cross-references**: Daily tasks reference main tasks by same ID
 - **Global scope**: IDs are unique across entire file

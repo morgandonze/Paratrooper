@@ -55,7 +55,7 @@ class TestTask(unittest.TestCase):
     def test_task_creation(self):
         """Test basic task creation"""
         task = Task(
-            id="001",
+            id="1",
             text="Test task",
             status=" ",
             date="15-01-2025",
@@ -64,56 +64,56 @@ class TestTask(unittest.TestCase):
         self.assertEqual(task.text, "Test task")
         self.assertEqual(task.status, " ")
         self.assertEqual(task.date, "15-01-2025")
-        self.assertEqual(task.id, "001")
+        self.assertEqual(task.id, "1")
         self.assertEqual(task.section, "TASKS")
     
     def test_task_to_markdown(self):
         """Test task conversion to markdown"""
         task = Task(
-            id="001",
+            id="1",
             text="Test task",
             status="x",
             date="15-01-2025",
             section="TASKS"
         )
         markdown = task.to_markdown()
-        expected = "- [x] #001 | Test task | TASKS | 15-01-2025"
+        expected = "- [x] #1 | Test task | TASKS | 15-01-2025"
         self.assertEqual(markdown, expected)
     
     def test_task_from_markdown(self):
         """Test parsing task from markdown"""
-        line = "- [x] #001 | Test task | TASKS | 15-01-2025 | "
+        line = "- [x] #1 | Test task | TASKS | 15-01-2025 | "
         task = Task.from_markdown(line, "TASKS")
         
         self.assertIsNotNone(task)
         self.assertEqual(task.text, "Test task")
         self.assertEqual(task.status, "x")
         self.assertEqual(task.date, "15-01-2025")
-        self.assertEqual(task.id, "001")
+        self.assertEqual(task.id, "1")
         self.assertEqual(task.section, "TASKS")
     
     def test_recurring_task_parsing(self):
         """Test parsing recurring tasks"""
-        line = "- [ ] #004 | morning workout | HEALTH | 15-01-2025 | daily"
+        line = "- [ ] #4 | morning workout | HEALTH | 15-01-2025 | daily"
         task = Task.from_markdown(line, "HEALTH")
         
         self.assertIsNotNone(task)
         self.assertEqual(task.text, "morning workout")
         self.assertEqual(task.status, " ")
         self.assertEqual(task.date, "15-01-2025")
-        self.assertEqual(task.id, "004")
+        self.assertEqual(task.id, "4")
         self.assertEqual(task.recurring, "daily")
     
     def test_snoozed_task_parsing(self):
         """Test parsing tasks with future dates (snoozing)"""
-        line = "- [ ] #005 | review budget | FINANCE | 20-01-2025 | "
+        line = "- [ ] #5 | review budget | FINANCE | 20-01-2025 | "
         task = Task.from_markdown(line, "FINANCE")
         
         self.assertIsNotNone(task)
         self.assertEqual(task.text, "review budget")
         self.assertEqual(task.status, " ")
         self.assertEqual(task.date, "20-01-2025")
-        self.assertEqual(task.id, "005")
+        self.assertEqual(task.id, "5")
 
 
 class TestSection(unittest.TestCase):
@@ -3158,8 +3158,8 @@ class TestPassEntryFeature(unittest.TestCase):
                     self.assertTrue(args[2].isdigit(), f"Third arg {args[2]} should be digit")
 
 
-class TestLeadingZerosTaskIDParsing(unittest.TestCase):
-    """Test that task IDs with leading zeros are handled correctly"""
+class TestTaskIDParsing(unittest.TestCase):
+    """Test that task IDs are handled correctly (no leading zeros)"""
     
     def setUp(self):
         """Set up test environment"""
@@ -3236,60 +3236,60 @@ class TestLeadingZerosTaskIDParsing(unittest.TestCase):
         self.assertTrue(self.tm._task_id_matches_line("11", test_line_011))
         self.assertFalse(self.tm._task_id_matches_line("11", test_line_001))
     
-    def test_find_task_by_id_with_leading_zeros(self):
-        """Test that find_task_by_id works with both normalized and padded IDs"""
-        # Add a task with leading zeros
-        self.tm.add_task_to_main("Test task with leading zeros", "WORK")
+    def test_find_task_by_id_without_leading_zeros(self):
+        """Test that find_task_by_id works with IDs without leading zeros"""
+        # Add a task
+        self.tm.add_task_to_main("Test task without leading zeros", "WORK")
         
-        # The task should be stored with ID #001
+        # The task should be stored with ID #1 (no leading zeros)
         # Test finding it with normalized ID
         line_num, line_content = self.tm.find_task_by_id("1")
         self.assertIsNotNone(line_content)
-        self.assertIn("#001", line_content)
+        self.assertIn("#1", line_content)
         
-        # Test finding it with padded ID
-        line_num, line_content = self.tm.find_task_by_id("001")
+        # Test finding it with the same ID format
+        line_num, line_content = self.tm.find_task_by_id("1")
         self.assertIsNotNone(line_content)
-        self.assertIn("#001", line_content)
+        self.assertIn("#1", line_content)
     
-    def test_find_task_by_id_in_main_with_leading_zeros(self):
-        """Test that find_task_by_id_in_main works with both normalized and padded IDs"""
-        # Add a task with leading zeros
+    def test_find_task_by_id_in_main_without_leading_zeros(self):
+        """Test that find_task_by_id_in_main works with IDs without leading zeros"""
+        # Add a task
         self.tm.add_task_to_main("Test task in main", "WORK")
         
         # Test finding it with normalized ID
         line_num, line_content = self.tm.find_task_by_id_in_main("1")
         self.assertIsNotNone(line_content)
-        self.assertIn("#001", line_content)
+        self.assertIn("#1", line_content)
         
-        # Test finding it with padded ID
-        line_num, line_content = self.tm.find_task_by_id_in_main("001")
+        # Test finding it with the same ID format
+        line_num, line_content = self.tm.find_task_by_id_in_main("1")
         self.assertIsNotNone(line_content)
-        self.assertIn("#001", line_content)
+        self.assertIn("#1", line_content)
     
-    def test_cli_show_command_with_leading_zeros(self):
-        """Test that CLI show command works with normalized task IDs"""
+    def test_cli_show_command_without_leading_zeros(self):
+        """Test that CLI show command works with task IDs without leading zeros"""
         # Add a task
         self.tm.add_task_to_main("Test task for CLI", "WORK")
         
-        # Test that show command works with normalized ID
+        # Test that show command works with ID
         # We'll simulate the CLI parsing logic
-        test_args = ["show", "1"]  # Normalized ID
+        test_args = ["show", "1"]  # ID without leading zeros
         
         if test_args[1].isdigit():
             normalized_id = str(int(test_args[1]))
             line_num, line_content = self.tm.find_task_by_id_in_main(normalized_id)
             self.assertIsNotNone(line_content)
-            self.assertIn("#001", line_content)
+            self.assertIn("#1", line_content)
     
-    def test_multiple_task_ids_with_leading_zeros(self):
-        """Test handling multiple tasks with different leading zero patterns"""
+    def test_multiple_task_ids_without_leading_zeros(self):
+        """Test handling multiple tasks without leading zeros"""
         # Add multiple tasks
         self.tm.add_task_to_main("First task", "WORK")
         self.tm.add_task_to_main("Second task", "WORK")
         self.tm.add_task_to_main("Third task", "WORK")
         
-        # Test finding each task with normalized IDs
+        # Test finding each task with IDs
         line_num, line_content = self.tm.find_task_by_id("1")
         self.assertIsNotNone(line_content)
         self.assertIn("First task", line_content)
@@ -3301,26 +3301,13 @@ class TestLeadingZerosTaskIDParsing(unittest.TestCase):
         line_num, line_content = self.tm.find_task_by_id("3")
         self.assertIsNotNone(line_content)
         self.assertIn("Third task", line_content)
-        
-        # Test finding with padded IDs
-        line_num, line_content = self.tm.find_task_by_id("001")
-        self.assertIsNotNone(line_content)
-        self.assertIn("First task", line_content)
-        
-        line_num, line_content = self.tm.find_task_by_id("002")
-        self.assertIsNotNone(line_content)
-        self.assertIn("Second task", line_content)
-        
-        line_num, line_content = self.tm.find_task_by_id("003")
-        self.assertIsNotNone(line_content)
-        self.assertIn("Third task", line_content)
     
-    def test_task_operations_with_leading_zeros(self):
-        """Test that task operations work with normalized IDs"""
+    def test_task_operations_without_leading_zeros(self):
+        """Test that task operations work with IDs without leading zeros"""
         # Add a task
         self.tm.add_task_to_main("Task to test operations", "WORK")
         
-        # Test completing task with normalized ID
+        # Test completing task with ID
         self.tm.complete_task("1")
         
         # Verify task was completed
@@ -3328,7 +3315,7 @@ class TestLeadingZerosTaskIDParsing(unittest.TestCase):
         self.assertIsNotNone(line_content)
         self.assertIn("- [x]", line_content)
         
-        # Test editing task with normalized ID
+        # Test editing task with ID
         self.tm.edit_task("1", "Updated task text")
         
         # Verify task was edited

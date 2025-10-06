@@ -436,17 +436,14 @@ class Paratrooper:
         content = self.read_file()
         id_matches = re.findall(TASK_ID_PATTERN, content)
         if not id_matches:
-            return "001"
+            return "1"
         
         # Find the highest ID and increment
         max_id = max(int(id) for id in id_matches)
         next_id = max_id + 1
         
-        # Format with appropriate padding: 3 digits for 1-999, no padding for 1000+
-        if next_id <= 999:
-            return f"{next_id:03d}"
-        else:
-            return str(next_id)
+        # No leading zeros - return as plain integer string
+        return str(next_id)
     
     def add_task_to_main(self, task_text, section=None):
         """Add a task to the main list"""
@@ -1286,10 +1283,10 @@ class Paratrooper:
         content = self.read_file()
         id_matches = re.findall(TASK_ID_PATTERN, content)
         if not id_matches:
-            task_id = "001"
+            task_id = "1"
         else:
             max_id = max(int(id) for id in id_matches)
-            task_id = f"{max_id + 1:03d}"
+            task_id = str(max_id + 1)
         
         # Create task
         task = Task(
@@ -1349,12 +1346,15 @@ class Paratrooper:
             print(f"Could not parse task #{task_id}")
             return
         
+        # Extract the actual ID from the main section (preserves original format)
+        actual_task_id = task_data['metadata']['id']
+        
         # Create task for daily section (no need for "from" text anymore)
         task_text = task_data['text']
         # Preserve the main task's activity date
         activity_date = task_data['metadata'].get('date', self.today)
         task = Task(
-            id=task_id,
+            id=actual_task_id,  # Use the actual ID from main section
             text=task_text,
             status=" ",
             date=activity_date,  # Preserve main task's activity date
@@ -1618,7 +1618,7 @@ class Paratrooper:
                         continue
                     
                     # Only process tasks in the main section
-                    if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
+                    if in_main_section and self._task_id_matches_line(task.id, line) and self._is_task_line(line):
                         # Check if it's a recurring task
                         if task.recurring:
                             # For recurring tasks, update the date to today (activity date) but keep incomplete
@@ -1650,7 +1650,7 @@ class Paratrooper:
                         continue
                     
                     # Only process tasks in the main section
-                    if in_main_section and f"#{task.id}" in line and self._is_task_line(line):
+                    if in_main_section and self._task_id_matches_line(task.id, line) and self._is_task_line(line):
                         # Update the date to show recent engagement (use today as activity date)
                         updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
                         lines[i] = updated_line
@@ -2557,7 +2557,7 @@ EXAMPLES:
   tasks undone 042                         # Reopen completed task
   tasks list                               # List all tasks from main sections
   tasks list PROJECTS:CLIENT               # List tasks in PROJECTS > CLIENT subsection                                                                           
-  tasks show 001                           # Show details of task #001
+  tasks show 001                           # Show details of task #1
   tasks pass 042                           # Mark progress on task in daily section
   tasks pass 001 4                         # Create pass entry 4 days ago (reduces urgency)                                                                             
   tasks snooze 023 7                       # Hide task for a week
@@ -2593,9 +2593,9 @@ WORKFLOW:
   4. Planning:  tasks stale (see neglected tasks)
 
 TASK SYNTAX:
-  - [ ] incomplete task | @15-01-2025 #001
-  - [x] completed task | @15-01-2025 #002
-  - [ ] recurring task | @15-01-2025 (daily) #003
+  - [ ] incomplete task | @15-01-2025 #1
+  - [x] completed task | @15-01-2025 #2
+  - [ ] recurring task | @15-01-2025 (daily) #3
   - [ ] snoozed task | @15-01-2025 snooze:20-01-2025 #004
 
 DAILY SECTION PROGRESS:
