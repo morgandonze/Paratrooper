@@ -3010,9 +3010,6 @@ FILE STRUCTURE:
     
     def _format_daily_task(self, task, widths):
         """Format daily task with normalized widths"""
-        # Build the basic task line with status and ID
-        status_part = f"- [{task.status}] #{task.id}"
-        
         # Format each component with normalized widths
         id_str = f"#{task.id}".ljust(widths['id_width'] + 1)  # +1 for the #
         text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
@@ -3033,7 +3030,7 @@ FILE STRUCTURE:
         # Add recurring info
         recurring_str = (task.recurring or '').ljust(widths['recurring_width'])
         
-        return f"{status_part} | {text_str} | {section_str} | {date_str} | {recurring_str}"
+        return f"- [{task.status}] {id_str} | {text_str} | {section_str} | {date_str} | {recurring_str}"
     
     def _format_for_status_display(self, task, days_old, section, widths=None):
         """Format task for status/staleness display with normalized widths"""
