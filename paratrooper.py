@@ -1148,6 +1148,8 @@ class Paratrooper:
         
         if cleaned_tasks:
             print(f"Cleaned up {len(cleaned_tasks)} incomplete recurring tasks from previous days")
+        
+        return "show_daily_list"
     
     def _cleanup_incomplete_recurring_tasks(self, task_file, new_recurring_task_ids=None):
         """Remove incomplete recurring tasks from old daily sections only if new instances are being added"""
@@ -2120,7 +2122,7 @@ class Paratrooper:
         # Apply limit
         limited_tasks = tasks_by_age[:limit]
         
-        print(f"=== Tasks by age (highest age score first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
+        print(f"=== Tasks by age score (highest age score first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
         
         for task_info in limited_tasks:
             days_old = task_info['days_old']
