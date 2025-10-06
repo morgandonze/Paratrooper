@@ -1661,6 +1661,39 @@ class Paratrooper:
                 if not task_found:
                     print(f"Warning: Could not find task #{task.id} in main sections to sync")
         
+        # Now update the daily section tasks themselves to have the correct activity date
+        in_daily_section = False
+        current_daily_date = None
+        
+        for i, line in enumerate(lines):
+            # Check if we're entering a daily section
+            if line.strip() == '# DAILY':
+                in_daily_section = True
+                continue
+            elif line.strip().startswith('## ') and in_daily_section:
+                # Extract the date from the daily section header
+                date_match = re.search(r'(\d{2}-\d{2}-\d{4})', line)
+                if date_match:
+                    current_daily_date = date_match.group(1)
+                continue
+            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
+                in_daily_section = False
+                current_daily_date = None
+                continue
+            
+            # Update task dates in the daily section
+            if in_daily_section and current_daily_date and self._is_task_line(line):
+                # Check if this task was processed (completed or progressed)
+                task_id_match = re.search(r'#(\d+)', line)
+                if task_id_match:
+                    task_id = task_id_match.group(1)
+                    # Check if this task was in the most recent daily section and was processed
+                    task_was_processed = any(t.id == task_id and t.status in ['x', '~'] for t in most_recent_tasks)
+                    if task_was_processed:
+                        # Update the date to the daily section date (activity date)
+                        updated_line = self._update_task_date_to_specific_date(line, current_daily_date)
+                        lines[i] = updated_line
+        
         # Write back to file
         self.write_file('\n'.join(lines))
         

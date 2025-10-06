@@ -1687,6 +1687,59 @@ class TestSyncCommandFixes(unittest.TestCase):
         
         # Should still be incomplete (recurring task)
         self.assertIn("[ ] #1 | morning workout", main_section)
+    
+    def test_sync_updates_daily_section_task_dates(self):
+        """Test that sync updates dates for tasks in daily section"""
+        # Add a task
+        self.tm.add_task_to_main("Test task for daily sync", "WORK")
+        
+        # Get task ID
+        content = self.tm.read_file()
+        lines = content.split('\n')
+        task_id = None
+        for line in lines:
+            if "Test task for daily sync" in line and "#" in line:
+                task_id = line.split('#')[1].split()[0]
+                break
+        
+        self.assertIsNotNone(task_id, "Could not find task ID")
+        
+        # Add to daily section
+        self.tm.add_daily_section()
+        self.tm.add_task_to_daily_by_id(task_id)
+        
+        # Mark task as progress in daily section
+        self.tm.progress_task_in_daily(task_id)
+        
+        # Get the daily section content before sync
+        content = self.tm.read_file()
+        daily_section_start = content.find("# DAILY")
+        daily_section_end = content.find("# MAIN")
+        daily_section_before = content[daily_section_start:daily_section_end]
+        
+        # Verify task is marked as progress but may have old date
+        self.assertIn(f"[~] #{task_id}", daily_section_before)
+        
+        # Sync
+        self.tm.sync_daily_sections()
+        
+        # Get the daily section content after sync
+        content = self.tm.read_file()
+        daily_section_start = content.find("# DAILY")
+        daily_section_end = content.find("# MAIN")
+        daily_section_after = content[daily_section_start:daily_section_end]
+        
+        # Verify daily section task has today's date
+        from datetime import datetime
+        today = datetime.now().strftime("%d-%m-%Y")
+        self.assertIn(today, daily_section_after, f"Daily section task should have today's date ({today})")
+        self.assertIn(f"[~] #{task_id}", daily_section_after, "Task should still be marked as progress")
+        
+        # Verify main section task also has updated date
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        self.assertIn(today, main_section, f"Main section task should also have today's date ({today})")
 
 
 class TestDailyTaskDeletionRefactor(unittest.TestCase):
