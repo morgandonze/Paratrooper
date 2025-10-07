@@ -351,9 +351,8 @@ class TaskFile:
         lines.append('# CALIBRATION')
         lines.append('')
         
-        # Calibration data - show task scale factors
+        # Calibration data - show task scale factors (plain format: "<id> <preset> <scale>")
         if self.calibration_sections:
-            lines.append('# ID | PRESET | SCALE_FACTOR')
             for task_id, scale_factor in sorted(self.calibration_sections.items()):
                 # Determine preset name based on scale factor
                 if scale_factor == 2.0:
@@ -364,7 +363,7 @@ class TaskFile:
                     preset = 'slow'
                 else:
                     preset = 'custom'
-                lines.append(f'# {task_id} | {preset} | {scale_factor}')
+                lines.append(f'{task_id} {preset} {scale_factor}')
             lines.append('')
         
         # Always include ARCHIVE section

@@ -135,19 +135,38 @@ class Paratrooper:
                 continue
             
             # Calibration section
-            elif in_calibration and line.strip() and not line.startswith('#'):
-                # Parse calibration entries: ID preset scale_factor
-                parts = line.strip().split()
-                if len(parts) >= 3:
-                    task_id = parts[0].strip()
-                    scale_factor_str = parts[2].strip()
-                    try:
-                        scale_factor = float(scale_factor_str)
-                        task_file.set_task_scale_factor(task_id, scale_factor)
-                    except ValueError:
-                        # Skip invalid scale factor entries
-                        pass
-                continue
+            elif in_calibration and line.strip():
+                # Support two formats:
+                # 1) Plain entries: "<id> <preset> <scale>"
+                # 2) Comment-table entries: "# <id> | <preset> | <scale>"
+                if not line.startswith('#'):
+                    parts = line.strip().split()
+                    if len(parts) >= 3:
+                        task_id = parts[0].strip()
+                        scale_factor_str = parts[2].strip()
+                        try:
+                            scale_factor = float(scale_factor_str)
+                            task_file.set_task_scale_factor(task_id, scale_factor)
+                        except ValueError:
+                            pass
+                    continue
+                else:
+                    # Handle commented table rows, skip header line
+                    if line.strip() in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                        continue
+                    if line.startswith('# '):
+                        table_row = line[2:].strip()
+                        if '|' in table_row:
+                            columns = [c.strip() for c in table_row.split('|')]
+                            if len(columns) >= 3:
+                                task_id = columns[0]
+                                scale_factor_str = columns[2]
+                                try:
+                                    scale_factor = float(scale_factor_str)
+                                    task_file.set_task_scale_factor(task_id, scale_factor)
+                                except ValueError:
+                                    pass
+                        continue
         
         return task_file
     
@@ -1213,41 +1232,54 @@ class Paratrooper:
         if self.today in task_file.daily_sections:
             today_task_ids = {task.id for task in task_file.daily_sections[self.today]}
         
-        # Only move sections that don't contain recurring tasks that should persist
-        dates_to_move = []
-        for date in task_file.daily_sections.keys():
+        # Process each daily section (except the most recent)
+        for date in list(task_file.daily_sections.keys()):
             if date == most_recent_date:
                 continue  # Keep the most recent section
             
-            # Check if this section contains recurring tasks that should persist
-            should_persist = False
-            for task in task_file.daily_sections[date]:
+            tasks_in_section = task_file.daily_sections[date]
+            
+            # Separate resolved and unresolved tasks
+            resolved_tasks = []
+            unresolved_tasks = []
+            
+            for task in tasks_in_section:
+                if task.id in today_task_ids:
+                    # Skip tasks that are already in today's section (carried over)
+                    continue
+                elif task.status in ['x', '~']:  # Completed or passed
+                    resolved_tasks.append(task)
+                else:  # Incomplete tasks
+                    unresolved_tasks.append(task)
+            
+            # Check if any unresolved tasks should persist (recurring tasks)
+            should_persist_unresolved = False
+            for task in unresolved_tasks:
                 if task.recurring and task.id not in (new_recurring_task_ids or set()):
-                    # This is a recurring task that's not getting a new instance today
-                    # Check if it should persist based on its recurrence pattern
                     if self._should_persist_recurring_task(task, date):
-                        should_persist = True
-                        break  # If any task should persist, keep the entire section
+                        should_persist_unresolved = True
+                        break
             
-            if not should_persist:
-                dates_to_move.append(date)
-        
-        # Move non-persistent sections to archive, but remove tasks that are in today's section
-        for date in dates_to_move:
-            # Filter out tasks that are already in today's section (carried over)
-            tasks_to_archive = []
-            for task in task_file.daily_sections[date]:
-                if task.id not in today_task_ids:
-                    tasks_to_archive.append(task)
-            
-            # Only archive if there are tasks to archive
-            if tasks_to_archive:
+            # Archive resolved tasks (always archive completed/passed tasks)
+            if resolved_tasks:
                 if date not in task_file.archive_sections:
                     task_file.archive_sections[date] = []
-                task_file.archive_sections[date].extend(tasks_to_archive)
+                task_file.archive_sections[date].extend(resolved_tasks)
             
-            # Remove the entire section from daily sections
-            del task_file.daily_sections[date]
+            # Handle unresolved tasks
+            if should_persist_unresolved:
+                # Keep unresolved tasks that should persist in daily section
+                task_file.daily_sections[date] = unresolved_tasks
+            else:
+                # Move all unresolved tasks to archive (no tasks should persist)
+                if unresolved_tasks:
+                    if date not in task_file.archive_sections:
+                        task_file.archive_sections[date] = []
+                    task_file.archive_sections[date].extend(unresolved_tasks)
+                
+                # Remove the section from daily sections if no tasks remain
+                if not unresolved_tasks:
+                    del task_file.daily_sections[date]
     
     def _should_persist_recurring_task(self, task, section_date):
         """Check if a recurring task should persist in its appearance date section"""
@@ -2736,6 +2768,10 @@ FILE STRUCTURE:
         if not task_file.daily_sections:
             print("No daily sections found")
             return
+        
+        # Always reorganize daily sections to archive completed/passed tasks
+        self._reorganize_daily_sections_smart(task_file)
+        self.write_file_from_objects(task_file)
         
         print("=== Daily Tasks ===")
         
