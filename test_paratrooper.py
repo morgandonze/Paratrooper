@@ -1070,6 +1070,120 @@ class TestTaskManager(unittest.TestCase):
         self.assertIn("## WORK", final_content)
         self.assertIn("## PROJECTS", final_content)
 
+    def test_daily_list_sorts_resolved_tasks_to_bottom(self):
+        """Test that daily command shows incomplete tasks first, resolved tasks at bottom"""
+        # Create daily section
+        self.tm.add_daily_section()
+        
+        # Add tasks with different statuses to daily section
+        # First add some tasks to main sections
+        self.tm.add_task_to_main("Incomplete task 1", "WORK")
+        self.tm.add_task_to_main("Incomplete task 2", "WORK") 
+        self.tm.add_task_to_main("Incomplete task 3", "PROJECTS")
+        
+        # Pull tasks to daily section
+        self.tm.add_task_to_daily_by_id("1")
+        self.tm.add_task_to_daily_by_id("2")
+        self.tm.add_task_to_daily_by_id("3")
+        
+        # Mark some tasks as completed and progressed
+        self.tm.complete_task("1")  # Mark as completed [x]
+        self.tm.progress_task_in_daily("2")  # Mark as progressed [~]
+        # Task 3 remains incomplete [ ]
+        
+        # Capture output from show_daily_list
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.show_daily_list()
+            output = captured_output.getvalue()
+            
+            # Split output into lines and find the daily section
+            lines = output.split('\n')
+            daily_section_start = None
+            for i, line in enumerate(lines):
+                if "## " in line and "2025" in line:  # Date header
+                    daily_section_start = i
+                    break
+            
+            self.assertIsNotNone(daily_section_start, "Could not find daily section")
+            
+            # Find all task lines in the daily section
+            task_lines = []
+            for i in range(daily_section_start + 1, len(lines)):
+                line = lines[i]
+                if line.strip().startswith('- ['):
+                    task_lines.append(line.strip())
+                elif line.strip() == "" and task_lines:
+                    # Empty line after tasks, we've reached the end
+                    break
+            
+            # Should have 3 tasks
+            self.assertEqual(len(task_lines), 3, f"Expected 3 tasks, got {len(task_lines)}: {task_lines}")
+            
+            # Check sorting: incomplete tasks first, then completed, then progressed
+            # Task 3 should be first (incomplete)
+            self.assertIn("#3", task_lines[0], "Incomplete task should be first")
+            self.assertIn("- [ ]", task_lines[0], "First task should be incomplete")
+            
+            # Task 1 should be second (completed)
+            self.assertIn("#1", task_lines[1], "Completed task should be second")
+            self.assertIn("- [x]", task_lines[1], "Second task should be completed")
+            
+            # Task 2 should be last (progressed)
+            self.assertIn("#2", task_lines[2], "Progressed task should be last")
+            self.assertIn("- [~]", task_lines[2], "Last task should be progressed")
+            
+        finally:
+            sys.stdout = old_stdout
+
+    def test_daily_list_sorting_with_only_resolved_tasks(self):
+        """Test sorting when all tasks are resolved (no incomplete tasks)"""
+        # Create daily section
+        self.tm.add_daily_section()
+        
+        # Add tasks and mark them all as resolved
+        self.tm.add_task_to_main("Completed task", "WORK")
+        self.tm.add_task_to_main("Progressed task", "WORK")
+        
+        # Pull to daily and mark as resolved
+        self.tm.add_task_to_daily_by_id("1")
+        self.tm.add_task_to_daily_by_id("2")
+        
+        self.tm.complete_task("1")  # [x]
+        self.tm.progress_task_in_daily("2")  # [~]
+        
+        # Capture output
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.show_daily_list()
+            output = captured_output.getvalue()
+            
+            lines = output.split('\n')
+            task_lines = []
+            for line in lines:
+                if line.strip().startswith('- ['):
+                    task_lines.append(line.strip())
+            
+            # Should have 2 tasks
+            self.assertEqual(len(task_lines), 2, f"Expected 2 tasks, got {len(task_lines)}: {task_lines}")
+            
+            # Completed task should come before progressed task
+            self.assertIn("- [x]", task_lines[0], "Completed task should be first")
+            self.assertIn("- [~]", task_lines[1], "Progressed task should be second")
+            
+        finally:
+            sys.stdout = old_stdout
+
 
 class TestIntegration(unittest.TestCase):
     """Integration tests for the complete workflow"""
