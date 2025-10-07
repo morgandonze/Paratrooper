@@ -135,19 +135,38 @@ class Paratrooper:
                 continue
             
             # Calibration section
-            elif in_calibration and line.strip() and not line.startswith('#'):
-                # Parse calibration entries: ID preset scale_factor
-                parts = line.strip().split()
-                if len(parts) >= 3:
-                    task_id = parts[0].strip()
-                    scale_factor_str = parts[2].strip()
-                    try:
-                        scale_factor = float(scale_factor_str)
-                        task_file.set_task_scale_factor(task_id, scale_factor)
-                    except ValueError:
-                        # Skip invalid scale factor entries
-                        pass
-                continue
+            elif in_calibration and line.strip():
+                # Support two formats:
+                # 1) Plain entries: "<id> <preset> <scale>"
+                # 2) Comment-table entries: "# <id> | <preset> | <scale>"
+                if not line.startswith('#'):
+                    parts = line.strip().split()
+                    if len(parts) >= 3:
+                        task_id = parts[0].strip()
+                        scale_factor_str = parts[2].strip()
+                        try:
+                            scale_factor = float(scale_factor_str)
+                            task_file.set_task_scale_factor(task_id, scale_factor)
+                        except ValueError:
+                            pass
+                    continue
+                else:
+                    # Handle commented table rows, skip header line
+                    if line.strip() in ['# CALIBRATION', '# ID | PRESET | SCALE_FACTOR']:
+                        continue
+                    if line.startswith('# '):
+                        table_row = line[2:].strip()
+                        if '|' in table_row:
+                            columns = [c.strip() for c in table_row.split('|')]
+                            if len(columns) >= 3:
+                                task_id = columns[0]
+                                scale_factor_str = columns[2]
+                                try:
+                                    scale_factor = float(scale_factor_str)
+                                    task_file.set_task_scale_factor(task_id, scale_factor)
+                                except ValueError:
+                                    pass
+                        continue
         
         return task_file
     
@@ -1213,41 +1232,54 @@ class Paratrooper:
         if self.today in task_file.daily_sections:
             today_task_ids = {task.id for task in task_file.daily_sections[self.today]}
         
-        # Only move sections that don't contain recurring tasks that should persist
-        dates_to_move = []
-        for date in task_file.daily_sections.keys():
+        # Process each daily section (except the most recent)
+        for date in list(task_file.daily_sections.keys()):
             if date == most_recent_date:
                 continue  # Keep the most recent section
             
-            # Check if this section contains recurring tasks that should persist
-            should_persist = False
-            for task in task_file.daily_sections[date]:
+            tasks_in_section = task_file.daily_sections[date]
+            
+            # Separate resolved and unresolved tasks
+            resolved_tasks = []
+            unresolved_tasks = []
+            
+            for task in tasks_in_section:
+                if task.id in today_task_ids:
+                    # Skip tasks that are already in today's section (carried over)
+                    continue
+                elif task.status in ['x', '~']:  # Completed or passed
+                    resolved_tasks.append(task)
+                else:  # Incomplete tasks
+                    unresolved_tasks.append(task)
+            
+            # Check if any unresolved tasks should persist (recurring tasks)
+            should_persist_unresolved = False
+            for task in unresolved_tasks:
                 if task.recurring and task.id not in (new_recurring_task_ids or set()):
-                    # This is a recurring task that's not getting a new instance today
-                    # Check if it should persist based on its recurrence pattern
                     if self._should_persist_recurring_task(task, date):
-                        should_persist = True
-                        break  # If any task should persist, keep the entire section
+                        should_persist_unresolved = True
+                        break
             
-            if not should_persist:
-                dates_to_move.append(date)
-        
-        # Move non-persistent sections to archive, but remove tasks that are in today's section
-        for date in dates_to_move:
-            # Filter out tasks that are already in today's section (carried over)
-            tasks_to_archive = []
-            for task in task_file.daily_sections[date]:
-                if task.id not in today_task_ids:
-                    tasks_to_archive.append(task)
-            
-            # Only archive if there are tasks to archive
-            if tasks_to_archive:
+            # Archive resolved tasks (always archive completed/passed tasks)
+            if resolved_tasks:
                 if date not in task_file.archive_sections:
                     task_file.archive_sections[date] = []
-                task_file.archive_sections[date].extend(tasks_to_archive)
+                task_file.archive_sections[date].extend(resolved_tasks)
             
-            # Remove the entire section from daily sections
-            del task_file.daily_sections[date]
+            # Handle unresolved tasks
+            if should_persist_unresolved:
+                # Keep unresolved tasks that should persist in daily section
+                task_file.daily_sections[date] = unresolved_tasks
+            else:
+                # Move all unresolved tasks to archive (no tasks should persist)
+                if unresolved_tasks:
+                    if date not in task_file.archive_sections:
+                        task_file.archive_sections[date] = []
+                    task_file.archive_sections[date].extend(unresolved_tasks)
+                
+                # Remove the section from daily sections if no tasks remain
+                if not unresolved_tasks:
+                    del task_file.daily_sections[date]
     
     def _should_persist_recurring_task(self, task, section_date):
         """Check if a recurring task should persist in its appearance date section"""
@@ -1661,6 +1693,39 @@ class Paratrooper:
                 if not task_found:
                     print(f"Warning: Could not find task #{task.id} in main sections to sync")
         
+        # Now update the daily section tasks themselves to have the correct activity date
+        in_daily_section = False
+        current_daily_date = None
+        
+        for i, line in enumerate(lines):
+            # Check if we're entering a daily section
+            if line.strip() == '# DAILY':
+                in_daily_section = True
+                continue
+            elif line.strip().startswith('## ') and in_daily_section:
+                # Extract the date from the daily section header
+                date_match = re.search(r'(\d{2}-\d{2}-\d{4})', line)
+                if date_match:
+                    current_daily_date = date_match.group(1)
+                continue
+            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
+                in_daily_section = False
+                current_daily_date = None
+                continue
+            
+            # Update task dates in the daily section
+            if in_daily_section and current_daily_date and self._is_task_line(line):
+                # Check if this task was processed (completed or progressed)
+                task_id_match = re.search(r'#(\d+)', line)
+                if task_id_match:
+                    task_id = task_id_match.group(1)
+                    # Check if this task was in the most recent daily section and was processed
+                    task_was_processed = any(t.id == task_id and t.status in ['x', '~'] for t in most_recent_tasks)
+                    if task_was_processed:
+                        # Update the date to the daily section date (activity date)
+                        updated_line = self._update_task_date_to_specific_date(line, current_daily_date)
+                        lines[i] = updated_line
+        
         # Write back to file
         self.write_file('\n'.join(lines))
         
@@ -2026,19 +2091,26 @@ class Paratrooper:
         
         print(f"=== Stale tasks (oldest first, showing {len(limited_tasks)} of {len(tasks_by_status)}) ===")
         
+        # Prepare task data for width calculation
+        task_list = []
+        for task_info in limited_tasks:
+            task_data = task_info['task_data']
+            task_list.append({
+                'id': task_data['metadata'].get('id', '???'),
+                'text': task_data['text'],
+                'section': task_info['section'],
+                'date': task_data['metadata'].get('date'),
+                'recurring': task_data['metadata'].get('recurring')
+            })
+        
+        # Calculate normalized widths
+        widths = self._calculate_column_widths(task_list)
+        
         for task_info in limited_tasks:
             days_old = task_info['days_old']
             status_type = task_info['status_type']
             section = task_info['section']
             task_data = task_info['task_data']
-            
-            # Color coding based on staleness
-            if days_old >= 7:
-                color = "🔴"  # Red for very stale
-            elif days_old >= 3:
-                color = "🟡"  # Yellow for stale
-            else:
-                color = "🟢"  # Green for recent
             
             # Create a Task object for consistent formatting
             task = Task(
@@ -2049,7 +2121,7 @@ class Paratrooper:
                 recurring=task_data['metadata'].get('recurring')
             )
             
-            print(self._format_for_status_display(task, days_old, section))
+            print(self._format_for_status_display(task, days_old, section, widths))
     
     def show_age_tasks(self, scope=None, limit=5):
         """Show tasks by age (excluding recurring) with optional scope filtering and limit"""
@@ -2124,6 +2196,38 @@ class Paratrooper:
         
         print(f"=== Tasks by age score (highest age score first, showing {len(limited_tasks)} of {len(tasks_by_age)}) ===")
         
+        # Prepare task data for width calculation
+        task_list = []
+        for task_info in limited_tasks:
+            days_old = task_info['days_old']
+            age_score = task_info['age_score']
+            scale_factor = task_info['scale_factor']
+            section = task_info['section']
+            task_data = task_info['task_data']
+            
+            # Determine preset name from scale factor
+            if scale_factor == 2.0:
+                preset = "quick"
+            elif scale_factor == 1.0:
+                preset = "normal"
+            elif scale_factor == 0.5:
+                preset = "slow"
+            else:
+                preset = f"custom: {scale_factor:.1f}"
+            
+            task_list.append({
+                'id': task_data['metadata'].get('id', '???'),
+                'text': task_data['text'],
+                'section': section,
+                'date': task_data['metadata'].get('date'),
+                'recurring': task_data['metadata'].get('recurring'),
+                'preset': preset,
+                'age_score': age_score
+            })
+        
+        # Calculate normalized widths (including preset and age score)
+        widths = self._calculate_column_widths(task_list, include_preset=True, include_age_score=True)
+        
         for task_info in limited_tasks:
             days_old = task_info['days_old']
             age_score = task_info['age_score']
@@ -2158,8 +2262,14 @@ class Paratrooper:
                 recurring=task_data['metadata'].get('recurring')
             )
             
-            # Display with age score and preset instead of raw days
-            print(f"{color} {age_score:.0f} | #{task.id} | {task.text} | {section} | {preset}")
+            # Display with normalized widths
+            age_score_str = f"{age_score:.0f}".ljust(widths['age_score_width'])
+            id_str = f"#{task.id}".ljust(widths['id_width'] + 1)  # +1 for the #
+            text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
+            section_str = section.ljust(widths['section_width'])
+            preset_str = preset.ljust(widths['preset_width'])
+            
+            print(f"{color} {age_score_str} | {id_str} | {text_str} | {section_str} | {preset_str}")
     
     def set_task_size(self, task_id: str, size_arg: str):
         """Set the size/scale factor for a task"""
@@ -2659,7 +2769,28 @@ FILE STRUCTURE:
             print("No daily sections found")
             return
         
+        # Always reorganize daily sections to archive completed/passed tasks
+        self._reorganize_daily_sections_smart(task_file)
+        self.write_file_from_objects(task_file)
+        
         print("=== Daily Tasks ===")
+        
+        # Collect all tasks across all daily sections for width calculation
+        all_tasks = []
+        for date in sorted(task_file.daily_sections.keys(), reverse=True):
+            tasks = task_file.daily_sections[date]
+            for task in tasks:
+                all_tasks.append({
+                    'id': task.id,
+                    'text': task.text,
+                    'section': task.section or '',
+                    'date': task.date or '',
+                    'recurring': task.recurring or ''
+                })
+        
+        # Calculate normalized widths for all daily tasks
+        widths = self._calculate_column_widths(all_tasks)
+        
         # Show all daily sections, sorted by date (most recent first)
         for i, date in enumerate(sorted(task_file.daily_sections.keys(), reverse=True)):
             tasks = task_file.daily_sections[date]
@@ -2674,7 +2805,7 @@ FILE STRUCTURE:
                 continue
             
             for task in tasks:
-                print(task.to_markdown())
+                print(self._format_daily_task(task, widths))
     
     def show_section(self, section_name):
         """Show tasks in a specific section"""
@@ -2705,10 +2836,9 @@ FILE STRUCTURE:
         in_main = False
         current_section = None
         tasks_found = False
+        tasks = []
         
-        print(f"=== {section_name} ===")
-        print()
-        
+        # First pass: collect all tasks in this section
         for line in lines:
             line = line.strip()
             
@@ -2727,11 +2857,32 @@ FILE STRUCTURE:
                 # Parse the task line to create a Task object for consistent formatting
                 task = Task.from_markdown(line)
                 if task:
-                    print(f"  {task.to_markdown()}")
+                    tasks.append(task)
                     tasks_found = True
         
         if not tasks_found:
             print("No tasks found in this section")
+            return
+        
+        # Calculate normalized widths for all tasks in this section
+        task_list = []
+        for task in tasks:
+            task_list.append({
+                'id': task.id,
+                'text': task.text,
+                'section': task.section or '',
+                'date': task.date or '',
+                'recurring': task.recurring or ''
+            })
+        
+        widths = self._calculate_column_widths(task_list)
+        
+        print(f"=== {section_name} ===")
+        print()
+        
+        # Second pass: display tasks with normalized formatting
+        for task in tasks:
+            print(f"  {self._format_daily_task(task, widths)}")
     
     def _show_calibration_section(self, lines):
         """Show calibration data"""
@@ -2812,6 +2963,52 @@ FILE STRUCTURE:
         
         in_main = False
         current_section = None
+        all_tasks = []
+        
+        # First pass: collect all tasks from all main sections
+        for line in lines:
+            line = line.strip()
+            
+            if line == '# MAIN':
+                in_main = True
+                continue
+            elif line.startswith('# ') and line != '# MAIN':
+                in_main = False
+                continue
+            
+            if in_main and line.startswith('## '):
+                current_section = line[3:].strip()
+                continue
+            elif in_main and line.startswith('### '):
+                subsection = line[4:].strip()
+                continue
+            
+            if in_main and self._is_task_line(line):
+                # Parse the task line to create a Task object for consistent formatting
+                task = Task.from_markdown(line)
+                if task:
+                    all_tasks.append(task)
+        
+        if not all_tasks:
+            print("No tasks found in main sections")
+            return
+        
+        # Calculate normalized widths for all main tasks
+        task_list = []
+        for task in all_tasks:
+            task_list.append({
+                'id': task.id,
+                'text': task.text,
+                'section': task.section or '',
+                'date': task.date or '',
+                'recurring': task.recurring or ''
+            })
+        
+        widths = self._calculate_column_widths(task_list)
+        
+        # Second pass: display tasks with normalized formatting
+        in_main = False
+        current_section = None
         
         for line in lines:
             line = line.strip()
@@ -2836,14 +3033,76 @@ FILE STRUCTURE:
                 # Parse the task line to create a Task object for consistent formatting
                 task = Task.from_markdown(line)
                 if task:
-                    print(f"  {task.to_markdown()}")
+                    print(f"  {self._format_daily_task(task, widths)}")
     
     # ============================================================================
     # TASK FORMATTING METHODS
     # ============================================================================
     
-    def _format_for_status_display(self, task, days_old, section):
-        """Format task for status/staleness display"""
+    def _calculate_column_widths(self, tasks, include_preset=False, include_age_score=False):
+        """Calculate normalized column widths for task display"""
+        if not tasks:
+            return {
+                'id_width': 3,
+                'text_width': 40,
+                'section_width': 10,
+                'date_width': 10,
+                'recurring_width': 10,
+                'preset_width': 10,
+                'age_score_width': 3
+            }
+        
+        # Calculate maximum widths for each component
+        max_id_width = max(3, max(len(str(task.get('id', '???'))) for task in tasks))
+        max_text_width = 40  # Always use 40 characters for description
+        max_section_width = max(len(task.get('section', '')) for task in tasks)
+        max_date_width = max(len(task.get('date', '') or '') for task in tasks)
+        max_recurring_width = max(len(task.get('recurring', '') or '') for task in tasks)
+        max_preset_width = max(len(task.get('preset', '') or '') for task in tasks) if include_preset else 0
+        max_age_score_width = max(len(str(task.get('age_score', 0))) for task in tasks) if include_age_score else 0
+        
+        return {
+            'id_width': max_id_width,
+            'text_width': max_text_width,
+            'section_width': max_section_width,
+            'date_width': max_date_width,
+            'recurring_width': max_recurring_width,
+            'preset_width': max_preset_width,
+            'age_score_width': max_age_score_width
+        }
+    
+    def _truncate_text(self, text, max_width):
+        """Truncate text to max_width with ellipsis if needed"""
+        if len(text) <= max_width:
+            return text
+        return text[:max_width-1] + '…'
+    
+    def _format_daily_task(self, task, widths):
+        """Format daily task with normalized widths"""
+        # Format each component with normalized widths
+        id_str = f"#{task.id}".ljust(widths['id_width'] + 1)  # +1 for the #
+        text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
+        
+        # Add section (with subsection if present)
+        if task.section:
+            if task.subsection:
+                section_text = f"{task.section}:{task.subsection}"
+            else:
+                section_text = task.section
+        else:
+            section_text = ""
+        section_str = section_text.ljust(widths['section_width'])
+        
+        # Add date
+        date_str = (task.date or '').ljust(widths['date_width'])
+        
+        # Add recurring info
+        recurring_str = (task.recurring or '').ljust(widths['recurring_width'])
+        
+        return f"- [{task.status}] {id_str} | {text_str} | {section_str} | {date_str} | {recurring_str}"
+    
+    def _format_for_status_display(self, task, days_old, section, widths=None):
+        """Format task for status/staleness display with normalized widths"""
         # Color coding based on staleness
         if days_old >= 7:
             color = "🔴"  # Red for very stale
@@ -2853,7 +3112,19 @@ FILE STRUCTURE:
             color = "🟢"  # Green for recent
         
         task_id = task.id or "???"
-        return f"{color} {days_old:2d} days | #{task_id} | {task.text} | {section}"
+        
+        if widths:
+            # Use normalized widths
+            id_str = f"#{task_id}".ljust(widths['id_width'] + 1)  # +1 for the #
+            text_str = self._truncate_text(task.text, widths['text_width']).ljust(widths['text_width'])
+            section_str = section.ljust(widths['section_width'])
+            date_str = (task.date or '').ljust(widths['date_width'])
+            recurring_str = (task.recurring or '').ljust(widths['recurring_width'])
+            
+            return f"{color} {days_old:2d} days | {id_str} | {text_str} | {section_str} | {date_str} | {recurring_str}"
+        else:
+            # Fallback to original format
+            return f"{color} {days_old:2d} days | #{task_id} | {task.text} | {section}"
     
     def _format_for_task_details(self, task, line_number=None):
         """Format task for detailed display (multi-line format)"""
