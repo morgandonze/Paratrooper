@@ -2804,7 +2804,10 @@ FILE STRUCTURE:
                 print("No tasks for this date")
                 continue
             
-            for task in tasks:
+            # Sort tasks: incomplete first, then resolved/passed tasks at bottom
+            sorted_tasks = sorted(tasks, key=lambda t: (t.status != ' ', t.status))
+            
+            for task in sorted_tasks:
                 print(self._format_daily_task(task, widths))
     
     def show_section(self, section_name):
