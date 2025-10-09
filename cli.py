@@ -130,8 +130,6 @@ def main():
             print("Usage: t pass <ID> [n]")
             print("  t pass <ID>     - Mark task as progressed in today's daily section")
             print("  t pass <ID> <n>  - Create pass entry n days ago in archive section")
-    elif command == "sync":
-        pt.sync_daily_sections()
     elif command == "add":
         if len(args) != 3:
             print("Error: 'add' command expects exactly 2 arguments: task_text and section")

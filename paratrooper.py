@@ -1443,7 +1443,7 @@ class Paratrooper:
         print(f"Pulled task #{task_id} to today's section: {task_data['text']}")
     
     def progress_task_in_daily(self, task_id):
-        """Mark a task as progressed in today's daily section"""
+        """Mark a task as progressed in today's daily section and update main section"""
         content = self.read_file()
         lines = content.split('\n')
         
@@ -1507,6 +1507,32 @@ class Paratrooper:
                     self.write_file('\n'.join(lines))
                     print(f"Marked progress on task #{task_id} in today's daily section")
                     break
+        
+        # Now also update the main section task if it exists
+        # Re-read the file to get the latest content
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Find and update the task in main section
+        in_main_section = False
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            
+            if line_stripped == '# MAIN':
+                in_main_section = True
+                continue
+            elif line_stripped.startswith('# ') and line_stripped != '# MAIN':
+                in_main_section = False
+                continue
+            
+            if in_main_section and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
+                # Update the date to show recent engagement (use today as activity date)
+                updated_line = self._update_task_date(line)
+                lines[i] = updated_line
+                self.write_file('\n'.join(lines))
+                break
+        
+        print(f"Marked progress on task #{task_id}")
     
     def create_pass_entry(self, task_id, days_ago):
         """Create a pass entry M-N days ago in the archive section and update main task date"""
@@ -1644,126 +1670,6 @@ class Paratrooper:
         # Regenerate the file from the updated model data
         self.write_file_from_objects(task_file)
         print(f"Removed task #{task_id} from today's daily section")
-    
-    def sync_daily_sections(self, days_back=3):
-        """Sync daily sections back to main list"""
-        task_file = self.parse_file()
-        
-        if not task_file.daily_sections:
-            print("No daily sections to sync")
-            return
-        
-        # Get the most recent daily section
-        most_recent_date, most_recent_tasks = self.get_most_recent_daily_section(task_file)
-        if not most_recent_tasks:
-            print("No tasks in daily section to sync")
-            return
-        
-        content = self.read_file()
-        lines = content.split('\n')
-        
-        completed_count = 0
-        progressed_count = 0
-        
-        # Process each task in the daily section
-        for task in most_recent_tasks:
-            if task.status == 'x':  # Completed
-                # Find the corresponding task in main section only
-                task_found = False
-                in_main_section = False
-                for i, line in enumerate(lines):
-                    # Check if we're in the main section
-                    if line.strip() == '# MAIN':
-                        in_main_section = True
-                        continue
-                    elif line.strip() == '# DAILY' or line.strip() == '# ARCHIVE':
-                        in_main_section = False
-                        continue
-                    
-                    # Only process tasks in the main section
-                    if in_main_section and self._task_id_matches_line(task.id, line) and self._is_task_line(line):
-                        # Check if it's a recurring task
-                        if task.recurring:
-                            # For recurring tasks, update the date to today (activity date) but keep incomplete
-                            updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
-                        else:
-                            # For non-recurring tasks, mark as complete
-                            updated_line = self._mark_task_complete(line)
-                            updated_line = self._update_task_date(updated_line)
-                        
-                        lines[i] = updated_line
-                        completed_count += 1
-                        task_found = True
-                        break
-                
-                if not task_found:
-                    print(f"Warning: Could not find task #{task.id} in main sections to sync")
-            
-            elif task.status == '~':  # Progress
-                # Find the corresponding task in main section only
-                task_found = False
-                in_main_section = False
-                for i, line in enumerate(lines):
-                    # Check if we're in the main section
-                    if line.strip() == '# MAIN':
-                        in_main_section = True
-                        continue
-                    elif line.strip() == '# DAILY' or line.strip() == '# ARCHIVE':
-                        in_main_section = False
-                        continue
-                    
-                    # Only process tasks in the main section
-                    if in_main_section and self._task_id_matches_line(task.id, line) and self._is_task_line(line):
-                        # Update the date to show recent engagement (use today as activity date)
-                        updated_line = self._update_task_date_to_specific_date(line, most_recent_date)
-                        lines[i] = updated_line
-                        progressed_count += 1
-                        task_found = True
-                        break
-                
-                if not task_found:
-                    print(f"Warning: Could not find task #{task.id} in main sections to sync")
-        
-        # Now update the daily section tasks themselves to have the correct activity date
-        in_daily_section = False
-        current_daily_date = None
-        
-        for i, line in enumerate(lines):
-            # Check if we're entering a daily section
-            if line.strip() == '# DAILY':
-                in_daily_section = True
-                continue
-            elif line.strip().startswith('## ') and in_daily_section:
-                # Extract the date from the daily section header
-                date_match = re.search(r'(\d{2}-\d{2}-\d{4})', line)
-                if date_match:
-                    current_daily_date = date_match.group(1)
-                continue
-            elif line.strip().startswith('# ') and line.strip() != '# DAILY':
-                in_daily_section = False
-                current_daily_date = None
-                continue
-            
-            # Update task dates in the daily section
-            if in_daily_section and current_daily_date and self._is_task_line(line):
-                # Check if this task was processed (completed or progressed)
-                task_id_match = re.search(r'#(\d+)', line)
-                if task_id_match:
-                    task_id = task_id_match.group(1)
-                    # Check if this task was in the most recent daily section and was processed
-                    task_was_processed = any(t.id == task_id and t.status in ['x', '~'] for t in most_recent_tasks)
-                    if task_was_processed:
-                        # Update the date to the daily section date (activity date)
-                        updated_line = self._update_task_date_to_specific_date(line, current_daily_date)
-                        lines[i] = updated_line
-        
-        # Write back to file
-        self.write_file('\n'.join(lines))
-        
-        if completed_count > 0 or progressed_count > 0:
-            print(f"Synced {completed_count} completed and {progressed_count} progressed tasks from daily section")
-        else:
-            print("No changes needed")
     
     # ============================================================================
     # DISPLAY OPERATIONS
@@ -2658,10 +2564,6 @@ COMMANDS:
   undone ID              Reopen completed task (mark as incomplete)
   pass ID                Mark task as progressed [~] in today's daily section
   pass ID N              Create pass entry N days ago in archive section (reduces days since activity)
-  sync                   Update main list from completed daily items
-                         [x] in daily = complete main task (recurring tasks stay incomplete)
-                         [~] in daily = update date but keep incomplete
-                         Both daily and main entries get current date when activity occurs
   
   add TEXT [SEC]         Add task to main list section (default: TASKS)
                          Use SEC:SUBSEC for subsections (e.g., WORK:OFFICE)
@@ -2715,8 +2617,7 @@ EXAMPLES:
   tasks size 043 slow                     # Set task #043 to slow aging (0.5x scale)
   tasks size 044 2.5                      # Set task #044 to custom scale factor
   tasks size 045 default                  # Remove custom scaling from task #045
-  tasks status                            # Alias for stale (backward compatibility)                                                                         
-  tasks sync                               # Update main list from daily work
+  tasks status                            # Alias for stale (backward compatibility)                                                                                                                                    
   tasks edit 042 "new task text"           # Edit task text
   tasks move 042 PROJECTS:CLIENT           # Move task to subsection
   tasks open                               # Open tasks file with configured editor                                                                             
@@ -2730,7 +2631,7 @@ WORKFLOW:
   1. Morning:   tasks daily
   2. Work:      Check daily section, mark tasks:
                 [x] = completed, [~] = made progress but not done
-  3. Evening:   tasks sync (updates main list)
+  3. Evening:   Changes already took effect during the day
   4. Planning:  tasks stale (see neglected tasks)
 
 TASK SYNTAX:
@@ -2740,8 +2641,8 @@ TASK SYNTAX:
   - [ ] snoozed task | @15-01-2025 snooze:20-01-2025 #004
 
 DAILY SECTION PROGRESS:
-  [x] = Task completed (will mark main task complete when synced)
-  [~] = Made progress (will update main task date but keep incomplete)
+  [x] = Task completed (immediately marks main task complete)
+  [~] = Made progress (immediately updates main task date but keeps incomplete)
 
 DATE BEHAVIOR:
   - Task dates represent last activity date (or creation date if no activity)

@@ -330,40 +330,6 @@ class TestTaskManager(unittest.TestCase):
         today = datetime.now().strftime("%d-%m-%Y")
         self.assertIn(today, content)
     
-    def test_sync_daily_sections(self):
-        """Test syncing daily sections to main list"""
-        self.tm.init()
-        
-        # Add a task to main
-        self.tm.add_task_to_main("Test task", "WORK")
-        
-        # Get task ID
-        content = self.tm.read_file()
-        lines = content.split('\n')
-        task_line = None
-        for line in lines:
-            if "Test task" in line and "#" in line:
-                task_line = line
-                break
-        
-        task_id = task_line.split('#')[-1].strip()
-        
-        # Add to daily section
-        self.tm.add_daily_section()
-        self.tm.add_task_to_daily_by_id(task_id)
-        
-        # Mark as complete in daily section (manually edit file)
-        content = self.tm.read_file()
-        content = content.replace(f"- [ ] #1 | Test task", f"- [x] #1 | Test task")
-        self.tm.write_file(content)
-        
-        # Sync
-        self.tm.sync_daily_sections()
-        
-        # Check that main task is now complete
-        content = self.tm.read_file()
-        self.assertIn(f"- [x] #1 | Test task", content)
-    
     def test_snooze_task(self):
         """Test snoozing a task"""
         self.tm.init()
@@ -1242,7 +1208,7 @@ class TestIntegration(unittest.TestCase):
         self.tm.complete_task(workout_task_id)
         
         # Sync at end of day
-        self.tm.sync_daily_sections()
+        # Sync functionality removed - done and pass now take immediate effect
         
         # Verify results
         content = self.tm.read_file()
@@ -1283,7 +1249,7 @@ class TestIntegration(unittest.TestCase):
         self.tm.complete_task(workout_task_id)
         
         # Sync
-        self.tm.sync_daily_sections()
+        # Sync functionality removed - done and pass now take immediate effect
         
         # Verify main task is still incomplete (recurring)
         content = self.tm.read_file()
@@ -1595,8 +1561,7 @@ class TestTaskFormatter(unittest.TestCase):
         self.assertIn("5 days", result)
 
 
-class TestSyncCommandFixes(unittest.TestCase):
-    """Test the sync command fixes from commit f062213"""
+class TestDailyTaskDeletionRefactor(unittest.TestCase):
     
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -1613,104 +1578,80 @@ class TestSyncCommandFixes(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
     
-    def test_sync_only_updates_main_section_tasks(self):
-        """Test that sync only updates tasks in main sections, not daily sections"""
-        # Add a task to main section
+    def test_done_takes_immediate_effect(self):
+        """Test that done command immediately updates both daily and main sections"""
+        self.tm.init()
+        
+        # Add a task to main
         self.tm.add_task_to_main("Test task", "WORK")
         
         # Get task ID
         content = self.tm.read_file()
         lines = content.split('\n')
-        task_id = None
+        task_line = None
         for line in lines:
             if "Test task" in line and "#" in line:
-                task_id = line.split('#')[1].split()[0]
+                task_line = line
                 break
         
-        self.assertIsNotNone(task_id, "Could not find task ID")
+        task_id = task_line.split('#')[-1].strip()
         
-        # Add task to daily section
+        # Add to daily section
         self.tm.add_daily_section()
         self.tm.add_task_to_daily_by_id(task_id)
         
-        # Manually mark task as complete in daily section
+        # Use done command (should take immediate effect)
+        self.tm.complete_task(task_id)
+        
+        # Check that main task is now complete
         content = self.tm.read_file()
-        # Find the daily section task and mark it complete
-        lines = content.split('\n')
-        for i, line in enumerate(lines):
-            if f"#{task_id}" in line and "Test task" in line and "[ ]" in line:
-                lines[i] = line.replace("[ ]", "[x]")
-                break
-        content = '\n'.join(lines)
-        self.tm.write_file(content)
+        self.assertIn(f"- [x] #1 | Test task", content)
         
-        # Sync - should only update main section task
-        self.tm.sync_daily_sections()
-        
-        # Verify main section task is updated
-        content = self.tm.read_file()
-        main_section_start = content.find("# MAIN")
-        main_section_end = content.find("# ARCHIVE")
-        main_section = content[main_section_start:main_section_end]
-        
-        # Task should be marked complete in main section
-        self.assertIn(f"- [x] #1 | Test task", main_section)
-        
-        # Daily section should remain unchanged (not updated by sync)
+        # Check that daily task is also complete
         daily_section_start = content.find("# DAILY")
         daily_section_end = content.find("# MAIN")
         daily_section = content[daily_section_start:daily_section_end]
-        
-        # Daily section should still have the original format
         self.assertIn(f"- [x] #1 | Test task", daily_section)
     
-    def test_sync_warning_when_task_not_found_in_main(self):
-        """Test that sync shows warning when task cannot be found in main sections"""
-        # First add a real task to main
-        self.tm.add_task_to_main("Real task", "WORK")
+    def test_pass_takes_immediate_effect(self):
+        """Test that pass command immediately updates both daily and main sections"""
+        self.tm.init()
         
-        # Get the real task ID
+        # Add a task to main
+        self.tm.add_task_to_main("Test task", "WORK")
+        
+        # Get task ID
         content = self.tm.read_file()
         lines = content.split('\n')
-        real_task_id = None
+        task_line = None
         for line in lines:
-            if "Real task" in line and "#" in line:
-                real_task_id = line.split('#')[1].split()[0]
+            if "Test task" in line and "#" in line:
+                task_line = line
                 break
         
-        # Add the real task to daily section
+        task_id = task_line.split('#')[-1].strip()
+        
+        # Add to daily section
         self.tm.add_daily_section()
-        self.tm.add_task_to_daily_by_id(real_task_id)
+        self.tm.add_task_to_daily_by_id(task_id)
         
-        # Manually add a fake task to daily section to test warning
+        # Use pass command (should take immediate effect)
+        self.tm.progress_task_in_daily(task_id)
+        
+        # Check that daily task is marked as progress
         content = self.tm.read_file()
-        lines = content.split('\n')
-        for i, line in enumerate(lines):
-            if f"#{real_task_id}" in line and "Real task" in line and "[ ]" in line:
-                # Mark real task as complete
-                lines[i] = line.replace("[ ]", "[x]")
-                # Add fake task after it
-                lines.insert(i + 1, f"- [x] #999 | Fake task | WORK | {self.tm.today or '30-09-2025'}")
-                break
-        content = '\n'.join(lines)
-        self.tm.write_file(content)
+        daily_section_start = content.find("# DAILY")
+        daily_section_end = content.find("# MAIN")
+        daily_section = content[daily_section_start:daily_section_end]
+        self.assertIn(f"- [~] #1 | Test task", daily_section)
         
-        # Capture stdout to check for warning message
-        import io
-        import sys
-        captured_output = io.StringIO()
-        old_stdout = sys.stdout
-        sys.stdout = captured_output
-        
-        try:
-            # Sync should show warning for task #999
-            self.tm.sync_daily_sections()
-            
-            # Check that warning was printed
-            output = captured_output.getvalue()
-            self.assertIn("Warning: Could not find task #999 in main sections to sync", output)
-        finally:
-            sys.stdout = old_stdout
+        # Check that main task date is updated (activity date)
+        main_section_start = content.find("# MAIN")
+        main_section_end = content.find("# ARCHIVE")
+        main_section = content[main_section_start:main_section_end]
+        from datetime import datetime
+        today = datetime.now().strftime("%d-%m-%Y")
+        self.assertIn(today, main_section)
     
     def test_update_task_date_pipe_separated_format(self):
         """Test _update_task_date with pipe-separated format"""
@@ -1785,7 +1726,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         self.tm.write_file(content)
         
         # Sync
-        self.tm.sync_daily_sections()
+        # Sync functionality removed - done and pass now take immediate effect
         
         # Verify main section task has updated date
         content = self.tm.read_file()
@@ -1835,7 +1776,7 @@ class TestSyncCommandFixes(unittest.TestCase):
         self.assertIn(f"[~] #{task_id}", daily_section_before)
         
         # Sync
-        self.tm.sync_daily_sections()
+        # Sync functionality removed - done and pass now take immediate effect
         
         # Get the daily section content after sync
         content = self.tm.read_file()
@@ -2122,7 +2063,7 @@ class TestRecurringTaskBugFix(unittest.TestCase):
                 self.assertEqual(result, expected,
                     f"Pattern {pattern} with last date {days_ago} days ago should return {expected}")
     
-    def test_daily_task_appears_after_completion_and_sync(self):
+    def test_daily_task_appears_after_completion(self):
         """Test the specific bug: daily task should appear tomorrow even if completed today"""
         # Add a daily recurring task
         self.tm.add_task_to_main("Take out trash (daily)", "DOMESTIC")
@@ -2148,8 +2089,7 @@ class TestRecurringTaskBugFix(unittest.TestCase):
         # Complete the task in daily section
         self.tm.complete_task(task_id)
         
-        # Sync to update main list
-        self.tm.sync_daily_sections()
+        # Complete task now takes immediate effect (no sync needed)
         
         # Verify main task date was updated (but still incomplete)
         content = self.tm.read_file()
@@ -3634,8 +3574,8 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         self.assertEqual(task_count_after, 1, "Should have only 1 instance after cleanup")
     
     
-    def test_sync_uses_activity_date_for_recurring_tasks(self):
-        """Test that sync uses appearance date for recurring tasks"""
+    def test_done_uses_activity_date_for_recurring_tasks(self):
+        """Test that done command uses activity date for recurring tasks"""
         # Add a recurring task
         self.tm.add_task_to_main("Check email (recur:2d)", "WORK")
         
@@ -3649,7 +3589,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         self.tm.complete_task(task_id)
         
         # Sync to update main list
-        self.tm.sync_daily_sections()
+        # Sync functionality removed - done and pass now take immediate effect
         
         # Verify main task date was updated to activity date (today)
         content = self.tm.read_file()
@@ -3663,8 +3603,8 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Verify task is still incomplete (recurring)
         self.assertIn(f"- [ ] #{task_id} | Check email", main_section, "Recurring task should remain incomplete")
     
-    def test_sync_uses_activity_date_for_progress_tasks(self):
-        """Test that sync uses appearance date for recurring tasks marked as progress"""
+    def test_pass_uses_activity_date_for_progress_tasks(self):
+        """Test that pass command uses activity date for recurring tasks marked as progress"""
         # Add a recurring task
         self.tm.add_task_to_main("Review budget (recur:1w)", "FINANCE")
         
@@ -3677,8 +3617,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         # Mark task as progress
         self.tm.progress_task_in_daily(task_id)
         
-        # Sync to update main list
-        self.tm.sync_daily_sections()
+        # Pass command now takes immediate effect (no sync needed)
         
         # Verify main task date was updated to activity date (today)
         content = self.tm.read_file()
@@ -3742,8 +3681,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         
         self.tm.write_file('\n'.join(lines))
         
-        # Sync to update main list
-        self.tm.sync_daily_sections()
+        # Complete task now takes immediate effect (no sync needed)
         
         # Verify main task date was updated to activity date (today), not completion date (tomorrow)
         content = self.tm.read_file()
@@ -3768,7 +3706,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         
         # Complete the task
         self.tm.complete_task(task_id)
-        self.tm.sync_daily_sections()
+        # Complete task now takes immediate effect (no sync needed)
         
         # Manually set the main task date to 5 days ago to allow pass entry creation
         from datetime import datetime, timedelta
@@ -3820,7 +3758,7 @@ class TestRecurrenceFixImplementation(unittest.TestCase):
         
         # Complete the task
         self.tm.complete_task(task_id)
-        self.tm.sync_daily_sections()
+        # Sync functionality removed - done and pass now take immediate effect
         
         # Verify the task will recur in 3 days from today
         # This tests the core fix: recurrence should be based on appearance date, not activity date

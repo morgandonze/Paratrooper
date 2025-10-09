@@ -32,7 +32,8 @@ pt daily
 pt status
 
 # Sync your progress
-pt sync
+pt done <ID>    # Mark task as complete (immediate effect)
+pt pass <ID>    # Mark task as progressed (immediate effect)
 ```
 
 ## 📁 File Structure
@@ -95,8 +96,8 @@ This solves the problem of tasks where you make meaningful progress but don't fi
 
 ### 2. **Daily Workflow Integration**
 - **Morning**: `pt daily` - auto-adds recurring tasks and carries over tasks that should recur today
-- **Work**: Use daily section, mark tasks as you work
-- **Evening**: `pt sync` - updates main list from daily progress
+- **Work**: Use daily section, mark tasks as you work with `pt done` and `pt pass`
+- **Evening**: No sync needed - changes take immediate effect
 
 ### 3. **Flexible Organization**
 - **Simplified structure**: Only DAILY, MAIN, ARCHIVE sections required
@@ -181,7 +182,6 @@ pt size 043 slow       # Set task #043 to slow aging (0.5x scale)
 pt size 044 2.5        # Set task #044 to custom scale factor
 pt size 045 default    # Remove custom scaling from task #045
 pt status             # Alias for stale (backward compatibility)
-pt sync               # Update MAIN from daily progress
 ```
 
 ### Task Management
@@ -295,36 +295,30 @@ pt purge 042        # Delete from everywhere
 - `recurring` - Recurrence pattern (daily, weekly, monthly, etc.) or empty for one-time tasks
 ```
 
-## 🔄 Sync Behavior
+## 🔄 Immediate Effect Behavior
 
-When you run `pt sync`:
+When you use `pt done` or `pt pass`:
 
-- **Completed (`[x]`)**: 
-  - Non-recurring tasks: Main task becomes `[x]` 
-  - Recurring tasks: Main task stays `[ ]`, date updates
+- **Completed (`pt done`)**: 
+  - Non-recurring tasks: Main task becomes `[x]` immediately
+  - Recurring tasks: Main task stays `[ ]`, date updates to today
   
-- **Progress (`[~]`)**: 
+- **Progress (`pt pass`)**: 
   - All tasks: Main task stays `[ ]`, date updates to show recent engagement
   
 - **Not started (`[ ]`)**: No changes to main task
 
-### Example Sync
-**Before sync (Main List):**
+### Example Immediate Effect
+**Before commands (Main List):**
 ```markdown
 - [ ] write chapter 3 #023
 - [ ] morning workout (daily) #4
 ```
 
-**After working (Daily Section):**
+**After `pt done 023` and `pt pass 4` (Main List):**
 ```markdown
-- [~] write chapter 3 from WORK #023    # Made progress
-- [x] morning workout from HEALTH #4      # Completed today
-```
-
-**After sync (Main List):**
-```markdown
-- [ ] write chapter 3 #023         # Still incomplete
-- [ ] morning workout (daily) #4 # Recurring task
+- [x] write chapter 3 #023         # Completed immediately
+- [ ] morning workout (daily) #4   # Date updated, still incomplete
 ```
 
 ## 📅 Recurring Patterns
@@ -388,8 +382,8 @@ pt up 067             # Pull that overdue task
 - [x] call client from TASKS #067                    # Pulled task, completed
 - [ ] review budget from FINANCE #089                  # Recurring, didn't get to it
 
-# Evening - sync progress back to main list
-pt sync               # Updates main list from daily progress
+# Evening - changes already took effect during the day
+pt done 067            # Mark task as complete (immediate effect)
 # Result: #4 date updates, #023 stays incomplete but date updates, #067 marked complete
 
 # Weekly planning
@@ -436,16 +430,15 @@ pt daily
 pt status
 
 # Verify your patterns work
-pt sync
+pt done 4              # Test immediate effect
 ```
 
 ### Step 3: Daily Workflow
 ```bash
 # Morning routine
 pt daily              # Get today's recurring tasks
-# Work on tasks, mark progress with [x] or [~]
-# Evening sync
-pt sync               # Update main list from daily progress
+# Work on tasks, mark progress with pt done and pt pass
+# Changes take immediate effect - no sync needed
 ```
 
 **Pro Tips:**
