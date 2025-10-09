@@ -590,6 +590,37 @@ class Paratrooper:
                     self.write_file('\n'.join(lines))
                     break
         
+        # Now also update the main section task if it exists
+        # Re-read the file to get the latest content
+        content = self.read_file()
+        lines = content.split('\n')
+        
+        # Find and update the task in main section
+        in_main_section = False
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            
+            if line_stripped == '# MAIN':
+                in_main_section = True
+                continue
+            elif line_stripped.startswith('# ') and line_stripped != '# MAIN':
+                in_main_section = False
+                continue
+            
+            if in_main_section and self._task_id_matches_line(task_id, line) and self._is_task_line(line):
+                # Check if it's a recurring task
+                if self._is_recurring_task(line):
+                    # For recurring tasks, update the date to today (activity date) but keep incomplete
+                    updated_line = self._update_task_date(line)
+                else:
+                    # For non-recurring tasks, mark as complete
+                    updated_line = self._mark_task_complete(line)
+                    updated_line = self._update_task_date(updated_line)
+                
+                lines[i] = updated_line
+                self.write_file('\n'.join(lines))
+                break
+        
         print(f"Completed task #{task_id}")
     
     def reopen_task(self, task_id):
