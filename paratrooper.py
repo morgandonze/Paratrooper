@@ -2792,6 +2792,18 @@ FILE STRUCTURE:
         
         print(help_text)
     
+    def _is_task_snoozed(self, task):
+        """Check if a task is snoozed (has a future activity date)"""
+        if not task.date:
+            return False
+        
+        try:
+            task_date = datetime.strptime(task.date, "%d-%m-%Y")
+            today = datetime.now()
+            return task_date > today
+        except ValueError:
+            return False
+
     def show_daily_list(self):
         """Show all daily tasks from all daily subsections"""
         task_file = self.parse_file()
@@ -2807,10 +2819,15 @@ FILE STRUCTURE:
         print("=== Daily Tasks ===")
         
         # Collect all tasks across all daily sections for width calculation
+        # Exclude snoozed tasks (those with future activity dates)
         all_tasks = []
         for date in sorted(task_file.daily_sections.keys(), reverse=True):
             tasks = task_file.daily_sections[date]
             for task in tasks:
+                # Skip tasks with future activity dates (snoozed tasks)
+                if self._is_task_snoozed(task):
+                    continue
+                    
                 all_tasks.append({
                     'id': task.id,
                     'text': task.text,
@@ -2826,17 +2843,20 @@ FILE STRUCTURE:
         for i, date in enumerate(sorted(task_file.daily_sections.keys(), reverse=True)):
             tasks = task_file.daily_sections[date]
             
+            # Filter out snoozed tasks (those with future activity dates)
+            visible_tasks = [task for task in tasks if not self._is_task_snoozed(task)]
+            
             # Add newline before date header except for the first one
             if i > 0:
                 print()
             print(f"## {date}")
             
-            if not tasks:
+            if not visible_tasks:
                 print("No tasks for this date")
                 continue
             
             # Sort tasks: incomplete first, then resolved/passed tasks at bottom
-            sorted_tasks = sorted(tasks, key=lambda t: (t.status != ' ', t.status))
+            sorted_tasks = sorted(visible_tasks, key=lambda t: (t.status != ' ', t.status))
             
             for task in sorted_tasks:
                 print(self._format_daily_task(task, widths))

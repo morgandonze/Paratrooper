@@ -2008,6 +2008,103 @@ class TestDisplayOperationsFix(unittest.TestCase):
         finally:
             sys.stdout = old_stdout
 
+    def test_daily_display_excludes_snoozed_tasks(self):
+        """Test that tasks with future activity dates are excluded from daily display"""
+        # Create test content with snoozed and normal tasks
+        today = datetime.now().strftime("%d-%m-%Y")
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%d-%m-%Y")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        
+        content = f"""# DAILY
+
+## {today}
+- [ ] #001 | Normal task | WORK | {yesterday}
+- [ ] #002 | Snoozed task | WORK | {tomorrow}
+- [ ] #003 | Another normal task | WORK | {yesterday}
+
+# MAIN
+
+## WORK
+- [ ] #001 | Normal task | WORK | {yesterday}
+- [ ] #002 | Snoozed task | WORK | {tomorrow}
+- [ ] #003 | Another normal task | WORK | {yesterday}
+
+# ARCHIVE
+"""
+        
+        # Write test content to file
+        self.tm.write_file(content)
+        
+        # Capture output from show_daily_list
+        import io
+        import sys
+        captured_output = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
+        
+        try:
+            self.tm.show_daily_list()
+            output = captured_output.getvalue()
+            
+            # Verify that snoozed task is NOT in the output
+            self.assertNotIn("Snoozed task", output, "Snoozed task should not appear in daily display")
+            
+            # Verify that normal tasks ARE in the output
+            self.assertIn("Normal task", output, "Normal task should appear in daily display")
+            self.assertIn("Another normal task", output, "Another normal task should appear in daily display")
+            
+            # Verify the output contains the expected structure
+            self.assertIn("=== Daily Tasks ===", output, "Should contain daily tasks header")
+            self.assertIn(f"## {today}", output, "Should contain today's date header")
+            
+        finally:
+            sys.stdout = old_stdout
+
+    def test_is_task_snoozed_helper_method(self):
+        """Test the _is_task_snoozed helper method"""
+        today = datetime.now().strftime("%d-%m-%Y")
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%d-%m-%Y")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%d-%m-%Y")
+        
+        # Test normal task (past date)
+        normal_task = Task(
+            id="001",
+            text="Normal task",
+            status=" ",
+            date=yesterday,
+            section="WORK"
+        )
+        self.assertFalse(self.tm._is_task_snoozed(normal_task), "Normal task should not be snoozed")
+        
+        # Test snoozed task (future date)
+        snoozed_task = Task(
+            id="002", 
+            text="Snoozed task",
+            status=" ",
+            date=tomorrow,  # Future date = snoozed
+            section="WORK"
+        )
+        self.assertTrue(self.tm._is_task_snoozed(snoozed_task), "Task with future date should be snoozed")
+        
+        # Test task without date
+        no_date_task = Task(
+            id="003", 
+            text="No date task", 
+            status=" ", 
+            section="WORK"
+        )
+        self.assertFalse(self.tm._is_task_snoozed(no_date_task), "Task without date should not be snoozed")
+        
+        # Test task with today's date
+        today_task = Task(
+            id="004",
+            text="Today task",
+            status=" ",
+            date=today,
+            section="WORK"
+        )
+        self.assertFalse(self.tm._is_task_snoozed(today_task), "Task with today's date should not be snoozed")
+
 
 class TestRecurringTaskBugFix(unittest.TestCase):
     """Test the recurring task bug fix - ensures daily tasks appear every day regardless of completion"""
